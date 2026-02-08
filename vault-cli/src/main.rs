@@ -112,10 +112,6 @@ enum Commands {
 
     /// Test connection to Vault
     Ping,
-
-    /// Show CLI version
-    #[command(name = "--version")]
-    Version,
 }
 
 #[derive(Subcommand)]
@@ -839,10 +835,6 @@ async fn main() -> Result<()> {
 
         Commands::Ping => {
             commands::ping::ping(&api_url).await?;
-        }
-
-        Commands::Version => {
-            println!("Vault CLI {}", vault_core::VERSION);
         }
     }
 
