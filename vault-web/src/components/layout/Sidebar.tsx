@@ -113,6 +113,7 @@ interface SidebarProps {
   isCollapsed: boolean
   onToggle: () => void
   onLogout?: () => void
+  items?: NavItem[]
   user?: {
     name?: string
     email?: string
@@ -120,10 +121,11 @@ interface SidebarProps {
   }
 }
 
-export function Sidebar({ isCollapsed, onToggle, onLogout, user }: SidebarProps) {
+export function Sidebar({ isCollapsed, onToggle, onLogout, user, items }: SidebarProps) {
   const location = useLocation()
   const [expandedItems, setExpandedItems] = React.useState<string[]>(['Tenants'])
   const prefersReducedMotion = useReducedMotion()
+  const navList = items ?? navItems
 
   const toggleExpand = (title: string) => {
     setExpandedItems((prev) =>
@@ -176,7 +178,7 @@ export function Sidebar({ isCollapsed, onToggle, onLogout, user }: SidebarProps)
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3">
         <ul className="space-y-1">
-          {navItems.map((item) => {
+          {navList.map((item) => {
             const active = isActive(item.href)
             const hasChildren = item.children && item.children.length > 0
             const isExpanded = expandedItems.includes(item.title)

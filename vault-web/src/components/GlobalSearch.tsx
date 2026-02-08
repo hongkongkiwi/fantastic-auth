@@ -34,7 +34,11 @@ interface SearchItem {
   section: string
 }
 
-export function GlobalSearch() {
+interface GlobalSearchProps {
+  items?: SearchItem[]
+}
+
+export function GlobalSearch({ items }: GlobalSearchProps) {
   const [isOpen, setIsOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const [selectedIndex, setSelectedIndex] = React.useState(0)
@@ -60,7 +64,7 @@ export function GlobalSearch() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const searchItems: SearchItem[] = [
+  const searchItems: SearchItem[] = items ?? [
     // Navigation
     {
       id: 'dashboard',

@@ -81,4 +81,27 @@ describe('fetchWithRetry', () => {
     })
     expect(client).toEqual({ config: { baseUrl: 'https://api.example.com', fetch: expect.any(Function) } })
   })
+
+  it('uses default retry options when not provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const res = await fetchWithRetry('https://example.com')
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('handles null responses as retryable', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(null)
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const res = await fetchWithRetry('https://example.com', { method: 'GET' }, { retries: 0 })
+    expect(res).toBeNull()
+  })
+
+  it('throws request failed when retries are negative', async () => {
+    await expect(
+      fetchWithRetry('https://example.com', { method: 'GET' }, { retries: -1 })
+    ).rejects.toThrow('Request failed')
+  })
 })

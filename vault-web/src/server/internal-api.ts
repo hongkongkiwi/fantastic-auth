@@ -181,6 +181,16 @@ type GenerateInvoiceInput = {
   description?: string
 } & UiAuth
 
+type ListPlatformInvoicesInput = {
+  baseUrl?: string
+  page?: number
+  perPage?: number
+  tenantId?: string
+  status?: string
+  createdFrom?: string
+  createdTo?: string
+} & UiAuth
+
 type GetUsageAnalyticsInput = {
   baseUrl?: string
   metric: 'activeUsers' | 'logins' | 'apiCalls' | 'storage'
@@ -1049,12 +1059,23 @@ export const listServiceStatus = createServerFn({ method: 'GET' })
 
 export const listPlatformInvoices = createServerFn({ method: 'GET' })
   .middleware([authMiddleware])
+  .inputValidator((input: ListPlatformInvoicesInput) => input)
   .handler(async ({ data }) => {
     requireUiToken(data)
     const client = getClient(data?.baseUrl)
     const apiKey = env.INTERNAL_API_KEY
 
     const { data: payload, error, response } = await client.GET('/billing/invoices', {
+      params: {
+        query: {
+          page: data.page,
+          perPage: data.perPage,
+          tenantId: data.tenantId,
+          status: data.status,
+          createdFrom: data.createdFrom,
+          createdTo: data.createdTo,
+        },
+      },
       headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
     })
 
@@ -1062,7 +1083,7 @@ export const listPlatformInvoices = createServerFn({ method: 'GET' })
       throw new Error(normalizeApiError(error, response))
     }
 
-    return payload ?? { invoices: [] }
+    return payload ?? { invoices: [], pagination: undefined }
   })
 
 export const updateTenant = createServerFn({ method: 'POST' })

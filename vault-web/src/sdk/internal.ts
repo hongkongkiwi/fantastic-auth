@@ -2080,7 +2080,14 @@ export interface operations {
     };
     listPlatformInvoices: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number;
+                perPage?: number;
+                tenantId?: string;
+                status?: "draft" | "open" | "paid" | "uncollectible" | "void";
+                createdFrom?: string;
+                createdTo?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2095,6 +2102,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         invoices?: components["schemas"]["InvoiceResponse"][];
+                        pagination?: components["schemas"]["PaginationResponse"];
                     };
                 };
             };
