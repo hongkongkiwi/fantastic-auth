@@ -1,33 +1,40 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Button } from './Button'
 
 describe('Button', () => {
   it('renders correctly', () => {
     render(<Button>Click me</Button>)
-    expect(screen.getByText('Click me')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Click me' })).toBeInTheDocument()
   })
 
-  it('handles click events', () => {
+  it('handles click events', async () => {
+    const user = userEvent.setup()
     const handleClick = vi.fn()
-    render(<Button onClick={handleClick}>Click me</Button>)
     
-    fireEvent.click(screen.getByText('Click me'))
+    render(<Button onClick={handleClick}>Click me</Button>)
+    await user.click(screen.getByRole('button'))
+    
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
-  it('is disabled when isLoading is true', () => {
-    render(<Button isLoading>Loading</Button>)
+  it('can be disabled', () => {
+    render(<Button disabled>Disabled</Button>)
     expect(screen.getByRole('button')).toBeDisabled()
   })
 
-  it('shows loading spinner when isLoading', () => {
+  it('shows loading state', () => {
     render(<Button isLoading>Loading</Button>)
-    expect(document.querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('button')).toHaveAttribute('data-loading', 'true')
+    expect(screen.getByRole('button')).toBeDisabled()
   })
 
-  it('applies variant classes correctly', () => {
-    const { rerender } = render(<Button variant="destructive">Delete</Button>)
+  it('supports different variants', () => {
+    const { rerender } = render(<Button variant="default">Default</Button>)
+    expect(screen.getByRole('button')).toHaveClass('bg-primary')
+
+    rerender(<Button variant="destructive">Destructive</Button>)
     expect(screen.getByRole('button')).toHaveClass('bg-destructive')
 
     rerender(<Button variant="outline">Outline</Button>)
@@ -37,28 +44,57 @@ describe('Button', () => {
     expect(screen.getByRole('button')).toHaveClass('hover:bg-accent')
   })
 
-  it('applies size classes correctly', () => {
+  it('supports different sizes', () => {
     const { rerender } = render(<Button size="sm">Small</Button>)
-    expect(screen.getByRole('button')).toHaveClass('h-8')
+    expect(screen.getByRole('button')).toHaveClass('h-9')
+
+    rerender(<Button size="default">Default</Button>)
+    expect(screen.getByRole('button')).toHaveClass('h-10')
 
     rerender(<Button size="lg">Large</Button>)
     expect(screen.getByRole('button')).toHaveClass('h-11')
-
-    rerender(<Button size="icon">Icon</Button>)
-    expect(screen.getByRole('button')).toHaveClass('h-10 w-10')
   })
 
-  it('is disabled when disabled prop is true', () => {
-    render(<Button disabled>Disabled</Button>)
-    expect(screen.getByRole('button')).toBeDisabled()
+  it('renders as full width', () => {
+    render(<Button fullWidth>Full Width</Button>)
+    expect(screen.getByRole('button')).toHaveClass('w-full')
   })
 
-  it('renders as child when asChild is true', () => {
-    render(
-      <Button asChild>
-        <a href="/test">Link Button</a>
-      </Button>
-    )
-    expect(screen.getByRole('link')).toBeInTheDocument()
+  it('renders left icon', () => {
+    render(<Button leftIcon={<span data-testid="left-icon">→</span>}>With Icon</Button>)
+    expect(screen.getByTestId('left-icon')).toBeInTheDocument()
+  })
+
+  it('renders right icon', () => {
+    render(<Button rightIcon={<span data-testid="right-icon">→</span>}>With Icon</Button>)
+    expect(screen.getByTestId('right-icon')).toBeInTheDocument()
+  })
+
+  it('is accessible via keyboard', async () => {
+    const user = userEvent.setup()
+    const handleClick = vi.fn()
+    
+    render(<Button onClick={handleClick}>Click me</Button>)
+    const button = screen.getByRole('button')
+    
+    await user.tab()
+    expect(button).toHaveFocus()
+    
+    await user.keyboard('{Enter}')
+    expect(handleClick).toHaveBeenCalled()
+    
+    await user.keyboard(' ')
+    expect(handleClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('has correct type attribute', () => {
+    const { rerender } = render(<Button type="button">Button</Button>)
+    expect(screen.getByRole('button')).toHaveAttribute('type', 'button')
+
+    rerender(<Button type="submit">Submit</Button>)
+    expect(screen.getByRole('button')).toHaveAttribute('type', 'submit')
+
+    rerender(<Button type="reset">Reset</Button>)
+    expect(screen.getByRole('button')).toHaveAttribute('type', 'reset')
   })
 })

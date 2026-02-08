@@ -250,6 +250,8 @@ async fn setup_totp(
             ApiError::Internal
         })?;
 
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
     // Trigger webhook
     crate::webhooks::events::trigger_mfa_enabled(
         &state,
@@ -300,6 +302,8 @@ async fn verify_totp_setup(
             tracing::error!("Failed to verify TOTP method: {}", e);
             ApiError::Internal
         })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
 
     Ok(Json(MessageResponse {
         message: "TOTP MFA enabled successfully".to_string(),
@@ -407,6 +411,8 @@ async fn disable_mfa(
             ApiError::Internal
         })?;
 
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
     // Trigger webhook
     crate::webhooks::events::trigger_mfa_disabled(
         &state,
@@ -488,6 +494,8 @@ async fn finish_webauthn_registration(
             tracing::error!("Failed to store WebAuthn credential: {}", e);
             ApiError::Internal
         })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
 
     // Trigger webhook
     crate::webhooks::events::trigger_mfa_enabled(
@@ -692,6 +700,8 @@ async fn verify_sms_setup(
             tracing::error!("Failed to create SMS MFA method: {}", e);
             ApiError::Internal
         })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
 
     // Trigger webhook
     crate::webhooks::events::trigger_mfa_enabled(

@@ -121,12 +121,12 @@ function OAuthCallbackContent() {
   const handleContinue = () => {
     if (requiresMfa && mfaToken) {
       navigate({
-        to: '/hosted/mfa',
+        to: '/hosted/mfa' as any,
         search: {
           tenant_id: tenantId,
           mfa_token: mfaToken,
           redirect_url: redirectUrl || undefined,
-        },
+        } as any,
       })
     } else {
       const targetUrl = redirectUrl || config.afterSignInUrl || '/hosted/sign-in'
@@ -222,8 +222,8 @@ function OAuthCallbackContent() {
 
             <div className="space-y-3">
               <Link
-                to="/hosted/sign-in"
-                search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined }}
+                to={'/hosted/sign-in' as any}
+                search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any}
                 className="block"
               >
                 <Button fullWidth>
@@ -233,8 +233,8 @@ function OAuthCallbackContent() {
               
               {config.allowSignUp && (
                 <Link
-                  to="/hosted/sign-up"
-                  search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined }}
+                  to={'/hosted/sign-up' as any}
+                  search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any}
                   className="block"
                 >
                   <Button variant="outline" fullWidth>
