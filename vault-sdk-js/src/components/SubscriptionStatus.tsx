@@ -191,9 +191,9 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
     <div
       className={`vault-subscription-status ${className}`}
       style={{
-        '--vault-primary': appearance?.variables?.primary,
-        '--vault-background': appearance?.variables?.background,
-        '--vault-foreground': appearance?.variables?.foreground,
+        '--vault-primary': appearance?.variables?.colorPrimary,
+        '--vault-background': appearance?.variables?.colorBackground,
+        '--vault-foreground': appearance?.variables?.colorText,
       } as React.CSSProperties}
     >
       {/* Status Header */}
@@ -542,8 +542,8 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({
     <div
       className={`vault-usage-meter ${className} ${isOverLimit ? 'over-limit' : ''} ${isNearLimit ? 'near-limit' : ''}`}
       style={{
-        '--vault-primary': appearance?.variables?.primary,
-        '--vault-foreground': appearance?.variables?.foreground,
+        '--vault-primary': appearance?.variables?.colorPrimary,
+        '--vault-foreground': appearance?.variables?.colorText,
       } as React.CSSProperties}
     >
       {/* Progress Bar */}
@@ -726,7 +726,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
       <div
         className={`vault-invoice-list empty ${className}`}
         style={{
-          '--vault-foreground': appearance?.variables?.foreground,
+          '--vault-foreground': appearance?.variables?.colorText,
         } as React.CSSProperties}
       >
         <p className="vault-invoice-empty-message">{emptyMessage}</p>
@@ -738,9 +738,9 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
     <div
       className={`vault-invoice-list ${className}`}
       style={{
-        '--vault-primary': appearance?.variables?.primary,
-        '--vault-background': appearance?.variables?.background,
-        '--vault-foreground': appearance?.variables?.foreground,
+        '--vault-primary': appearance?.variables?.colorPrimary,
+        '--vault-background': appearance?.variables?.colorBackground,
+        '--vault-foreground': appearance?.variables?.colorText,
       } as React.CSSProperties}
     >
       <table className="vault-invoice-table">

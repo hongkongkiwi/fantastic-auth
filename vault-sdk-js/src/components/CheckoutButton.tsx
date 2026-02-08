@@ -74,9 +74,9 @@ export const CheckoutButton: React.FC<CheckoutButtonProps> = ({
       disabled={isDisabled}
       type="button"
       style={{
-        '--vault-primary': appearance?.variables?.primary,
-        '--vault-background': appearance?.variables?.background,
-        '--vault-foreground': appearance?.variables?.foreground,
+        '--vault-primary': appearance?.variables?.colorPrimary,
+        '--vault-background': appearance?.variables?.colorBackground,
+        '--vault-foreground': appearance?.variables?.colorText,
       } as React.CSSProperties}
     >
       {isLoading ? (

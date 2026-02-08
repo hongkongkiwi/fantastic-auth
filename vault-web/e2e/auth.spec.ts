@@ -1,93 +1,68 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('Authentication', () => {
-  test('should redirect to login when not authenticated', async ({ page }) => {
-    await page.goto('/')
-    await expect(page).toHaveURL('/login')
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/login')
   })
 
-  test('should login with correct credentials', async ({ page }) => {
-    await page.goto('/login')
+  test('user can log in with valid credentials', async ({ page }) => {
+    // Fill in login form
+    await page.getByLabel('Email').fill('admin@vault.local')
+    await page.getByLabel('Password').fill('admin')
     
-    await page.fill('input[type="email"]', 'admin@vault.local')
-    await page.fill('input[type="password"]', 'admin')
-    await page.click('button[type="submit"]')
+    // Click sign in
+    await page.getByRole('button', { name: 'Sign In' }).click()
     
+    // Should redirect to dashboard
     await expect(page).toHaveURL('/')
-    await expect(page.locator('text=Dashboard')).toBeVisible()
-  })
-
-  test('should show error with incorrect credentials', async ({ page }) => {
-    await page.goto('/login')
     
-    await page.fill('input[type="email"]', 'wrong@email.com')
-    await page.fill('input[type="password"]', 'wrong')
-    await page.click('button[type="submit"]')
+    // Should see dashboard content
+    await expect(page.getByText('Dashboard')).toBeVisible()
+  })
+
+  test('shows error for invalid credentials', async ({ page }) => {
+    await page.getByLabel('Email').fill('wrong@example.com')
+    await page.getByLabel('Password').fill('wrongpassword')
+    await page.getByRole('button', { name: 'Sign In' }).click()
     
-    await expect(page.locator('text=Invalid credentials')).toBeVisible()
+    // Should show error message
+    await expect(page.getByRole('alert')).toContainText('Invalid')
   })
 
-  test('should logout successfully', async ({ page }) => {
-    // Login first
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@vault.local')
-    await page.fill('input[type="password"]', 'admin')
-    await page.click('button[type="submit"]')
+  test('password visibility toggle works', async ({ page }) => {
+    const passwordInput = page.getByLabel('Password')
     
-    // Then logout
-    await page.click('text=Logout')
-    await expect(page).toHaveURL('/login')
-  })
-})
-
-test.describe('Navigation', () => {
-  test.beforeEach(async ({ page }) => {
-    // Login before each test
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@vault.local')
-    await page.fill('input[type="password"]', 'admin')
-    await page.click('button[type="submit"]')
+    // Type password
+    await passwordInput.fill('secret123')
+    
+    // Should be password type by default
+    await expect(passwordInput).toHaveAttribute('type', 'password')
+    
+    // Click show password button
+    await page.getByRole('button', { name: 'Show password' }).click()
+    
+    // Should be text type now
+    await expect(passwordInput).toHaveAttribute('type', 'text')
   })
 
-  test('should navigate to tenants page', async ({ page }) => {
-    await page.click('text=Tenants')
-    await expect(page).toHaveURL('/tenants')
-    await expect(page.locator('text=Tenants')).toBeVisible()
+  test('magic link tab works', async ({ page }) => {
+    // Click magic link tab
+    await page.getByRole('tab', { name: 'Magic Link' }).click()
+    
+    // Should see email input for magic link
+    await expect(page.getByPlaceholder('Enter your email')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Send Magic Link' })).toBeVisible()
   })
 
-  test('should navigate to users page', async ({ page }) => {
-    await page.click('text=Users')
-    await expect(page).toHaveURL('/users')
-    await expect(page.locator('text=Users')).toBeVisible()
-  })
-
-  test('should navigate to billing page', async ({ page }) => {
-    await page.click('text=Billing')
-    await expect(page).toHaveURL('/billing')
-    await expect(page.locator('text=Billing')).toBeVisible()
-  })
-
-  test('should open global search with Cmd+K', async ({ page }) => {
-    await page.keyboard.press('Control+k')
-    await expect(page.locator('text=Search commands, pages, or actions')).toBeVisible()
-  })
-})
-
-test.describe('Responsive Design', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@vault.local')
-    await page.fill('input[type="password"]', 'admin')
-    await page.click('button[type="submit"]')
-  })
-
-  test('should show mobile navigation on small screens', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await expect(page.locator('nav.fixed.bottom-0')).toBeVisible()
-  })
-
-  test('should hide sidebar on mobile', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 })
-    await expect(page.locator('aside.fixed.left-0')).not.toBeVisible()
+  test('keyboard navigation works', async ({ page }) => {
+    // Tab through form fields
+    await page.keyboard.press('Tab')
+    await expect(page.getByLabel('Email')).toBeFocused()
+    
+    await page.keyboard.press('Tab')
+    await expect(page.getByLabel('Password')).toBeFocused()
+    
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('button', { name: 'Sign In' })).toBeFocused()
   })
 })

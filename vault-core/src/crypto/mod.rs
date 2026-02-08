@@ -21,12 +21,14 @@ use rand::RngCore;
 
 mod jwt;
 mod keys;
+mod symmetric;
 mod tokens;
 
 pub use jwt::{
     AuthMethod, Claims, HybridJwt, StepUpChallenge, StepUpLevel, StepUpSession, TokenType,
 };
 pub use keys::{KeyManager, KeyPair, KeyType};
+pub use symmetric::{decrypt_from_base64, encrypt_to_base64};
 pub use tokens::{CsrfToken, MagicLinkToken, OtpCode, RefreshToken};
 
 /// Size of Ed25519 signature

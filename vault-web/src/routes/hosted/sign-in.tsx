@@ -14,7 +14,7 @@ import { Input } from '../../components/ui/Input'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs'
 import { Alert, AlertDescription } from '../../components/ui/Alert'
-import { useForm, type ReactFormExtendedApi } from '@tanstack/react-form'
+import { useForm } from '@tanstack/react-form'
 import { HostedLayout } from '../../hosted/HostedLayout'
 import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedSignIn, hostedSendMagicLink, hostedOAuthStart } from '../../hosted/api'
@@ -290,10 +290,8 @@ function SignInContent() {
   )
 }
 
-type AnyReactFormApi = ReactFormExtendedApi<any, any, any, any, any, any, any, any, any, any, any, any>
-
 interface PasswordFormProps {
-  form: AnyReactFormApi
+  form: any
   showPassword: boolean
   setShowPassword: (value: boolean) => void
   isLoading: boolean
@@ -395,7 +393,7 @@ function PasswordForm({ form, showPassword, setShowPassword, isLoading, config }
 }
 
 interface MagicLinkFormProps {
-  form: AnyReactFormApi
+  form: any
   isLoading: boolean
 }
 
