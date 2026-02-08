@@ -444,6 +444,40 @@ impl MfaRepository {
         Ok(method)
     }
 
+    /// Create Email MFA method
+    pub async fn create_email_method(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<MfaMethod, sqlx::Error> {
+        let id = uuid::Uuid::new_v4().to_string();
+
+        let method = sqlx::query_as::<_, MfaMethod>(
+            r#"
+            INSERT INTO user_mfa_methods (
+                id, user_id, tenant_id, method_type,
+                verified, enabled, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, true, true, NOW(), NOW())
+            ON CONFLICT (user_id, tenant_id, method_type) 
+            DO UPDATE SET 
+                verified = true,
+                enabled = true,
+                updated_at = NOW()
+            RETURNING id, user_id, tenant_id, method_type, secret_encrypted,
+                      public_key, credential_id, verified, enabled, created_at,
+                      updated_at, last_used_at
+            "#,
+        )
+        .bind(&id)
+        .bind(user_id)
+        .bind(tenant_id)
+        .bind(MfaMethodType::Email)
+        .fetch_one(&*self.pool)
+        .await?;
+
+        Ok(method)
+    }
+
     /// Get SMS phone number for user
     pub async fn get_sms_phone_number(
         &self,

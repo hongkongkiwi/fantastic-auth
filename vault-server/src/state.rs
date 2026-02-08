@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use base64::Engine;
 use vault_core::auth::AuthService;
-use vault_core::email::{EmailService, SmtpEmailService};
+use vault_core::email::{EmailRequest, EmailService, SmtpEmailService};
 use vault_core::security::bot_protection::{
     BotProtection, CloudflareTurnstile, DisabledBotProtection, HCaptcha,
 };
@@ -113,33 +113,68 @@ impl AppState {
                 None
             };
 
+        // Initialize SMS service if configured (used by AuthService for MFA)
+        let sms_service = initialize_sms_service(&config, redis.clone()).await;
+
         let data_encryption_key = Arc::new(load_data_encryption_key()?);
 
         // Initialize auth service with database
         let db_context = Arc::new(vault_core::db::DbContext::new(db.pool().clone()));
         let base_url = format!("https://{}:{}", config.host, config.port);
-        let auth_service = match &config.redis_url {
-            Some(redis_url) => Arc::new(
-                AuthService::with_redis(
-                    &config.jwt.issuer,
-                    &config.jwt.audience,
-                    db_context,
-                    &base_url,
-                    redis_url,
-                )
-                .await?
-                .with_data_encryption_key((*data_encryption_key).clone()),
-            ),
-            None => Arc::new(
-                AuthService::new(
-                    &config.jwt.issuer,
-                    &config.jwt.audience,
-                    db_context,
-                    &base_url,
-                )
-                .with_data_encryption_key((*data_encryption_key).clone()),
+        let mut auth_service = match &config.redis_url {
+            Some(redis_url) => AuthService::with_redis(
+                &config.jwt.issuer,
+                &config.jwt.audience,
+                db_context,
+                &base_url,
+                redis_url,
+            )
+            .await?,
+            None => AuthService::new(
+                &config.jwt.issuer,
+                &config.jwt.audience,
+                db_context,
+                &base_url,
             ),
         };
+
+        if let (Some(ref email_service), Some(ref smtp_config)) = (&email_service, &config.smtp) {
+            let from_address = smtp_config.from_address.clone();
+            let from_name = smtp_config.from_name.clone();
+            let email_service = email_service.clone();
+            auth_service = auth_service.with_email_sender(move |payload| {
+                let email_service = email_service.clone();
+                let from_address = from_address.clone();
+                let from_name = from_name.clone();
+                async move {
+                    email_service
+                        .send_email(EmailRequest {
+                            to: payload.to,
+                            to_name: None,
+                            subject: payload.subject,
+                            html_body: payload.html_body,
+                            text_body: payload.text_body,
+                            from: from_address,
+                            from_name,
+                            reply_to: None,
+                            headers: std::collections::HashMap::new(),
+                        })
+                        .await
+                        .map_err(|e| vault_core::error::VaultError::internal(format!(
+                            "Failed to send email: {}",
+                            e
+                        )))
+                }
+            });
+        }
+
+        if let Some(ref sms_service) = sms_service {
+            auth_service = auth_service.with_sms_service(sms_service.clone());
+        }
+
+        let auth_service = Arc::new(
+            auth_service.with_data_encryption_key((*data_encryption_key).clone()),
+        );
 
         // Initialize WebAuthn service
         let rp_id = config
@@ -231,9 +266,6 @@ impl AppState {
         // Initialize step-up policy (in production, this could be loaded from config/database)
         let step_up_policy = StepUpPolicy::new();
         let step_up_max_age_minutes = 10; // Default 10 minutes
-        
-        // Initialize SMS service if configured
-        let sms_service = initialize_sms_service(&config, redis.clone()).await;
         
         // Initialize i18n service
         let i18n = Arc::new(I18n::new()?);

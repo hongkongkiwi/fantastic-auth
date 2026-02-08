@@ -2,6 +2,7 @@
 //!
 //! Provides repository implementations for database access with tenant isolation.
 
+pub mod biometric;
 pub mod mfa;
 pub mod organizations;
 pub mod sessions;
@@ -12,6 +13,7 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::task_local;
 
+pub use biometric::BiometricRepository;
 pub use mfa::MfaRepository;
 pub use organizations::OrganizationRepository;
 pub use sessions::SessionRepository;
@@ -122,6 +124,11 @@ impl DbContext {
     /// MFA repository
     pub fn mfa(&self) -> MfaRepository {
         MfaRepository::new(self.pool.clone())
+    }
+
+    /// Biometric repository
+    pub fn biometric(&self) -> BiometricRepository {
+        BiometricRepository::new(self.pool.clone())
     }
 
     /// Set tenant context for RLS

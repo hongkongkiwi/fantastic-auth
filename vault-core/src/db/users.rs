@@ -723,6 +723,71 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Set Email OTP code for MFA verification
+    pub async fn set_email_otp(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        code: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+        max_attempts: u32,
+    ) -> Result<()> {
+        let mut config = self.get_mfa_config(tenant_id, user_id).await?;
+
+        if !config.is_object() {
+            config = serde_json::json!({});
+        }
+
+        if let Some(obj) = config.as_object_mut() {
+            obj.insert(
+                "email".to_string(),
+                serde_json::json!({
+                    "current_code": code,
+                    "expires_at": expires_at,
+                    "attempts": 0,
+                    "max_attempts": max_attempts,
+                    "sent_at": chrono::Utc::now(),
+                }),
+            );
+        }
+
+        self.update_mfa_config(tenant_id, user_id, &config).await
+    }
+
+    /// Increment Email OTP attempt counter
+    pub async fn increment_email_otp_attempt(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+    ) -> Result<(u32, u32)> {
+        let mut config = self.get_mfa_config(tenant_id, user_id).await?;
+
+        if let Some(mut email_config) = config.get("email").cloned() {
+            if let Some(obj) = email_config.as_object_mut() {
+                let attempts = obj
+                    .get("attempts")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
+                    .saturating_add(1);
+                let max_attempts = obj
+                    .get("max_attempts")
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(5);
+                obj.insert("attempts".to_string(), serde_json::json!(attempts));
+
+                let new_config = serde_json::json!({
+                    "email": email_config
+                });
+                self.update_mfa_config(tenant_id, user_id, &new_config)
+                    .await?;
+
+                return Ok((attempts as u32, max_attempts as u32));
+            }
+        }
+
+        Ok((0, 0))
+    }
+
     /// Clear Email OTP code after use
     pub async fn clear_email_otp(&self, tenant_id: &str, user_id: &str) -> Result<()> {
         let config = self.get_mfa_config(tenant_id, user_id).await?;

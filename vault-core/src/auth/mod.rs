@@ -21,6 +21,7 @@ use crate::email::templates::{
 use crate::error::{Result, VaultError};
 use crate::models::session::Session;
 use crate::models::user::{User, UserStatus};
+use crate::sms::SmsService;
 use chrono::{DateTime, Duration, Utc};
 use std::sync::Arc;
 
@@ -82,6 +83,8 @@ pub struct AuthService {
     token_store: Arc<dyn TokenStore>,
     /// Optional data encryption key (AES-256-GCM)
     data_encryption_key: Option<Vec<u8>>,
+    /// Optional SMS service for MFA
+    sms_service: Option<Arc<SmsService>>,
 }
 
 impl AuthService {
@@ -103,6 +106,7 @@ impl AuthService {
             base_url: base_url.into(),
             token_store: Arc::new(InMemoryTokenStore::new()),
             data_encryption_key: None,
+            sms_service: None,
         }
     }
 
@@ -131,6 +135,7 @@ impl AuthService {
             base_url: base_url.into(),
             token_store: Arc::new(token_store),
             data_encryption_key: None,
+            sms_service: None,
         })
     }
 
@@ -153,12 +158,19 @@ impl AuthService {
             base_url: base_url.into(),
             token_store,
             data_encryption_key: None,
+            sms_service: None,
         }
     }
 
     /// Set data encryption key (AES-256-GCM)
     pub fn with_data_encryption_key(mut self, key: Vec<u8>) -> Self {
         self.data_encryption_key = Some(key);
+        self
+    }
+
+    /// Set SMS service for MFA
+    pub fn with_sms_service(mut self, sms_service: Arc<SmsService>) -> Self {
+        self.sms_service = Some(sms_service);
         self
     }
 
@@ -934,6 +946,27 @@ impl AuthService {
                     if let Some(email_config) = mfa_config.get("email") {
                         let expected_code =
                             email_config.get("current_code").and_then(|c| c.as_str());
+                        let expires_at = email_config
+                            .get("expires_at")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                            .map(|dt| dt.with_timezone(&chrono::Utc));
+                        let attempts = email_config.get("attempts").and_then(|v| v.as_u64());
+                        let max_attempts = email_config.get("max_attempts").and_then(|v| v.as_u64());
+
+                        if let Some(expires) = expires_at {
+                            if chrono::Utc::now() > expires {
+                                self.db.users().clear_email_otp(&tenant_id, &user.id).await.ok();
+                                continue;
+                            }
+                        }
+
+                        if let (Some(attempts), Some(max)) = (attempts, max_attempts) {
+                            if attempts >= max {
+                                self.db.users().clear_email_otp(&tenant_id, &user.id).await.ok();
+                                continue;
+                            }
+                        }
 
                         if let Some(expected) = expected_code {
                             if crate::crypto::secure_compare(code.as_bytes(), expected.as_bytes()) {
@@ -944,6 +977,22 @@ impl AuthService {
                                     .await
                                     .ok();
                                 return Ok(true);
+                            } else {
+                                // Increment attempts
+                                if let Ok((attempts, max)) = self
+                                    .db
+                                    .users()
+                                    .increment_email_otp_attempt(&tenant_id, &user.id)
+                                    .await
+                                {
+                                    if max > 0 && attempts >= max {
+                                        self.db
+                                            .users()
+                                            .clear_email_otp(&tenant_id, &user.id)
+                                            .await
+                                            .ok();
+                                    }
+                                }
                             }
                         }
                     }
@@ -978,8 +1027,22 @@ impl AuthService {
                     continue;
                 }
                 MfaMethod::Sms => {
-                    // Similar to Email OTP
-                    if let Some(sms_config) = mfa_config.get("sms") {
+                    // Prefer SMS service verification if configured
+                    if let Some(service) = &self.sms_service {
+                        if let Ok(Some(phone)) = self
+                            .db
+                            .mfa()
+                            .get_sms_phone_number(&tenant_id, &user.id)
+                            .await
+                        {
+                            if let Ok(valid) = service.verify_code(&phone, &code).await {
+                                if valid {
+                                    return Ok(true);
+                                }
+                            }
+                        }
+                    } else if let Some(sms_config) = mfa_config.get("sms") {
+                        // Fallback to stored OTP if present
                         let expected_code = sms_config.get("current_code").and_then(|c| c.as_str());
 
                         if let Some(expected) = expected_code {

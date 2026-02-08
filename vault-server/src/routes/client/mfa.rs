@@ -7,6 +7,8 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use vault_core::email::EmailRequest;
 
 use crate::auth::SensitiveOperation;
 use crate::middleware::require_step_up_for_operation;
@@ -23,6 +25,8 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/totp/verify", post(verify_totp_setup))
         .route("/me/mfa/totp/verify-code", post(verify_totp_code))
         .route("/me/mfa/backup-codes/verify", post(verify_backup_code))
+        .route("/me/mfa/email/send", post(send_email_code))
+        .route("/me/mfa/email/verify-code", post(verify_email_code))
         .route("/me/mfa/sms/send", post(send_sms_code))
         .route("/me/mfa/sms/verify-code", post(verify_sms_code));
 
@@ -33,6 +37,8 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/webauthn/register/begin", post(begin_webauthn_registration))
         .route("/me/mfa/webauthn/register/finish", post(finish_webauthn_registration))
         .route("/me/mfa/backup-codes", post(generate_backup_codes))
+        .route("/me/mfa/email/setup", post(setup_email))
+        .route("/me/mfa/email/verify", post(verify_email_setup))
         .route("/me/mfa/sms/setup", post(setup_sms))
         .route("/me/mfa/sms/verify", post(verify_sms_setup))
         .route_layer(middleware::from_fn(require_step_up_enable_mfa));
@@ -162,6 +168,18 @@ struct SmsStatusResponse {
 struct SmsSendRequest {
     #[serde(rename = "phoneNumber")]
     phone_number: Option<String>, // Optional - uses registered number if not provided
+}
+
+#[derive(Debug, Serialize)]
+struct EmailSetupResponse {
+    message: String,
+    #[serde(rename = "expiresInMinutes")]
+    expires_in_minutes: i64,
+}
+
+#[derive(Debug, Deserialize)]
+struct EmailVerifyRequest {
+    code: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -612,6 +630,126 @@ async fn verify_backup_code(
     }))
 }
 
+/// Setup Email MFA - send verification code
+async fn setup_email(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<EmailSetupResponse>, ApiError> {
+    send_email_otp(&state, &current_user.tenant_id, &current_user.user_id, &current_user.email)
+        .await
+}
+
+/// Verify Email MFA setup code and enable Email MFA
+async fn verify_email_setup(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<EmailVerifyRequest>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    let valid = verify_email_otp(
+        &state,
+        &current_user.tenant_id,
+        &current_user.user_id,
+        &req.code,
+    )
+    .await?;
+
+    if !valid {
+        return Ok(Json(MessageResponse {
+            message: "Invalid verification code".to_string(),
+        }));
+    }
+
+    state
+        .db
+        .mfa()
+        .create_email_method(&current_user.tenant_id, &current_user.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create Email MFA method: {}", e);
+            ApiError::Internal
+        })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
+    crate::webhooks::events::trigger_mfa_enabled(
+        &state,
+        &current_user.tenant_id,
+        &current_user.user_id,
+        &current_user.email,
+        "email",
+    )
+    .await;
+
+    Ok(Json(MessageResponse {
+        message: "Email MFA enabled successfully".to_string(),
+    }))
+}
+
+/// Send Email MFA code for login verification
+async fn send_email_code(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<EmailSetupResponse>, ApiError> {
+    // Ensure email MFA is enabled
+    let methods = state
+        .db
+        .mfa()
+        .get_enabled_methods(&current_user.tenant_id, &current_user.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load MFA methods: {}", e);
+            ApiError::Internal
+        })?;
+
+    let has_email = methods.iter().any(|m| {
+        matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Email) && m.enabled
+    });
+
+    if !has_email {
+        return Err(ApiError::BadRequest("Email MFA not enabled".to_string()));
+    }
+
+    send_email_otp(&state, &current_user.tenant_id, &current_user.user_id, &current_user.email)
+        .await
+}
+
+/// Verify Email MFA code for login
+async fn verify_email_code(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<EmailVerifyRequest>,
+) -> Result<Json<VerifyCodeResponse>, ApiError> {
+    let valid = verify_email_otp(
+        &state,
+        &current_user.tenant_id,
+        &current_user.user_id,
+        &req.code,
+    )
+    .await?;
+
+    if valid {
+        state
+            .db
+            .mfa()
+            .mark_method_used(
+                &current_user.tenant_id,
+                &current_user.user_id,
+                vault_core::db::mfa::MfaMethodType::Email,
+            )
+            .await
+            .ok();
+    }
+
+    Ok(Json(VerifyCodeResponse {
+        valid,
+        message: if valid {
+            "Code verified".to_string()
+        } else {
+            "Invalid or expired code".to_string()
+        },
+    }))
+}
+
 /// Setup SMS MFA - send verification code
 async fn setup_sms(
     State(state): State<AppState>,
@@ -938,6 +1076,162 @@ fn get_sms_service(state: &AppState) -> Result<std::sync::Arc<vault_core::sms::S
         .ok_or_else(|| ApiError::BadRequest("SMS service not configured".to_string()))
 }
 
+fn get_email_service(state: &AppState) -> Result<std::sync::Arc<dyn vault_core::email::EmailService>, ApiError> {
+    state
+        .email_service
+        .clone()
+        .ok_or_else(|| ApiError::BadRequest("Email service not configured".to_string()))
+}
+
+const EMAIL_OTP_CODE_LENGTH: usize = 6;
+const EMAIL_OTP_EXPIRY_MINUTES: i64 = 10;
+const EMAIL_OTP_MAX_ATTEMPTS: u32 = 5;
+
+fn generate_email_otp_code() -> String {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut code = String::with_capacity(EMAIL_OTP_CODE_LENGTH);
+    for _ in 0..EMAIL_OTP_CODE_LENGTH {
+        let digit = rng.gen_range(0..10);
+        code.push(char::from(b'0' + digit));
+    }
+    code
+}
+
+async fn send_email_otp(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    email: &str,
+) -> Result<Json<EmailSetupResponse>, ApiError> {
+    let code = generate_email_otp_code();
+    let expires_at = chrono::Utc::now() + chrono::Duration::minutes(EMAIL_OTP_EXPIRY_MINUTES);
+
+    state
+        .db
+        .users()
+        .set_email_otp(tenant_id, user_id, &code, expires_at, EMAIL_OTP_MAX_ATTEMPTS)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to store email OTP: {}", e);
+            ApiError::Internal
+        })?;
+
+    let email_service = get_email_service(state)?;
+    let smtp_config = state
+        .config
+        .smtp
+        .as_ref()
+        .ok_or_else(|| ApiError::BadRequest("Email service not configured".to_string()))?;
+
+    let subject = "Your verification code".to_string();
+    let html_body = format!(
+        r#"<p>Your verification code is: <strong>{}</strong></p>
+<p>This code will expire in {} minutes.</p>"#,
+        code, EMAIL_OTP_EXPIRY_MINUTES
+    );
+    let text_body = format!(
+        "Your verification code is: {}\nThis code will expire in {} minutes.",
+        code, EMAIL_OTP_EXPIRY_MINUTES
+    );
+
+    email_service
+        .send_email(EmailRequest {
+            to: email.to_string(),
+            to_name: None,
+            subject,
+            html_body,
+            text_body,
+            from: smtp_config.from_address.clone(),
+            from_name: smtp_config.from_name.clone(),
+            reply_to: None,
+            headers: HashMap::new(),
+        })
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send email OTP: {}", e);
+            ApiError::Internal
+        })?;
+
+    Ok(Json(EmailSetupResponse {
+        message: "Verification code sent".to_string(),
+        expires_in_minutes: EMAIL_OTP_EXPIRY_MINUTES,
+    }))
+}
+
+async fn verify_email_otp(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    code: &str,
+) -> Result<bool, ApiError> {
+    let mfa_config = state
+        .db
+        .users()
+        .get_mfa_config(tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load MFA config: {}", e);
+            ApiError::Internal
+        })?;
+
+    let Some(email_config) = mfa_config.get("email") else {
+        return Ok(false);
+    };
+
+    let expires_at = email_config
+        .get("expires_at")
+        .and_then(|v| v.as_str())
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+
+    if let Some(expires) = expires_at {
+        if chrono::Utc::now() > expires {
+            state
+                .db
+                .users()
+                .clear_email_otp(tenant_id, user_id)
+                .await
+                .ok();
+            return Ok(false);
+        }
+    }
+
+    let expected = email_config
+        .get("current_code")
+        .and_then(|c| c.as_str())
+        .unwrap_or("");
+
+    let valid = vault_core::crypto::secure_compare(code.as_bytes(), expected.as_bytes());
+    if valid {
+        state
+            .db
+            .users()
+            .clear_email_otp(tenant_id, user_id)
+            .await
+            .ok();
+        return Ok(true);
+    }
+
+    if let Ok((attempts, max)) = state
+        .db
+        .users()
+        .increment_email_otp_attempt(tenant_id, user_id)
+        .await
+    {
+        if max > 0 && attempts >= max {
+            state
+                .db
+                .users()
+                .clear_email_otp(tenant_id, user_id)
+                .await
+                .ok();
+        }
+    }
+
+    Ok(false)
+}
+
 // Helper functions
 
 async fn sync_user_mfa_methods(
@@ -961,6 +1255,8 @@ async fn sync_user_mfa_methods(
             // Only methods verified by core auth flow
             match m.method_type {
                 vault_core::db::mfa::MfaMethodType::Totp => Some("totp".to_string()),
+                vault_core::db::mfa::MfaMethodType::Email => Some("email".to_string()),
+                vault_core::db::mfa::MfaMethodType::Sms => Some("sms".to_string()),
                 vault_core::db::mfa::MfaMethodType::Webauthn => Some("webauthn".to_string()),
                 _ => None,
             }
