@@ -40,7 +40,8 @@ pub async fn list(
 
     match format {
         OutputFormat::Table => {
-            let users = response.get("users").and_then(|u| u.as_array()).unwrap_or(&vec![]);
+            let empty_vec = vec![];
+            let users = response.get("users").and_then(|u| u.as_array()).unwrap_or(&empty_vec);
             
             if users.is_empty() {
                 println!("No users found");

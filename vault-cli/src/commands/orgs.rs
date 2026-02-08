@@ -36,7 +36,8 @@ pub async fn list(
 
     match format {
         OutputFormat::Table => {
-            let data = response.get("data").and_then(|d| d.as_array()).unwrap_or(&vec![]);
+            let empty_vec = vec![];
+            let data = response.get("data").and_then(|d| d.as_array()).unwrap_or(&empty_vec);
             
             if data.is_empty() {
                 println!("No organizations found");
