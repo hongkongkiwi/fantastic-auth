@@ -2366,6 +2366,352 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  # ============ ANALYTICS ============
+  /analytics/logins:
+    get:
+      summary: Login analytics
+      operationId: getLoginAnalytics
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Login analytics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /analytics/users:
+    get:
+      summary: User analytics
+      operationId: getUserAnalytics
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: User analytics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /analytics/security:
+    get:
+      summary: Security analytics
+      operationId: getSecurityAnalytics
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Security analytics
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /analytics/export:
+    get:
+      summary: Export analytics
+      operationId: exportAnalytics
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: Analytics export
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+
+  # ============ SECURITY ============
+  /security/geo:
+    get:
+      summary: Get geo policy
+      operationId: getGeoPolicy
+      tags: [Security Policies]
+      responses:
+        '200':
+          description: Geo policy
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      summary: Update geo policy
+      operationId: updateGeoPolicy
+      tags: [Security Policies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Geo policy updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /security/vpn-detection:
+    get:
+      summary: Get VPN detection settings
+      operationId: getVpnDetectionSettings
+      tags: [Security Policies]
+      responses:
+        '200':
+          description: VPN detection settings
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      summary: Update VPN detection settings
+      operationId: updateVpnDetectionSettings
+      tags: [Security Policies]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: VPN detection settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ============ SCIM ADMIN ============
+  /scim/tokens:
+    get:
+      summary: List SCIM tokens
+      operationId: listScimTokens
+      tags: [SCIM]
+      responses:
+        '200':
+          description: SCIM tokens
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      summary: Create SCIM token
+      operationId: createScimToken
+      tags: [SCIM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: SCIM token created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /scim/config:
+    get:
+      summary: Get SCIM config
+      operationId: getScimConfig
+      tags: [SCIM]
+      responses:
+        '200':
+          description: SCIM config
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      summary: Update SCIM config
+      operationId: updateScimConfig
+      tags: [SCIM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: SCIM config updated
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /scim/stats:
+    get:
+      summary: Get SCIM stats
+      operationId: getScimStats
+      tags: [SCIM]
+      responses:
+        '200':
+          description: SCIM stats
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ============ API KEYS ============
+  /api-keys:
+    get:
+      summary: List API keys
+      operationId: listApiKeys
+      tags: [System]
+      responses:
+        '200':
+          description: API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      summary: Create API key
+      operationId: createApiKey
+      tags: [System]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /oidc/clients:
+    get:
+      summary: List OIDC clients
+      operationId: listOidcClients
+      tags: [SSO]
+      responses:
+        '200':
+          description: OIDC clients
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      summary: Create OIDC client
+      operationId: createOidcClient
+      tags: [SSO]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OIDC client created
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /bulk/import:
+    post:
+      summary: Start bulk import
+      operationId: startBulkImport
+      tags: [User Management]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Bulk import job
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /bulk/export:
+    post:
+      summary: Start bulk export
+      operationId: startBulkExport
+      tags: [User Management]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Bulk export job
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /migrations:
+    get:
+      summary: List migration jobs
+      operationId: listMigrationJobs
+      tags: [System]
+      responses:
+        '200':
+          description: Migration jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /consents:
+    get:
+      summary: List consent policies
+      operationId: listConsentPolicies
+      tags: [Tenant Settings]
+      responses:
+        '200':
+          description: Consent policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      summary: Create consent policy
+      operationId: createConsentPolicy
+      tags: [Tenant Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Consent policy created
+          content:
+            application/json:
+              schema:
+                type: object
+
 components:
   securitySchemes:
     bearerAuth:
