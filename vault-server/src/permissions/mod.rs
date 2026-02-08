@@ -13,6 +13,9 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 pub mod checker;
+pub mod middleware;
+pub mod repository;
+pub mod service;
 
 /// A permission defines an action that can be performed on a resource type
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

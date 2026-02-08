@@ -39,14 +39,6 @@ dev_dependencies:
   mockito: ^5.4.2
   http_mock_adapter: ^0.6.0
 
-flutter:
-  plugin:
-    platforms:
-      android:
-        default_package: vault_sdk
-      ios:
-        default_package: vault_sdk
-
 topics:
   - authentication
   - auth

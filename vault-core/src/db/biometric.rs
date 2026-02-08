@@ -260,13 +260,13 @@ impl BiometricRepository {
 
 #[async_trait::async_trait]
 impl BiometricKeyStore for BiometricRepository {
-    async fn store_key(&self, key: &BiometricKey) -> Result<(), BiometricError> {
-        self.create_key(key).await.map_err(|e| e.into())?;
+    async fn store_key(&self, key: &BiometricKey) -> std::result::Result<(), BiometricError> {
+        self.create_key(key).await.map_err(BiometricError::from)?;
         Ok(())
     }
 
-    async fn get_key_by_key_id(&self, key_id: &str) -> Result<Option<BiometricKey>, BiometricError> {
-        let record = self.get_key_by_key_id(key_id).await.map_err(|e| e.into())?;
+    async fn get_key_by_key_id(&self, key_id: &str) -> std::result::Result<Option<BiometricKey>, BiometricError> {
+        let record = self.get_key_by_key_id(key_id).await.map_err(BiometricError::from)?;
         Ok(record.map(|r| r.into()))
     }
 
@@ -274,24 +274,24 @@ impl BiometricKeyStore for BiometricRepository {
         &self,
         user_id: &str,
         tenant_id: &str,
-    ) -> Result<Vec<BiometricKey>, BiometricError> {
+    ) -> std::result::Result<Vec<BiometricKey>, BiometricError> {
         let records = self
             .get_keys_for_user(user_id, tenant_id)
             .await
-            .map_err(|e| e.into())?;
+            .map_err(BiometricError::from)?;
         Ok(records.into_iter().map(|r| r.into()).collect())
     }
 
-    async fn delete_key(&self, key_id: &str) -> Result<(), BiometricError> {
+    async fn delete_key(&self, key_id: &str) -> std::result::Result<(), BiometricError> {
         BiometricRepository::delete_key(self, key_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(BiometricError::from)
     }
 
-    async fn update_last_used(&self, key_id: &str) -> Result<(), BiometricError> {
+    async fn update_last_used(&self, key_id: &str) -> std::result::Result<(), BiometricError> {
         BiometricRepository::update_last_used(self, key_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(BiometricError::from)
     }
 }
 
@@ -301,22 +301,22 @@ impl ChallengeStore for BiometricRepository {
         &self,
         key_id: &str,
         challenge: &BiometricChallenge,
-    ) -> Result<(), BiometricError> {
+    ) -> std::result::Result<(), BiometricError> {
         BiometricRepository::store_challenge(self, key_id, challenge)
             .await
-            .map_err(|e| e.into())
+            .map_err(BiometricError::from)
     }
 
-    async fn get_challenge(&self, key_id: &str) -> Result<Option<BiometricChallenge>, BiometricError> {
+    async fn get_challenge(&self, key_id: &str) -> std::result::Result<Option<BiometricChallenge>, BiometricError> {
         BiometricRepository::get_challenge(self, key_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(BiometricError::from)
     }
 
-    async fn cleanup_expired(&self) -> Result<u64, BiometricError> {
+    async fn cleanup_expired(&self) -> std::result::Result<u64, BiometricError> {
         BiometricRepository::cleanup_expired_challenges(self)
             .await
-            .map_err(|e| e.into())
+            .map_err(BiometricError::from)
     }
 }
 

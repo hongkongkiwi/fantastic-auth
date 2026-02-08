@@ -189,23 +189,23 @@ impl From<BiometricError> for VaultError {
 #[async_trait::async_trait]
 pub trait BiometricKeyStore: Send + Sync {
     /// Store a new biometric key
-    async fn store_key(&self, key: &BiometricKey) -> Result<(), BiometricError>;
+    async fn store_key(&self, key: &BiometricKey) -> std::result::Result<(), BiometricError>;
 
     /// Get a biometric key by its key_id
-    async fn get_key_by_key_id(&self, key_id: &str) -> Result<Option<BiometricKey>, BiometricError>;
+    async fn get_key_by_key_id(&self, key_id: &str) -> std::result::Result<Option<BiometricKey>, BiometricError>;
 
     /// Get all biometric keys for a user
     async fn get_keys_for_user(
         &self,
         user_id: &str,
         tenant_id: &str,
-    ) -> Result<Vec<BiometricKey>, BiometricError>;
+    ) -> std::result::Result<Vec<BiometricKey>, BiometricError>;
 
     /// Delete a biometric key
-    async fn delete_key(&self, key_id: &str) -> Result<(), BiometricError>;
+    async fn delete_key(&self, key_id: &str) -> std::result::Result<(), BiometricError>;
 
     /// Update last used timestamp
-    async fn update_last_used(&self, key_id: &str) -> Result<(), BiometricError>;
+    async fn update_last_used(&self, key_id: &str) -> std::result::Result<(), BiometricError>;
 }
 
 /// Trait for challenge storage
@@ -216,13 +216,13 @@ pub trait ChallengeStore: Send + Sync {
         &self,
         key_id: &str,
         challenge: &BiometricChallenge,
-    ) -> Result<(), BiometricError>;
+    ) -> std::result::Result<(), BiometricError>;
 
     /// Get and remove a challenge
-    async fn get_challenge(&self, key_id: &str) -> Result<Option<BiometricChallenge>, BiometricError>;
+    async fn get_challenge(&self, key_id: &str) -> std::result::Result<Option<BiometricChallenge>, BiometricError>;
 
     /// Clean up expired challenges
-    async fn cleanup_expired(&self) -> Result<u64, BiometricError>;
+    async fn cleanup_expired(&self) -> std::result::Result<u64, BiometricError>;
 }
 
 /// Request to register a biometric key

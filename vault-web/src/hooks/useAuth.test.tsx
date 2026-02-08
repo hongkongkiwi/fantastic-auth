@@ -5,20 +5,20 @@ import { AuthProvider, ProtectedRoute, useAuth } from './useAuth'
 const loginUiMock = vi.fn()
 const logoutUiMock = vi.fn()
 const getUiSessionStatusMock = vi.fn()
-const toastMock = {
+const toastMock = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
   warning: vi.fn(),
   info: vi.fn(),
   loading: vi.fn(),
   promise: vi.fn(),
-}
-const navigateMock = vi.fn()
-let locationMock = { pathname: '/', search: '' }
+}))
+const navigateMock = vi.hoisted(() => vi.fn())
+const locationRef = vi.hoisted(() => ({ current: { pathname: '/', search: '' } }))
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigateMock,
-  useLocation: () => locationMock,
+  useLocation: () => locationRef.current,
 }))
 
 vi.mock('@tanstack/react-start', () => ({
@@ -59,7 +59,7 @@ describe('useAuth', () => {
     cleanup()
     sessionStorage.clear()
     navigateMock.mockReset()
-    locationMock = { pathname: '/', search: '' }
+    locationRef.current = { pathname: '/', search: '' }
     Object.values(toastMock).forEach((mock) => mock.mockReset())
     loginUiMock.mockReset()
     logoutUiMock.mockReset()
@@ -182,7 +182,7 @@ describe('useAuth', () => {
   })
 
   it('navigates to redirect after login', async () => {
-    locationMock = { pathname: '/login', search: '?redirect=%2Fsettings' }
+    locationRef.current = { pathname: '/login', search: '?redirect=%2Fsettings' }
     const authRef = await setup()
     await act(async () => {
       await authRef.current?.login('admin@vault.local', 'admin')
