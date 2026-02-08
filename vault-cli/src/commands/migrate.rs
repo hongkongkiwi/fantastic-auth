@@ -365,7 +365,7 @@ pub async fn import_from_auth0(
     let mut imported = 0;
     let mut failed = 0;
 
-    for user in auth0_users {
+    for user in &auth0_users {
         // Transform Auth0 user format to Vault format
         #[derive(serde::Serialize)]
         struct CreateUserRequest {
