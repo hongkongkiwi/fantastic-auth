@@ -185,7 +185,7 @@ pub mod types {
 
     /// User list response
     #[derive(Debug, Serialize, Deserialize)]
-    pub struct UserList {
+    pub struct UserListResponse {
         pub users: Vec<User>,
         pub total: i64,
         pub page: i64,

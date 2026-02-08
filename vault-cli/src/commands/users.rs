@@ -1,6 +1,6 @@
 //! User management commands
 
-use crate::client::{types::UserList, VaultClient};
+use crate::client::VaultClient;
 use crate::commands::{confirm, format_timestamp, print_data, print_table, OutputFormat};
 use anyhow::{Context, Result};
 
@@ -33,29 +33,30 @@ pub async fn list(
         params.push(("status", status));
     }
 
-    let response: UserList = client
+    let response: serde_json::Value = client
         .get_with_params("/admin/users", &params)
         .await
         .context("Failed to list users")?;
 
     match format {
         OutputFormat::Table => {
-            if response.data.is_empty() {
+            let users = response.get("users").and_then(|u| u.as_array()).unwrap_or(&vec![]);
+            
+            if users.is_empty() {
                 println!("No users found");
                 return Ok(());
             }
 
-            let rows: Vec<Vec<String>> = response
-                .data
+            let rows: Vec<Vec<String>> = users
                 .iter()
                 .map(|u| {
                     vec![
-                        u.id.clone(),
-                        u.email.clone(),
-                        u.name.clone().unwrap_or_else(|| "-".to_string()),
-                        u.status.clone(),
-                        if u.mfa_enabled { "✓".to_string() } else { "-".to_string() },
-                        format_timestamp(&u.created_at),
+                        u["id"].as_str().unwrap_or("N/A").to_string(),
+                        u["email"].as_str().unwrap_or("N/A").to_string(),
+                        u["name"].as_str().unwrap_or("-").to_string(),
+                        u["status"].as_str().unwrap_or("unknown").to_string(),
+                        if u["emailVerified"].as_bool().unwrap_or(false) { "✓".to_string() } else { "-".to_string() },
+                        format_timestamp(u["createdAt"].as_str().unwrap_or("")),
                     ]
                 })
                 .collect();
@@ -65,12 +66,17 @@ pub async fn list(
                 rows,
             );
 
+            let total = response["total"].as_i64().unwrap_or(0);
+            let page = response["page"].as_i64().unwrap_or(1);
+            let per_page = response["per_page"].as_i64().unwrap_or(20);
+            let total_pages = (total + per_page - 1) / per_page;
+
             println!(
                 "\nShowing {} of {} users (page {} of {})",
-                response.data.len(),
-                response.pagination.total,
-                response.pagination.page,
-                response.pagination.total_pages
+                users.len(),
+                total,
+                page,
+                total_pages
             );
         }
         _ => {
