@@ -142,8 +142,6 @@ function MfaContent() {
     }
   }
 
-  const currentMethodConfig = methodConfig[method]
-
   return (
     <Card className="shadow-elevated">
       <CardHeader className="space-y-1">

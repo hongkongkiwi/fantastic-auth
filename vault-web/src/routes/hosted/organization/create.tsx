@@ -5,7 +5,7 @@
  * URL: /hosted/organization/create?tenant_id=xxx&redirect_url=xxx
  */
 
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Building2, ArrowRight, AlertCircle, ArrowLeft, CheckCircle } from 'lucide-react'
@@ -33,7 +33,6 @@ function HostedOrganizationCreatePage() {
 }
 
 function OrganizationCreateContent() {
-  const navigate = useNavigate()
   const { config, tenantId, redirectUrl } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
   

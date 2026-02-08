@@ -4,6 +4,8 @@
  * TypeScript types for billing and subscription management.
  */
 
+import React from 'react';
+
 // ============================================================================
 // Plan Types
 // ============================================================================
@@ -307,12 +309,31 @@ export interface CheckoutButtonProps {
   className?: string;
 }
 
+export interface QuickCheckoutButtonProps {
+  priceId: string;
+  children: React.ReactNode;
+  successPath?: string;
+  cancelPath?: string;
+  disabled?: boolean;
+  onCheckout?: (session: { url: string }) => void;
+  onError?: (error: Error) => void;
+  className?: string;
+}
+
 export interface CustomerPortalButtonProps {
   children: React.ReactNode;
   returnUrl?: string;
   disabled?: boolean;
   onOpen?: () => void;
   onError?: (error: Error) => void;
+  className?: string;
+}
+
+export interface BillingSettingsProps {
+  returnUrl?: string;
+  showManageSubscription?: boolean;
+  showUpdatePayment?: boolean;
+  showViewInvoices?: boolean;
   className?: string;
 }
 
@@ -331,6 +352,13 @@ export interface UsageMeterProps {
   usage: UsageSummary;
   showPercentage?: boolean;
   showRemaining?: boolean;
+  className?: string;
+}
+
+export interface InvoiceListProps {
+  invoices: Invoice[];
+  loading?: boolean;
+  emptyMessage?: string;
   className?: string;
 }
 
