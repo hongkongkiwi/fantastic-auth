@@ -79,10 +79,10 @@ pub trait I18nEmailTemplate: Serialize {
     fn subject(&self, lang: EmailLanguage) -> String;
 
     /// Render HTML version for the given language
-    fn render_html(&self, _engine: &super::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
 
     /// Render plain text version for the given language
-    fn render_text(&self, _engine: &super::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
 }
 
 /// Email template context with language
@@ -129,7 +129,7 @@ impl I18nEmailTemplate for I18nVerificationEmail {
         }
     }
 
-    fn render_html(&self, _engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         let rtl_attr = if lang.is_rtl() { "dir=\"rtl\"" } else { "" };
         let align = if lang.is_rtl() { "right" } else { "left" };
@@ -170,7 +170,7 @@ impl I18nEmailTemplate for I18nVerificationEmail {
         ))
     }
 
-    fn render_text(&self, _engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         
         Ok(format!(
@@ -299,7 +299,7 @@ impl I18nEmailTemplate for I18nPasswordResetEmail {
         }
     }
 
-    fn render_html(&self, _engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         let rtl_attr = if lang.is_rtl() { "dir=\"rtl\"" } else { "" };
         let align = if lang.is_rtl() { "right" } else { "left" };
@@ -339,7 +339,7 @@ impl I18nEmailTemplate for I18nPasswordResetEmail {
         ))
     }
 
-    fn render_text(&self, _engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         
         Ok(format!(
@@ -447,7 +447,7 @@ pub fn render_i18n_template<T: I18nEmailTemplate>(
     lang: EmailLanguage,
 ) -> Result<super::RenderedEmail, EmailError> {
     // Create a default template engine (not used for i18n templates but needed for compatibility)
-    let engine = super::TemplateEngine::new(
+    let engine = crate::email::TemplateEngine::new(
         "https://example.com".to_string(),
         "Vault".to_string(),
         None,

@@ -406,6 +406,39 @@ impl UserRepository {
         Ok(())
     }
 
+    /// Set MFA methods list and enabled flag
+    pub async fn set_mfa_methods(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        methods: &[String],
+    ) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        let enabled = !methods.is_empty();
+        let methods_json = serde_json::Value::Array(
+            methods
+                .iter()
+                .cloned()
+                .map(serde_json::Value::String)
+                .collect(),
+        );
+
+        sqlx::query(
+            r#"UPDATE users
+               SET mfa_methods = $1, mfa_enabled = $2, updated_at = $3
+               WHERE tenant_id = $4::uuid AND id = $5::uuid"#,
+        )
+        .bind(methods_json)
+        .bind(enabled)
+        .bind(chrono::Utc::now())
+        .bind(tenant_id)
+        .bind(user_id)
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(())
+    }
+
     /// Check if email exists
     pub async fn email_exists(&self, tenant_id: &str, email: &str) -> Result<bool> {
         let mut conn = self.tenant_conn(tenant_id).await?;

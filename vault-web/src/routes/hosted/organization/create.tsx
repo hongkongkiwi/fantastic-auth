@@ -15,30 +15,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Alert, AlertDescription } from '../../../components/ui/Alert'
 import { useForm } from '@tanstack/react-form'
 import { HostedLayout } from '../../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../../hosted/useHostedConfig'
 import { hostedCreateOrganization } from '../../../hosted/api'
 
-export const Route = createFileRoute('/hosted/organization/create')({
+export const Route = createFileRoute('/hosted/organization/create' as any)({
   component: HostedOrganizationCreatePage,
 })
 
 function HostedOrganizationCreatePage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <OrganizationCreateContent searchParams={searchParams} />
+      <OrganizationCreateContent />
     </HostedLayout>
   )
 }
 
-interface OrganizationCreateContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function OrganizationCreateContent({ searchParams }: OrganizationCreateContentProps) {
+function OrganizationCreateContent() {
   const navigate = useNavigate()
   const { config, tenantId, redirectUrl } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
@@ -179,7 +173,7 @@ function OrganizationCreateContent({ searchParams }: OrganizationCreateContentPr
           <form.Field
             name="name"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value.trim()) return 'Organization name is required'
                 if (value.trim().length < 2) return 'Name must be at least 2 characters'
                 if (value.trim().length > 50) return 'Name must be less than 50 characters'
@@ -187,7 +181,7 @@ function OrganizationCreateContent({ searchParams }: OrganizationCreateContentPr
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <Input
                 label="Organization Name"
                 type="text"
@@ -207,7 +201,7 @@ function OrganizationCreateContent({ searchParams }: OrganizationCreateContentPr
           <form.Field
             name="slug"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value.trim()) return 'Organization slug is required'
                 if (!/^[a-z0-9-]+$/.test(value)) {
                   return 'Slug can only contain lowercase letters, numbers, and hyphens'
@@ -218,7 +212,7 @@ function OrganizationCreateContent({ searchParams }: OrganizationCreateContentPr
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-foreground">
                   Organization Slug
@@ -269,8 +263,8 @@ function OrganizationCreateContent({ searchParams }: OrganizationCreateContentPr
         {/* Back Link */}
         <div className="text-center pt-4 border-t">
           <Link
-            to="/hosted/organization/switch"
-            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined }}
+            to={'/hosted/organization/switch' as any}
+            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any}
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />

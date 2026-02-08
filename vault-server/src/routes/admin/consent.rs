@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use crate::{
     consent::{
-        ConsentService, ConsentType, ConsentVersion, CreateConsentVersionRequest,
+        ConsentError, ConsentService, ConsentType, ConsentVersion, CreateConsentVersionRequest,
         DataExportStatus, DeletionStatus, UpdateConsentVersionRequest,
         service::{
             ConsentRequirementResponse, ConsentVersionResponse, ListConsentVersionsResponse,
@@ -209,7 +209,7 @@ async fn create_consent_version(
         .create_consent_version(&user.tenant_id, request)
         .await
         .map_err(|e| match e {
-            super::ConsentError::InvalidVersionFormat(v) => {
+            ConsentError::InvalidVersionFormat(v) => {
                 ApiError::Validation(format!("Invalid version format: {}", v))
             }
             _ => {

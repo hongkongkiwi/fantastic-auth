@@ -118,8 +118,8 @@ function SignUpContent() {
   // Redirect to sign-in if sign-up is not allowed
   if (!config.allowSignUp) {
     navigate({
-      to: '/hosted/sign-in',
-      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined },
+      to: '/hosted/sign-in' as any,
+      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any,
     })
     return null
   }
@@ -148,7 +148,9 @@ function SignUpContent() {
             <Button
               variant="outline"
               fullWidth
-              onClick={() => navigate({ to: '/hosted/sign-in', search: { tenant_id: tenantId } })}
+              onClick={() =>
+                navigate({ to: '/hosted/sign-in' as any, search: { tenant_id: tenantId } as any })
+              }
             >
               Back to Sign In
             </Button>
@@ -208,14 +210,14 @@ function SignUpContent() {
           <form.Field
             name="name"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value.trim()) return 'Name is required'
                 if (value.trim().length < 2) return 'Name must be at least 2 characters'
                 return undefined
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <Input
                 label="Full Name"
                 type="text"
@@ -235,7 +237,7 @@ function SignUpContent() {
           <form.Field
             name="email"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value.trim()) return 'Email is required'
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
                   return 'Please enter a valid email'
@@ -244,7 +246,7 @@ function SignUpContent() {
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <Input
                 label="Email"
                 type="email"
@@ -266,7 +268,7 @@ function SignUpContent() {
           <form.Field
             name="password"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value) return 'Password is required'
                 if (value.length < 8) return 'Password must be at least 8 characters'
                 if (!/[A-Z]/.test(value)) return 'Password must contain an uppercase letter'
@@ -276,7 +278,7 @@ function SignUpContent() {
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <Input
                 label="Password"
                 type={showPassword ? 'text' : 'password'}
@@ -312,13 +314,13 @@ function SignUpContent() {
             <form.Field
               name="agreeToTerms"
               validators={{
-                onChange: ({ value }) => {
+                onChange: ({ value }: { value: boolean }) => {
                   if (!value) return 'You must agree to continue'
                   return undefined
                 },
               }}
             >
-              {(field) => (
+              {(field: any) => (
                 <div className="space-y-2">
                   <div className="flex items-start gap-2">
                     <Checkbox
@@ -377,8 +379,8 @@ function SignUpContent() {
         <div className="text-center text-sm pt-4 border-t">
           <span className="text-muted-foreground">Already have an account?{' '}</span>
           <Link
-            to="/hosted/sign-in"
-            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined }}
+            to={'/hosted/sign-in' as any}
+            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any}
             className="text-primary hover:underline"
           >
             Sign in

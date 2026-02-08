@@ -3038,9 +3038,11 @@ async fn verify_totp_step_up(
         .map_err(|e| StepUpFailureReason::InternalError(e.to_string()))?
         .ok_or(StepUpFailureReason::MfaNotConfigured)?;
 
-    // Decrypt secret (base64 for now - should use proper encryption)
-    let secret = base64_decode(&secret_encrypted)
-        .map_err(|_| StepUpFailureReason::InternalError("Failed to decrypt secret".to_string()))?;
+    let secret = crate::security::encryption::decrypt_from_base64(
+        &state.data_encryption_key,
+        &secret_encrypted,
+    )
+    .map_err(|_| StepUpFailureReason::InternalError("Failed to decrypt secret".to_string()))?;
     let secret = String::from_utf8(secret)
         .map_err(|_| StepUpFailureReason::InternalError("Invalid secret format".to_string()))?;
 
@@ -3115,18 +3117,11 @@ async fn verify_backup_code_step_up(
         _ => return Err(StepUpFailureReason::InvalidCredentials),
     };
 
-    // Hash the code
-    use sha2::{Digest, Sha256};
-    let normalized = code.to_uppercase().replace('-', "");
-    let mut hasher = Sha256::new();
-    hasher.update(normalized.as_bytes());
-    let code_hash = format!("{:x}", hasher.finalize());
-
     // Verify backup code
     let valid = state
         .db
         .mfa()
-        .verify_backup_code(&user.tenant_id, &user.user_id, &code_hash)
+        .verify_backup_code(&user.tenant_id, &user.user_id, code)
         .await
         .map_err(|e| StepUpFailureReason::InternalError(e.to_string()))?;
 

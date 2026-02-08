@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consent::{
-        ConsentContext, ConsentService, ConsentType, RequestDeletionRequest,
+        ConsentContext, ConsentError, ConsentService, ConsentType, RequestDeletionRequest,
         SubmitConsentRequest, service::{
             ConsentRequirementResponse, DataExportResponse, DataExportStatusResponse,
             DeletionResponse, DeletionStatusResponse, UserConsentsResponse,
@@ -144,10 +144,10 @@ async fn submit_consent(
         .submit_consent(&user.user_id, request, context)
         .await
         .map_err(|e| match e {
-            super::ConsentError::CannotWithdrawRequired(_) => {
+            ConsentError::CannotWithdrawRequired(_) => {
                 ApiError::BadRequest("Cannot withdraw required consent".to_string())
             }
-            super::ConsentError::VersionNotFound(msg) => ApiError::NotFound,
+            ConsentError::VersionNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to submit consent: {}", e);
                 ApiError::Internal
@@ -253,7 +253,7 @@ async fn request_data_export(
         .request_data_export(&user.user_id)
         .await
         .map_err(|e| match e {
-            super::ConsentError::Internal(msg) if msg.contains("already in progress") => {
+            ConsentError::Internal(msg) if msg.contains("already in progress") => {
                 ApiError::Conflict("Export already in progress".to_string())
             }
             _ => {
@@ -361,13 +361,13 @@ async fn cancel_deletion(
         .cancel_deletion(&user.user_id, &body.token)
         .await
         .map_err(|e| match e {
-            super::ConsentError::DeletionAlreadyCancelled => {
+            ConsentError::DeletionAlreadyCancelled => {
                 ApiError::BadRequest("Deletion request already cancelled".to_string())
             }
-            super::ConsentError::DeletionAlreadyCompleted => {
+            ConsentError::DeletionAlreadyCompleted => {
                 ApiError::BadRequest("Deletion already completed".to_string())
             }
-            super::ConsentError::DeletionRequestNotFound(_) => ApiError::NotFound,
+            ConsentError::DeletionRequestNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to cancel deletion: {}", e);
                 ApiError::Internal

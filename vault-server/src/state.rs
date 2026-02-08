@@ -1,6 +1,7 @@
 //! Server state shared across handlers
 
 use std::sync::Arc;
+use base64::Engine;
 use vault_core::auth::AuthService;
 use vault_core::email::SmtpEmailService;
 use vault_core::security::bot_protection::{
@@ -58,6 +59,8 @@ pub struct AppState {
     pub step_up_policy: StepUpPolicy,
     /// Default max age for step-up authentication (minutes)
     pub step_up_max_age_minutes: u32,
+    /// Data encryption key (AES-256-GCM)
+    pub data_encryption_key: Arc<Vec<u8>>,
     /// Web3 authentication service
     pub web3_auth: Arc<Web3Auth>,
     /// Consent manager for GDPR/CCPA compliance
@@ -230,6 +233,8 @@ impl AppState {
             consent_config,
         ));
 
+        let data_encryption_key = Arc::new(load_data_encryption_key()?);
+
         Ok(Self {
             config: Arc::new(config),
             db,
@@ -248,6 +253,7 @@ impl AppState {
             account_linking_service,
             step_up_policy,
             step_up_max_age_minutes,
+            data_encryption_key,
             i18n,
             web3_auth: {
                 // Initialize Web3 authentication service
@@ -428,6 +434,38 @@ impl AppState {
             warning,
         })
     }
+}
+
+fn load_data_encryption_key() -> anyhow::Result<Vec<u8>> {
+    if let Ok(path) = std::env::var("VAULT_MASTER_KEY_FILE")
+        .or_else(|_| std::env::var("MASTER_KEY_FILE"))
+    {
+        let contents = std::fs::read(&path)?;
+        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(contents.trim()) {
+            if decoded.len() == 32 {
+                return Ok(decoded);
+            }
+        }
+        if contents.len() == 32 {
+            return Ok(contents);
+        }
+        anyhow::bail!("MASTER_KEY_FILE must contain 32 raw bytes or base64-encoded 32 bytes");
+    }
+
+    if let Ok(encoded) = std::env::var("VAULT_DATA_ENCRYPTION_KEY")
+        .or_else(|_| std::env::var("DATA_ENCRYPTION_KEY"))
+    {
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(encoded.trim())
+            .map_err(|_| anyhow::anyhow!("DATA_ENCRYPTION_KEY must be base64"))?;
+        if decoded.len() != 32 {
+            anyhow::bail!("DATA_ENCRYPTION_KEY must decode to 32 bytes");
+        }
+        return Ok(decoded);
+    }
+
+    tracing::warn!("No data encryption key configured; generating ephemeral key for this process");
+    Ok(vault_core::crypto::generate_random_bytes(32))
 }
 
 /// Session limit status information

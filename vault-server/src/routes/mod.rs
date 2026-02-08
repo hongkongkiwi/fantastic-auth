@@ -12,6 +12,7 @@ use serde::Serialize;
 pub mod admin;
 pub mod client;
 pub mod health;
+pub mod hosted;
 pub mod internal;
 
 use crate::state::AppState;

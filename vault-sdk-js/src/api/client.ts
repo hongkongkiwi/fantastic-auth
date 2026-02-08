@@ -498,6 +498,74 @@ export class VaultApiClient {
   }
 
   // ============================================================================
+  // Billing Methods
+  // ============================================================================
+
+  async getBillingPlans(): Promise<{ billingEnabled: boolean; plans: any[] }> {
+    return this.request('/api/v1/admin/billing/plans');
+  }
+
+  async getBillingStatus(): Promise<any> {
+    return this.request('/api/v1/admin/billing/status');
+  }
+
+  async getSubscription(): Promise<{ subscription: any | null }> {
+    return this.request('/api/v1/admin/billing/subscription');
+  }
+
+  async createSubscription(data: {
+    priceId: string;
+    successUrl: string;
+    cancelUrl: string;
+  }): Promise<any> {
+    return this.request('/api/v1/admin/billing/subscription', {
+      method: 'POST',
+      body: JSON.stringify({
+        price_id: data.priceId,
+        success_url: data.successUrl,
+        cancel_url: data.cancelUrl,
+      }),
+    });
+  }
+
+  async cancelSubscription(): Promise<{ subscription: any }> {
+    return this.request('/api/v1/admin/billing/subscription/cancel', {
+      method: 'POST',
+    });
+  }
+
+  async resumeSubscription(): Promise<{ subscription: any }> {
+    return this.request('/api/v1/admin/billing/subscription/resume', {
+      method: 'POST',
+    });
+  }
+
+  async updateSubscription(newPriceId: string): Promise<{ subscription: any }> {
+    return this.request('/api/v1/admin/billing/subscription', {
+      method: 'PUT',
+      body: JSON.stringify({ new_price_id: newPriceId }),
+    });
+  }
+
+  async getInvoices(): Promise<{ invoices: any[] }> {
+    return this.request('/api/v1/admin/billing/invoices');
+  }
+
+  async createPortalSession(returnUrl: string): Promise<{ url: string }> {
+    return this.request('/api/v1/admin/billing/portal', {
+      method: 'POST',
+      body: JSON.stringify({ return_url: returnUrl }),
+    });
+  }
+
+  async reportUsage(quantity: number, action: 'increment' | 'set' = 'increment'): Promise<void> {
+    await this.request('/api/v1/admin/billing/usage', {
+      method: 'POST',
+      body: JSON.stringify({ quantity, action }),
+    });
+  }
+
+  // ============================================================================
   // Utility Methods
   // ============================================================================
 

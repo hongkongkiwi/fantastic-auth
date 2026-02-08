@@ -5,7 +5,7 @@
  * URL: /hosted/organization/switch?tenant_id=xxx&redirect_url=xxx
  */
 
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { motion, useReducedMotion, AnimatePresence } from 'framer-motion'
 import { Building2, ArrowRight, AlertCircle, Plus, Check, Crown, Users } from 'lucide-react'
@@ -13,31 +13,25 @@ import { Button } from '../../../components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../../components/ui/Card'
 import { Alert, AlertDescription } from '../../../components/ui/Alert'
 import { HostedLayout } from '../../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../../hosted/useHostedConfig'
 import { hostedListOrganizations, hostedSwitchOrganization } from '../../../hosted/api'
 import type { Organization } from '../../../hosted/types'
 
-export const Route = createFileRoute('/hosted/organization/switch')({
+export const Route = createFileRoute('/hosted/organization/switch' as any)({
   component: HostedOrganizationSwitchPage,
 })
 
 function HostedOrganizationSwitchPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <OrganizationSwitchContent searchParams={searchParams} />
+      <OrganizationSwitchContent />
     </HostedLayout>
   )
 }
 
-interface OrganizationSwitchContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function OrganizationSwitchContent({ searchParams }: OrganizationSwitchContentProps) {
+function OrganizationSwitchContent() {
   const navigate = useNavigate()
   const { config, tenantId, redirectUrl, organizationId } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
@@ -113,8 +107,8 @@ function OrganizationSwitchContent({ searchParams }: OrganizationSwitchContentPr
 
   const handleCreateNew = () => {
     navigate({
-      to: '/hosted/organization/create',
-      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined },
+      to: '/hosted/organization/create' as any,
+      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any,
     })
   }
 
@@ -205,7 +199,7 @@ function OrganizationSwitchContent({ searchParams }: OrganizationSwitchContentPr
                       <div className="flex items-center gap-2">
                         <h4 className="font-semibold truncate">{org.name}</h4>
                         {org.role === 'owner' && (
-                          <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" title="Owner" />
+                          <Crown className="h-4 w-4 text-amber-500 flex-shrink-0" />
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">/{org.slug}</p>

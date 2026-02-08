@@ -219,7 +219,7 @@ async fn setup_totp(
     let totp_config = vault_core::auth::mfa::TotpConfig::generate("Vault", &current_user.email);
 
     // Encrypt the secret for storage
-    let secret_encrypted = encrypt_secret(&totp_config.secret)?;
+    let secret_encrypted = encrypt_secret(&state, &totp_config.secret)?;
 
     // Store in database
     state
@@ -238,10 +238,7 @@ async fn setup_totp(
 
     // Generate backup codes
     let backup_codes = vault_core::auth::mfa::generate_backup_codes(10);
-    let code_hashes: Vec<String> = backup_codes
-        .iter()
-        .map(|code| hash_backup_code(code))
-        .collect();
+    let code_hashes = vault_core::auth::mfa::hash_backup_codes(&backup_codes);
 
     state
         .db
@@ -336,7 +333,7 @@ async fn verify_totp_code(
     };
 
     // Decrypt secret
-    let secret = decrypt_secret(&secret_encrypted)?;
+    let secret = decrypt_secret(&state, &secret_encrypted)?;
 
     // Create TOTP config and verify
     let totp_config = vault_core::auth::mfa::TotpConfig {
@@ -525,10 +522,7 @@ async fn generate_backup_codes(
 
     // Generate new codes
     let backup_codes = vault_core::auth::mfa::generate_backup_codes(10);
-    let code_hashes: Vec<String> = backup_codes
-        .iter()
-        .map(|code| hash_backup_code(code))
-        .collect();
+    let code_hashes = vault_core::auth::mfa::hash_backup_codes(&backup_codes);
 
     // Store in database
     state
@@ -552,12 +546,10 @@ async fn verify_backup_code(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<BackupCodeVerifyRequest>,
 ) -> Result<Json<VerifyCodeResponse>, ApiError> {
-    let code_hash = hash_backup_code(&req.code);
-
     let valid = state
         .db
         .mfa()
-        .verify_backup_code(&current_user.tenant_id, &current_user.user_id, &code_hash)
+        .verify_backup_code(&current_user.tenant_id, &current_user.user_id, &req.code)
         .await
         .map_err(|e| {
             tracing::error!("Failed to verify backup code: {}", e);
@@ -898,39 +890,20 @@ fn get_sms_service(state: &AppState) -> Result<std::sync::Arc<vault_core::sms::S
 
 // Helper functions
 
-fn encrypt_secret(secret: &str) -> Result<String, ApiError> {
-    // In production, use AES-256-GCM with a key from KMS
-    // For now, base64 encode (NOT secure, just for structure)
-    // TODO: Implement proper encryption
-    Ok(base64::encode(secret.as_bytes()))
+fn encrypt_secret(state: &AppState, secret: &str) -> Result<String, ApiError> {
+    crate::security::encryption::encrypt_to_base64(&state.data_encryption_key, secret.as_bytes())
+        .map_err(|e| {
+            tracing::error!("Failed to encrypt secret: {}", e);
+            ApiError::Internal
+        })
 }
 
-fn decrypt_secret(encrypted: &str) -> Result<String, ApiError> {
-    // TODO: Implement proper decryption
-    let bytes = base64::decode(encrypted).map_err(|_| ApiError::Internal)?;
+fn decrypt_secret(state: &AppState, encrypted: &str) -> Result<String, ApiError> {
+    let bytes =
+        crate::security::encryption::decrypt_from_base64(&state.data_encryption_key, encrypted)
+            .map_err(|e| {
+                tracing::error!("Failed to decrypt secret: {}", e);
+                ApiError::Internal
+            })?;
     String::from_utf8(bytes).map_err(|_| ApiError::Internal)
-}
-
-fn hash_backup_code(code: &str) -> String {
-    // Normalize: uppercase and remove dashes
-    let normalized = code.to_uppercase().replace('-', "");
-    // Use Argon2id in production
-    // For now, use a simple hash (NOT secure, just for structure)
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    hasher.update(normalized.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-
-// Simple base64 module for compatibility
-mod base64 {
-    use base64::{engine::general_purpose::STANDARD, Engine};
-
-    pub fn encode(input: impl AsRef<[u8]>) -> String {
-        STANDARD.encode(input)
-    }
-
-    pub fn decode(input: impl AsRef<[u8]>) -> Result<Vec<u8>, base64::DecodeError> {
-        STANDARD.decode(input)
-    }
 }

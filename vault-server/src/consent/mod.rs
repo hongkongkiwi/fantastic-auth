@@ -23,7 +23,7 @@ pub use manager::ConsentManager;
 pub use models::*;
 pub use repository::ConsentRepository;
 pub use service::ConsentService;
-pub use templates::PrivacyPolicyTemplate;
+pub use templates::{PrivacyPolicyTemplate, get_available_templates, get_template_schema, render_template};
 
 /// Consent type enum representing different categories of consent
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

@@ -113,6 +113,8 @@ fn create_app(state: AppState, config: &Config) -> Router {
         .route("/health", get(routes::health::simple_health_check))
         // API routes
         .nest("/api/v1", routes::api_routes())
+        // Hosted UI routes
+        .nest("/hosted/api", routes::hosted::hosted_routes())
         // SCIM 2.0 routes (separate from main API)
         .nest("/scim/v2", routes::scim_routes())
         // 404 handler

@@ -17,7 +17,7 @@ use tracing::{debug, info, warn};
 use vault_core::hosted::{HostedUiConfig, OAuthProvider, ValidateRedirectResponse};
 
 use crate::{
-    error::{AppError, AppResult},
+    routes::ApiError,
     state::AppState,
 };
 
@@ -113,7 +113,7 @@ pub struct UpdateHostedConfigRequest {
 async fn get_hosted_config(
     State(state): State<Arc<AppState>>,
     Query(query): Query<GetConfigQuery>,
-) -> AppResult<Json<HostedConfigResponse>> {
+) -> Result<Json<HostedConfigResponse>, ApiError> {
     debug!("Fetching hosted config for tenant: {}", query.tenant_id);
 
     // TODO: Fetch from database in production
@@ -131,7 +131,7 @@ async fn get_hosted_config(
 async fn validate_redirect(
     State(state): State<Arc<AppState>>,
     Query(query): Query<ValidateRedirectQuery>,
-) -> AppResult<Json<ValidateRedirectResponse>> {
+) -> Result<Json<ValidateRedirectResponse>, ApiError> {
     debug!(
         "Validating redirect URL for tenant {}: {}",
         query.tenant_id, query.url
@@ -154,7 +154,7 @@ async fn validate_redirect(
 async fn update_hosted_config(
     State(state): State<Arc<AppState>>,
     Json(request): Json<UpdateHostedConfigRequest>,
-) -> AppResult<Json<HostedConfigResponse>> {
+) -> Result<Json<HostedConfigResponse>, ApiError> {
     info!(
         "Updating hosted config for tenant: {}",
         request.config.tenant_id
@@ -201,7 +201,7 @@ pub struct UserInfo {
 async fn hosted_sign_in(
     State(state): State<Arc<AppState>>,
     Json(request): Json<HostedSignInRequest>,
-) -> AppResult<Json<HostedSignInResponse>> {
+) -> Result<Json<HostedSignInResponse>, ApiError> {
     debug!("Hosted sign-in attempt for tenant: {}", request.tenant_id);
 
     // TODO: Implement actual authentication
@@ -211,9 +211,7 @@ async fn hosted_sign_in(
     // 3. Generate session token
     // 4. Return appropriate response
 
-    Err(AppError::NotImplemented(
-        "Hosted sign-in not yet implemented".to_string(),
-    ))
+    Err(ApiError::NotImplemented)
 }
 
 /// Request for hosted sign-up
@@ -238,7 +236,7 @@ pub struct HostedSignUpResponse {
 async fn hosted_sign_up(
     State(state): State<Arc<AppState>>,
     Json(request): Json<HostedSignUpRequest>,
-) -> AppResult<Json<HostedSignUpResponse>> {
+) -> Result<Json<HostedSignUpResponse>, ApiError> {
     debug!("Hosted sign-up attempt for tenant: {}", request.tenant_id);
 
     // TODO: Implement actual registration
@@ -249,9 +247,7 @@ async fn hosted_sign_up(
     // 4. Send verification email if required
     // 5. Return session or pending status
 
-    Err(AppError::NotImplemented(
-        "Hosted sign-up not yet implemented".to_string(),
-    ))
+    Err(ApiError::NotImplemented)
 }
 
 /// Request to start OAuth flow
@@ -274,7 +270,7 @@ pub struct HostedOAuthStartResponse {
 async fn hosted_oauth_start(
     State(state): State<Arc<AppState>>,
     Json(request): Json<HostedOAuthStartRequest>,
-) -> AppResult<Json<HostedOAuthStartResponse>> {
+) -> Result<Json<HostedOAuthStartResponse>, ApiError> {
     debug!(
         "Starting OAuth flow for tenant {} with provider {}",
         request.tenant_id, request.provider
@@ -287,9 +283,7 @@ async fn hosted_oauth_start(
     // 3. Build the OAuth authorization URL
     // 4. Return the URL for redirect
 
-    Err(AppError::NotImplemented(
-        "Hosted OAuth not yet implemented".to_string(),
-    ))
+    Err(ApiError::NotImplemented)
 }
 
 /// Request for OAuth callback
@@ -304,7 +298,7 @@ pub struct HostedOAuthCallbackRequest {
 async fn hosted_oauth_callback(
     State(state): State<Arc<AppState>>,
     Json(request): Json<HostedOAuthCallbackRequest>,
-) -> AppResult<Json<HostedSignInResponse>> {
+) -> Result<Json<HostedSignInResponse>, ApiError> {
     debug!(
         "Handling OAuth callback for tenant: {}",
         request.tenant_id
@@ -318,9 +312,7 @@ async fn hosted_oauth_callback(
     // 4. Link or create user account
     // 5. Generate session token
 
-    Err(AppError::NotImplemented(
-        "Hosted OAuth callback not yet implemented".to_string(),
-    ))
+    Err(ApiError::NotImplemented)
 }
 
 /// Request for password reset
@@ -341,7 +333,7 @@ pub struct HostedPasswordResetResponse {
 async fn hosted_request_password_reset(
     State(state): State<Arc<AppState>>,
     Json(request): Json<HostedPasswordResetRequest>,
-) -> AppResult<Json<HostedPasswordResetResponse>> {
+) -> Result<Json<HostedPasswordResetResponse>, ApiError> {
     debug!(
         "Password reset request for tenant {}: {}",
         request.tenant_id, request.email

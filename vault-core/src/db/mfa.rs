@@ -318,28 +318,50 @@ impl MfaRepository {
         Ok(codes)
     }
 
-    /// Verify and consume a backup code
+    /// Verify and consume a backup code (Argon2id hashes)
     pub async fn verify_backup_code(
         &self,
         tenant_id: &str,
         user_id: &str,
-        code_hash: &str,
+        code: &str,
     ) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query(
+        let codes = sqlx::query_as::<_, BackupCode>(
             r#"
-            UPDATE user_backup_codes
-            SET used = true, used_at = NOW()
-            WHERE tenant_id = $1 AND user_id = $2 AND code_hash = $3 AND used = false
-            RETURNING id
+            SELECT id, user_id, tenant_id, code_hash, used, used_at, created_at
+            FROM user_backup_codes
+            WHERE tenant_id = $1 AND user_id = $2 AND used = false
+            ORDER BY created_at DESC
             "#,
         )
         .bind(tenant_id)
         .bind(user_id)
-        .bind(code_hash)
-        .fetch_optional(&*self.pool)
+        .fetch_all(&*self.pool)
         .await?;
 
-        Ok(result.is_some())
+        let normalized = code.to_uppercase().replace('-', "");
+
+        for code_row in codes {
+            if crate::crypto::VaultPasswordHasher::verify(&normalized, &code_row.code_hash)
+                .unwrap_or(false)
+            {
+                let result = sqlx::query(
+                    r#"
+                    UPDATE user_backup_codes
+                    SET used = true, used_at = NOW()
+                    WHERE tenant_id = $1 AND user_id = $2 AND id = $3 AND used = false
+                    "#,
+                )
+                .bind(tenant_id)
+                .bind(user_id)
+                .bind(&code_row.id)
+                .execute(&*self.pool)
+                .await?;
+
+                return Ok(result.rows_affected() > 0);
+            }
+        }
+
+        Ok(false)
     }
 
     /// Mark method as used
