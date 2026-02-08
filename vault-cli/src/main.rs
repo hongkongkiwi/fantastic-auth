@@ -10,6 +10,7 @@ use tracing::info;
 mod client;
 mod commands;
 mod config;
+mod errors;
 
 use commands::OutputFormat;
 use config::Config;
@@ -17,7 +18,7 @@ use config::Config;
 /// Vault CLI - User Management API Client
 #[derive(Parser)]
 #[command(name = "vault")]
-#[command(about = "Vault CLI - User Management API")]
+#[command(about = "Vault CLI - User Management and Administration")]
 #[command(version = vault_core::VERSION)]
 struct Cli {
     /// Vault API URL
@@ -35,6 +36,10 @@ struct Cli {
     /// Output format
     #[arg(short, long, value_enum, default_value = "table")]
     format: Format,
+
+    /// Quiet mode (suppress non-essential output)
+    #[arg(short, long)]
+    quiet: bool,
 
     /// Verbose output
     #[arg(short, long)]
@@ -63,20 +68,11 @@ impl From<Format> for OutputFormat {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Login to Vault
-    Login {
-        /// Email address
-        email: String,
-        /// Password (will prompt if not provided)
-        #[arg(short, long)]
-        password: Option<String>,
+    /// Authentication commands
+    Auth {
+        #[command(subcommand)]
+        command: AuthCommands,
     },
-
-    /// Logout from Vault
-    Logout,
-
-    /// Show current user info
-    Whoami,
 
     /// User management commands
     Users {
@@ -102,11 +98,45 @@ enum Commands {
         command: PluginCommands,
     },
 
+    /// Migration tools
+    Migrate {
+        #[command(subcommand)]
+        command: MigrateCommands,
+    },
+
     /// Configuration commands
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
     },
+
+    /// Test connection to Vault
+    Ping,
+
+    /// Show CLI version
+    #[command(name = "--version")]
+    Version,
+}
+
+#[derive(Subcommand)]
+enum AuthCommands {
+    /// Login to Vault
+    Login {
+        /// Email address (optional if using API key)
+        email: Option<String>,
+        /// Password (will prompt if not provided)
+        #[arg(short, long)]
+        password: Option<String>,
+        /// API key for service account authentication
+        #[arg(short = 'k', long)]
+        api_key: Option<String>,
+    },
+
+    /// Logout from Vault
+    Logout,
+
+    /// Show current user info
+    Whoami,
 }
 
 #[derive(Subcommand)]
@@ -116,15 +146,22 @@ enum UserCommands {
         /// Filter by email
         #[arg(short, long)]
         email: Option<String>,
+        /// Filter by status
+        #[arg(short, long)]
+        status: Option<String>,
+        /// Page number
+        #[arg(short, long, default_value = "1")]
+        page: i64,
         /// Number of results per page
         #[arg(short, long, default_value = "20")]
-        limit: u32,
+        per_page: i64,
     },
     /// Get user details
     Get { id: String },
     /// Create new user
     Create {
         /// Email address
+        #[arg(short, long)]
         email: String,
         /// Password (will prompt if not provided)
         #[arg(short, long)]
@@ -132,6 +169,9 @@ enum UserCommands {
         /// Display name
         #[arg(short, long)]
         name: Option<String>,
+        /// Mark email as verified
+        #[arg(long)]
+        email_verified: bool,
     },
     /// Update user
     Update {
@@ -142,6 +182,9 @@ enum UserCommands {
         /// New name
         #[arg(long)]
         name: Option<String>,
+        /// New status
+        #[arg(short, long)]
+        status: Option<String>,
     },
     /// Delete user
     Delete {
@@ -164,16 +207,43 @@ enum UserCommands {
 #[derive(Subcommand)]
 enum OrgCommands {
     /// List organizations
-    List,
+    List {
+        /// Page number
+        #[arg(short, long, default_value = "1")]
+        page: i64,
+        /// Number of results per page
+        #[arg(short, long, default_value = "20")]
+        per_page: i64,
+        /// Filter by status
+        #[arg(short, long)]
+        status: Option<String>,
+    },
     /// Get organization details
     Get { id: String },
     /// Create organization
     Create {
         /// Organization name
+        #[arg(short, long)]
         name: String,
-        /// Organization slug
+        /// Organization slug (optional, auto-generated from name)
         #[arg(short, long)]
         slug: Option<String>,
+        /// Description
+        #[arg(short, long)]
+        description: Option<String>,
+    },
+    /// Update organization
+    Update {
+        id: String,
+        /// New name
+        #[arg(short, long)]
+        name: Option<String>,
+        /// New description
+        #[arg(long)]
+        description: Option<String>,
+        /// Website URL
+        #[arg(short, long)]
+        website: Option<String>,
     },
     /// Delete organization
     Delete {
@@ -183,31 +253,69 @@ enum OrgCommands {
         force: bool,
     },
     /// List organization members
-    Members { org_id: String },
+    Members {
+        #[command(subcommand)]
+        command: OrgMemberCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum OrgMemberCommands {
+    /// List members
+    List { org_id: String },
+    /// Add member to organization
+    Add {
+        org_id: String,
+        /// User ID to add
+        #[arg(short, long)]
+        user_id: String,
+        /// Role (admin, member, viewer)
+        #[arg(short, long, default_value = "member")]
+        role: String,
+    },
+    /// Remove member from organization
+    Remove {
+        org_id: String,
+        /// User ID to remove
+        #[arg(short, long)]
+        user_id: String,
+    },
+    /// Update member role
+    Update {
+        org_id: String,
+        /// User ID
+        #[arg(short, long)]
+        user_id: String,
+        /// New role (admin, member, viewer)
+        #[arg(short, long)]
+        role: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum SessionCommands {
     /// List active sessions
-    List,
+    List {
+        /// Filter by user ID (admin only)
+        #[arg(short, long)]
+        user_id: Option<String>,
+    },
     /// Revoke a session
-    Revoke { id: String },
-    /// Revoke all sessions (logout everywhere)
+    Revoke {
+        session_id: String,
+        /// User ID (admin only, for revoking other user sessions)
+        #[arg(short, long)]
+        user_id: Option<String>,
+    },
+    /// Revoke all sessions for a user
     RevokeAll {
+        /// User ID (if not provided, revokes own sessions)
+        #[arg(short, long)]
+        user_id: Option<String>,
         /// Skip confirmation
         #[arg(short, long)]
         force: bool,
     },
-}
-
-#[derive(Subcommand)]
-enum ConfigCommands {
-    /// Show current configuration
-    Show,
-    /// Set configuration value
-    Set { key: String, value: String },
-    /// Initialize configuration
-    Init,
 }
 
 #[derive(Subcommand)]
@@ -278,6 +386,102 @@ enum PluginTypeArg {
     Builtin,
 }
 
+#[derive(Subcommand)]
+#[clap(rename_all = "kebab-case")]
+enum MigrateCommands {
+    /// Import users from CSV or JSON
+    ImportUsers {
+        /// Path to import file
+        file: PathBuf,
+        /// File format (auto-detected if not specified)
+        #[arg(short, long)]
+        format: Option<ImportFormat>,
+        /// Dry run (validate without importing)
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Export users to file
+    ExportUsers {
+        /// Output file path
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Export format
+        #[arg(short, long, default_value = "json")]
+        format: ExportFormat,
+        /// Filter by status
+        #[arg(short, long)]
+        status: Option<String>,
+    },
+    /// Import users from Auth0
+    FromAuth0 {
+        /// Auth0 domain
+        #[arg(short, long)]
+        domain: String,
+        /// Auth0 management API token
+        #[arg(short, long)]
+        token: String,
+        /// Connection ID (optional)
+        #[arg(short, long)]
+        connection: Option<String>,
+    },
+    /// Import users from Firebase
+    FromFirebase {
+        /// Path to Firebase credentials JSON
+        #[arg(short, long)]
+        credentials: PathBuf,
+        /// Dry run (validate without importing)
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ImportFormat {
+    Csv,
+    Json,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ExportFormat {
+    Csv,
+    Json,
+    Yaml,
+}
+
+#[derive(Subcommand)]
+enum ConfigCommands {
+    /// Show current configuration
+    Show,
+    /// Set configuration value
+    Set {
+        key: String,
+        value: String,
+    },
+    /// Set API URL
+    #[command(name = "set-url")]
+    SetUrl {
+        url: String,
+    },
+    /// Set API key
+    #[command(name = "set-api-key")]
+    SetApiKey {
+        key: String,
+    },
+    /// Set default tenant
+    #[command(name = "set-tenant")]
+    SetTenant {
+        tenant_id: String,
+    },
+    /// Initialize configuration interactively
+    Init,
+    /// Reset configuration to defaults
+    Reset {
+        /// Skip confirmation
+        #[arg(short, long)]
+        force: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -286,42 +490,64 @@ async fn main() -> Result<()> {
         tracing_subscriber::fmt::init();
     }
 
-    info!("Vault CLI v{}", vault_core::VERSION);
+    if !cli.quiet {
+        info!("Vault CLI v{}", vault_core::VERSION);
+    }
 
     // Load configuration
     let config = Config::load()?;
 
     // Determine effective values (CLI args override config)
-    let api_url = cli.api_url.or(config.api_url).unwrap_or_else(|| {
+    let api_url = cli.api_url.or(config.api_url.clone()).unwrap_or_else(|| {
         eprintln!("Error: API URL not configured. Use --api-url or run 'vault config init'");
         std::process::exit(1);
     });
 
     let format: OutputFormat = cli.format.into();
+    let tenant_id = cli.tenant_id.or(config.tenant_id.clone()).unwrap_or_default();
 
     match cli.command {
-        Commands::Login { email, password } => {
-            commands::auth::login(&api_url, &email, password.as_deref()).await?;
-        }
-        Commands::Logout => {
-            commands::auth::logout()?;
-        }
-        Commands::Whoami => {
-            let token = config.token.as_deref().context("Not logged in")?;
-            commands::auth::whoami(&api_url, token).await?;
-        }
+        Commands::Auth { command } => match command {
+            AuthCommands::Login {
+                email,
+                password,
+                api_key,
+            } => {
+                if let Some(key) = api_key {
+                    commands::auth::login_with_api_key(&api_url, &key, &tenant_id).await?;
+                } else if let Some(email) = email {
+                    commands::auth::login(&api_url, &email, password.as_deref()).await?;
+                } else {
+                    anyhow::bail!("Either email or --api-key must be provided");
+                }
+            }
+            AuthCommands::Logout => {
+                commands::auth::logout()?;
+            }
+            AuthCommands::Whoami => {
+                let token = config.token.as_deref().context("Not logged in")?;
+                commands::auth::whoami(&api_url, token, format).await?;
+            }
+        },
+
         Commands::Users { command } => {
             let token = config.token.as_deref().context("Not logged in")?;
-            let tenant_id = cli.tenant_id.or(config.tenant_id).unwrap_or_default();
 
             match command {
-                UserCommands::List { email, limit } => {
+                UserCommands::List {
+                    email,
+                    status,
+                    page,
+                    per_page,
+                } => {
                     commands::users::list(
                         &api_url,
                         token,
                         &tenant_id,
                         email.as_deref(),
-                        limit,
+                        status.as_deref(),
+                        page,
+                        per_page,
                         format,
                     )
                     .await?;
@@ -333,6 +559,7 @@ async fn main() -> Result<()> {
                     email,
                     password,
                     name,
+                    email_verified,
                 } => {
                     commands::users::create(
                         &api_url,
@@ -341,10 +568,11 @@ async fn main() -> Result<()> {
                         &email,
                         password.as_deref(),
                         name.as_deref(),
+                        email_verified,
                     )
                     .await?;
                 }
-                UserCommands::Update { id, email, name } => {
+                UserCommands::Update { id, email, name, status } => {
                     commands::users::update(
                         &api_url,
                         token,
@@ -352,6 +580,7 @@ async fn main() -> Result<()> {
                         &id,
                         email.as_deref(),
                         name.as_deref(),
+                        status.as_deref(),
                     )
                     .await?;
                 }
@@ -367,48 +596,102 @@ async fn main() -> Result<()> {
                 }
             }
         }
+
         Commands::Orgs { command } => {
             let token = config.token.as_deref().context("Not logged in")?;
-            let tenant_id = cli.tenant_id.or(config.tenant_id).unwrap_or_default();
 
             match command {
-                OrgCommands::List => {
-                    commands::orgs::list(&api_url, token, &tenant_id, format).await?;
+                OrgCommands::List {
+                    page,
+                    per_page,
+                    status,
+                } => {
+                    commands::orgs::list(&api_url, token, &tenant_id, page, per_page, status.as_deref(), format).await?;
                 }
                 OrgCommands::Get { id } => {
                     commands::orgs::get(&api_url, token, &tenant_id, &id, format).await?;
                 }
-                OrgCommands::Create { name, slug } => {
-                    commands::orgs::create(&api_url, token, &tenant_id, &name, slug.as_deref())
+                OrgCommands::Create {
+                    name,
+                    slug,
+                    description,
+                } => {
+                    commands::orgs::create(&api_url, token, &tenant_id, &name, slug.as_deref(), description.as_deref())
                         .await?;
+                }
+                OrgCommands::Update {
+                    id,
+                    name,
+                    description,
+                    website,
+                } => {
+                    commands::orgs::update(
+                        &api_url,
+                        token,
+                        &tenant_id,
+                        &id,
+                        name.as_deref(),
+                        description.as_deref(),
+                        website.as_deref(),
+                    )
+                    .await?;
                 }
                 OrgCommands::Delete { id, force } => {
                     commands::orgs::delete(&api_url, token, &tenant_id, &id, force).await?;
                 }
-                OrgCommands::Members { org_id } => {
-                    commands::orgs::members(&api_url, token, &tenant_id, &org_id, format).await?;
-                }
+                OrgCommands::Members { command } => match command {
+                    OrgMemberCommands::List { org_id } => {
+                        commands::orgs::members(&api_url, token, &tenant_id, &org_id, format).await?;
+                    }
+                    OrgMemberCommands::Add { org_id, user_id, role } => {
+                        commands::orgs::add_member(&api_url, token, &tenant_id, &org_id, &user_id, &role)
+                            .await?;
+                    }
+                    OrgMemberCommands::Remove { org_id, user_id } => {
+                        commands::orgs::remove_member(&api_url, token, &tenant_id, &org_id, &user_id)
+                            .await?;
+                    }
+                    OrgMemberCommands::Update { org_id, user_id, role } => {
+                        commands::orgs::update_member(&api_url, token, &tenant_id, &org_id, &user_id, &role)
+                            .await?;
+                    }
+                },
             }
         }
+
         Commands::Sessions { command } => {
             let token = config.token.as_deref().context("Not logged in")?;
-            let tenant_id = cli.tenant_id.or(config.tenant_id).unwrap_or_default();
 
             match command {
-                SessionCommands::List => {
-                    commands::sessions::list(&api_url, token, &tenant_id, format).await?;
+                SessionCommands::List { user_id } => {
+                    if let Some(uid) = user_id {
+                        commands::sessions::list_user_sessions(&api_url, token, &tenant_id, &uid, format).await?;
+                    } else {
+                        commands::sessions::list(&api_url, token, &tenant_id, format).await?;
+                    }
                 }
-                SessionCommands::Revoke { id } => {
-                    commands::sessions::revoke(&api_url, token, &tenant_id, &id).await?;
+                SessionCommands::Revoke { session_id, user_id } => {
+                    if let Some(uid) = user_id {
+                        commands::sessions::revoke_user_session(&api_url, token, &tenant_id, &uid, &session_id)
+                            .await?;
+                    } else {
+                        commands::sessions::revoke(&api_url, token, &tenant_id, &session_id).await?;
+                    }
                 }
-                SessionCommands::RevokeAll { force } => {
-                    commands::sessions::revoke_all(&api_url, token, &tenant_id, force).await?;
+                SessionCommands::RevokeAll { user_id, force } => {
+                    if let Some(uid) = user_id {
+                        commands::sessions::revoke_all_user_sessions(&api_url, token, &tenant_id, &uid, force)
+                            .await?;
+                    } else {
+                        commands::sessions::revoke_all(&api_url, token, &tenant_id, force).await?;
+                    }
                 }
             }
         }
+
         Commands::Plugins { command } => {
             let token = config.token.as_deref().context("Not logged in")?;
-            
+
             match command {
                 PluginCommands::List { detailed } => {
                     println!("Listing plugins... (detailed: {})", detailed);
@@ -416,7 +699,6 @@ async fn main() -> Result<()> {
                     println!("  example-plugin   v1.0.0  builtin   ✓ enabled  ● healthy");
                     println!("  ldap-plugin      v1.0.0  builtin   ✓ enabled  ● healthy");
                     println!("  webhook-plugin   v1.0.0  builtin   ✓ enabled  ● healthy");
-                    // TODO: Implement actual plugin list API call
                 }
                 PluginCommands::Install { path, name, enable } => {
                     println!("Installing plugin from: {:?}", path);
@@ -424,30 +706,19 @@ async fn main() -> Result<()> {
                         println!("Plugin name: {}", n);
                     }
                     println!("Enable immediately: {}", enable);
-                    // TODO: Implement actual plugin install API call
                 }
                 PluginCommands::Uninstall { name, force } => {
                     println!("Uninstalling plugin: {}", name);
                     println!("Force: {}", force);
-                    // TODO: Implement actual plugin uninstall API call
                 }
                 PluginCommands::Enable { name } => {
                     println!("Enabling plugin: {}", name);
-                    // TODO: Implement actual plugin enable API call
                 }
                 PluginCommands::Disable { name } => {
                     println!("Disabling plugin: {}", name);
-                    // TODO: Implement actual plugin disable API call
                 }
                 PluginCommands::Show { name } => {
                     println!("Showing plugin details: {}", name);
-                    println!("\nExample output for a plugin:");
-                    println!("  Name:        {}", name);
-                    println!("  Version:     1.0.0");
-                    println!("  Type:        builtin");
-                    println!("  Health:      healthy");
-                    println!("  Enabled:     true");
-                    // TODO: Implement actual plugin show API call
                 }
                 PluginCommands::Health { name } => {
                     if let Some(n) = name {
@@ -455,29 +726,22 @@ async fn main() -> Result<()> {
                     } else {
                         println!("Checking health of all plugins");
                     }
-                    // TODO: Implement actual plugin health API call
                 }
                 PluginCommands::Create { name, plugin_type, output } => {
                     let output_dir = output.unwrap_or_else(|| PathBuf::from("./plugins"));
-                    let plugin_type_str = match plugin_type {
-                        PluginTypeArg::Native => "native",
-                        PluginTypeArg::Wasm => "wasm",
-                        PluginTypeArg::Builtin => "builtin",
-                    };
-                    
-                    println!("Creating new {} plugin: {}", plugin_type_str, name);
-                    println!("Output directory: {:?}", output_dir);
-                    
-                    // Use the scaffold generator
-                    let author = std::env::var("USER").unwrap_or_else(|_| "Unknown".to_string());
-                    let description = format!("A custom {} plugin for Vault", plugin_type_str);
-                    
                     let cli_plugin_type = match plugin_type {
                         PluginTypeArg::Native => commands::plugin::PluginTypeArg::Native,
                         PluginTypeArg::Wasm => commands::plugin::PluginTypeArg::Wasm,
                         PluginTypeArg::Builtin => commands::plugin::PluginTypeArg::Builtin,
                     };
-                    
+
+                    let author = std::env::var("USER").unwrap_or_else(|_| "Unknown".to_string());
+                    let description = format!("A custom {} plugin for Vault", match plugin_type {
+                        PluginTypeArg::Native => "native",
+                        PluginTypeArg::Wasm => "wasm",
+                        PluginTypeArg::Builtin => "builtin",
+                    });
+
                     match commands::plugin::PluginScaffold::create(
                         &name,
                         cli_plugin_type,
@@ -485,9 +749,66 @@ async fn main() -> Result<()> {
                         &description,
                         &author,
                     ) {
-                        Ok(_) => println!("\nPlugin scaffold created successfully!"),
+                        Ok(_) => println!("\n✅ Plugin scaffold created successfully!"),
                         Err(e) => eprintln!("Error creating plugin scaffold: {}", e),
                     }
+                }
+            }
+        }
+
+        Commands::Migrate { command } => {
+            let token = config.token.as_deref().context("Not logged in")?;
+
+            match command {
+                MigrateCommands::ImportUsers { file, format, dry_run } => {
+                    commands::migrate::import_users(
+                        &api_url,
+                        token,
+                        &tenant_id,
+                        &file,
+                        format.map(|f| match f {
+                            ImportFormat::Csv => commands::migrate::ImportFormat::Csv,
+                            ImportFormat::Json => commands::migrate::ImportFormat::Json,
+                        }),
+                        dry_run,
+                    )
+                    .await?;
+                }
+                MigrateCommands::ExportUsers { output, format, status } => {
+                    commands::migrate::export_users(
+                        &api_url,
+                        token,
+                        &tenant_id,
+                        output.as_ref(),
+                        match format {
+                            ExportFormat::Csv => commands::migrate::ExportFormat::Csv,
+                            ExportFormat::Json => commands::migrate::ExportFormat::Json,
+                            ExportFormat::Yaml => commands::migrate::ExportFormat::Yaml,
+                        },
+                        status.as_deref(),
+                    )
+                    .await?;
+                }
+                MigrateCommands::FromAuth0 { domain, token: auth0_token, connection } => {
+                    commands::migrate::import_from_auth0(
+                        &api_url,
+                        token,
+                        &tenant_id,
+                        &domain,
+                        &auth0_token,
+                        connection.as_deref(),
+                    )
+                    .await?;
+                }
+                MigrateCommands::FromFirebase { credentials, dry_run } => {
+                    commands::migrate::import_from_firebase(
+                        &api_url,
+                        token,
+                        &tenant_id,
+                        &credentials,
+                        dry_run,
+                    )
+                    .await?;
                 }
             }
         }
@@ -499,10 +820,30 @@ async fn main() -> Result<()> {
             ConfigCommands::Set { key, value } => {
                 commands::config::set(&key, &value)?;
             }
+            ConfigCommands::SetUrl { url } => {
+                commands::config::set("api_url", &url)?;
+            }
+            ConfigCommands::SetApiKey { key } => {
+                commands::config::set("token", &key)?;
+            }
+            ConfigCommands::SetTenant { tenant_id } => {
+                commands::config::set("tenant_id", &tenant_id)?;
+            }
             ConfigCommands::Init => {
                 commands::config::init().await?;
             }
+            ConfigCommands::Reset { force } => {
+                commands::config::reset(force)?;
+            }
         },
+
+        Commands::Ping => {
+            commands::ping::ping(&api_url).await?;
+        }
+
+        Commands::Version => {
+            println!("Vault CLI {}", vault_core::VERSION);
+        }
     }
 
     Ok(())

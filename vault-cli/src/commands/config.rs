@@ -1,6 +1,6 @@
 //! Configuration commands
 
-use crate::commands::OutputFormat;
+use crate::commands::{confirm, OutputFormat};
 use crate::config::Config;
 use anyhow::Result;
 
@@ -21,11 +21,7 @@ pub fn show(format: OutputFormat) -> Result<()> {
             );
             println!(
                 "  Logged in:    {}",
-                if config.is_authenticated() {
-                    "Yes"
-                } else {
-                    "No"
-                }
+                if config.is_authenticated() { "Yes" } else { "No" }
             );
             println!("\nConfig file: {}", Config::config_path()?.display());
         }
@@ -55,5 +51,21 @@ pub fn set(key: &str, value: &str) -> Result<()> {
 /// Initialize configuration interactively
 pub async fn init() -> Result<()> {
     crate::config::init_interactive().await?;
+    Ok(())
+}
+
+/// Reset configuration to defaults
+pub fn reset(force: bool) -> Result<()> {
+    if !force {
+        let confirmed = confirm("Reset all configuration? This will remove all saved settings.")?;
+        if !confirmed {
+            println!("Cancelled");
+            return Ok(());
+        }
+    }
+
+    let config = Config::default();
+    config.save()?;
+    println!("✅ Configuration reset to defaults");
     Ok(())
 }

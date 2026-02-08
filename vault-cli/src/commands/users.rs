@@ -1,26 +1,36 @@
 //! User management commands
 
 use crate::client::{types::UserList, VaultClient};
-use crate::commands::{confirm, print_data, print_table, OutputFormat};
+use crate::commands::{confirm, format_timestamp, print_data, print_table, OutputFormat};
 use anyhow::{Context, Result};
 
-/// List users
+/// List users with pagination
 pub async fn list(
     api_url: &str,
     token: &str,
     tenant_id: &str,
     email: Option<&str>,
-    limit: u32,
+    status: Option<&str>,
+    page: i64,
+    per_page: i64,
     format: OutputFormat,
 ) -> Result<()> {
     let client = VaultClient::new(api_url)
         .with_token(token)
         .with_tenant(tenant_id);
 
-    let limit_str = limit.to_string();
-    let mut params = vec![("per_page", limit_str.as_str())];
+    let page_str = page.to_string();
+    let per_page_str = per_page.to_string();
+    let mut params = vec![
+        ("page", page_str.as_str()),
+        ("per_page", per_page_str.as_str()),
+    ];
+    
     if let Some(email) = email {
         params.push(("email", email));
+    }
+    if let Some(status) = status {
+        params.push(("status", status));
     }
 
     let response: UserList = client
@@ -44,16 +54,16 @@ pub async fn list(
                         u.email.clone(),
                         u.name.clone().unwrap_or_else(|| "-".to_string()),
                         u.status.clone(),
-                        if u.mfa_enabled {
-                            "✓".to_string()
-                        } else {
-                            "-".to_string()
-                        },
+                        if u.mfa_enabled { "✓".to_string() } else { "-".to_string() },
+                        format_timestamp(&u.created_at),
                     ]
                 })
                 .collect();
 
-            print_table(vec!["ID", "Email", "Name", "Status", "MFA"], rows);
+            print_table(
+                vec!["ID", "Email", "Name", "Status", "MFA", "Created"],
+                rows,
+            );
 
             println!(
                 "\nShowing {} of {} users (page {} of {})",
@@ -64,7 +74,7 @@ pub async fn list(
             );
         }
         _ => {
-            print_data(&response.data, format)?;
+            print_data(&response, format)?;
         }
     }
 
@@ -100,21 +110,36 @@ pub async fn create(
     email: &str,
     password: Option<&str>,
     name: Option<&str>,
+    email_verified: bool,
 ) -> Result<()> {
     let client = VaultClient::new(api_url)
         .with_token(token)
         .with_tenant(tenant_id);
 
-    let password = match password {
-        Some(p) => p.to_string(),
-        None => super::read_password("Password")?,
+    // Get password interactively if not provided
+    let _password = if let Some(p) = password {
+        Some(p.to_string())
+    } else {
+        None
+    };
+
+    // Get name interactively if not provided
+    let name = match name {
+        Some(n) => n.to_string(),
+        None => {
+            println!("Creating user: {}", email);
+            super::read_input("Full name", None)?
+        }
     };
 
     #[derive(serde::Serialize)]
     struct CreateUserRequest {
         email: String,
-        password: String,
-        name: Option<String>,
+        name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
+        #[serde(rename = "emailVerified")]
+        email_verified: bool,
     }
 
     let user: serde_json::Value = client
@@ -122,8 +147,9 @@ pub async fn create(
             "/admin/users",
             &CreateUserRequest {
                 email: email.to_string(),
-                password,
-                name: name.map(|n| n.to_string()),
+                name,
+                password: _password,
+                email_verified,
             },
         )
         .await
@@ -132,6 +158,9 @@ pub async fn create(
     println!("✅ User created successfully!");
     println!("   ID: {}", user["id"].as_str().unwrap_or("N/A"));
     println!("   Email: {}", email);
+    if let Some(name) = user["name"].as_str() {
+        println!("   Name: {}", name);
+    }
 
     Ok(())
 }
@@ -144,23 +173,33 @@ pub async fn update(
     user_id: &str,
     email: Option<&str>,
     name: Option<&str>,
+    status: Option<&str>,
 ) -> Result<()> {
     let client = VaultClient::new(api_url)
         .with_token(token)
         .with_tenant(tenant_id);
 
-    #[derive(serde::Serialize)]
+    #[derive(serde::Serialize, Default)]
     struct UpdateUserRequest {
         #[serde(skip_serializing_if = "Option::is_none")]
         email: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
     }
 
-    let body = UpdateUserRequest {
-        email: email.map(|e| e.to_string()),
-        name: name.map(|n| n.to_string()),
-    };
+    let mut body = UpdateUserRequest::default();
+    
+    if let Some(email) = email {
+        body.email = Some(email.to_string());
+    }
+    if let Some(name) = name {
+        body.name = Some(name.to_string());
+    }
+    if let Some(status) = status {
+        body.status = Some(status.to_string());
+    }
 
     let user: serde_json::Value = client
         .patch(&format!("/admin/users/{}", user_id), &body)
@@ -245,7 +284,12 @@ pub async fn suspend(
 }
 
 /// Activate user
-pub async fn activate(api_url: &str, token: &str, tenant_id: &str, user_id: &str) -> Result<()> {
+pub async fn activate(
+    api_url: &str,
+    token: &str,
+    tenant_id: &str,
+    user_id: &str,
+) -> Result<()> {
     let client = VaultClient::new(api_url)
         .with_token(token)
         .with_tenant(tenant_id);

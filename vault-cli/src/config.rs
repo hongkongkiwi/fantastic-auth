@@ -28,9 +28,24 @@ impl Config {
         Ok(dir)
     }
 
+    /// Get data directory for CLI storage
+    pub fn data_dir() -> Result<PathBuf> {
+        let dir = dirs::data_dir()
+            .or_else(|| dirs::home_dir().map(|h| h.join(".vault")))
+            .context("Could not find data directory")?;
+
+        std::fs::create_dir_all(&dir)?;
+        Ok(dir)
+    }
+
     /// Get configuration file path
     pub fn config_path() -> Result<PathBuf> {
         Ok(Self::config_dir()?.join("config.toml"))
+    }
+
+    /// Get credentials file path (for secure storage)
+    pub fn credentials_path() -> Result<PathBuf> {
+        Ok(Self::data_dir()?.join("credentials"))
     }
 
     /// Load configuration from disk
@@ -60,6 +75,7 @@ impl Config {
             "api_url" => self.api_url = Some(value.to_string()),
             "tenant_id" => self.tenant_id = Some(value.to_string()),
             "token" => self.token = Some(value.to_string()),
+            "refresh_token" => self.refresh_token = Some(value.to_string()),
             _ => anyhow::bail!("Unknown configuration key: {}", key),
         }
         self.save()
@@ -71,6 +87,7 @@ impl Config {
             "api_url" => self.api_url.as_ref(),
             "tenant_id" => self.tenant_id.as_ref(),
             "token" => self.token.as_ref(),
+            "refresh_token" => self.refresh_token.as_ref(),
             _ => None,
         }
     }
@@ -107,13 +124,15 @@ pub async fn init_interactive() -> Result<Config> {
         .interact()?;
 
     let mut config = Config {
-        api_url: Some(api_url),
+        api_url: Some(api_url.clone()),
         ..Default::default()
     };
 
     if tenant_choice == 1 {
         // API Key auth
-        let api_key: String = Input::new().with_prompt("API Key").interact_text()?;
+        let api_key: String = Input::new()
+            .with_prompt("API Key")
+            .interact_text()?;
 
         config.token = Some(api_key);
 
@@ -122,10 +141,13 @@ pub async fn init_interactive() -> Result<Config> {
             .interact_text()?;
 
         config.tenant_id = Some(tenant_id);
+    } else {
+        // User login - just set the URL for now
+        println!("\nConfiguration saved. Run 'vault auth login <email>' to authenticate.");
     }
 
     config.save()?;
-    println!("\n✅ Configuration saved!");
+    println!("\n✅ Configuration saved to {}", Config::config_path()?.display());
 
     Ok(config)
 }

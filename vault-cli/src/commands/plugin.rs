@@ -554,9 +554,11 @@ mod tests {{
             name, description, plugin_type_str,
             name, name,
             name, name, name,
-            name, name, name, name, name,
-            name, description, plugin_type_str, name,
-            name, description, plugin_type_str
+            name,
+            name, name, name,
+            name, name,
+            name, name, name, name,
+            name, name, name, name, name, name
         )
     }
 

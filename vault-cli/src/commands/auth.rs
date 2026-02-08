@@ -1,6 +1,7 @@
 //! Authentication commands
 
 use crate::client::{types::AuthResponse, VaultClient};
+use crate::commands::{print_data, OutputFormat};
 use crate::config::Config;
 use anyhow::{Context, Result};
 
@@ -36,6 +37,7 @@ pub async fn login(api_url: &str, email: &str, password: Option<&str>) -> Result
     let mut config = Config::load()?;
     config.api_url = Some(api_url.to_string());
     config.token = Some(response.access_token);
+    config.refresh_token = Some(response.refresh_token);
     config.save()?;
 
     println!("✅ Logged in successfully!");
@@ -45,6 +47,32 @@ pub async fn login(api_url: &str, email: &str, password: Option<&str>) -> Result
         response.user.email
     );
     println!("   Status: {}", response.user.status);
+
+    Ok(())
+}
+
+/// Login with API key (service account)
+pub async fn login_with_api_key(api_url: &str, api_key: &str, tenant_id: &str) -> Result<()> {
+    println!("🔐 Authenticating with API key...");
+
+    let client = VaultClient::new(api_url).with_token(api_key);
+
+    // Verify the API key by making a request
+    let user: crate::client::types::User = client
+        .get("/users/me")
+        .await
+        .context("API key authentication failed")?;
+
+    // Save configuration
+    let mut config = Config::load()?;
+    config.api_url = Some(api_url.to_string());
+    config.token = Some(api_key.to_string());
+    config.tenant_id = Some(tenant_id.to_string());
+    config.save()?;
+
+    println!("✅ Authenticated successfully!");
+    println!("   User: {} ({})", user.name.as_deref().unwrap_or("N/A"), user.email);
+    println!("   Tenant: {}", tenant_id);
 
     Ok(())
 }
@@ -65,7 +93,7 @@ pub fn logout() -> Result<()> {
 }
 
 /// Show current user info
-pub async fn whoami(api_url: &str, token: &str) -> Result<()> {
+pub async fn whoami(api_url: &str, token: &str, format: OutputFormat) -> Result<()> {
     let client = VaultClient::new(api_url).with_token(token);
 
     let user: crate::client::types::User = client
@@ -73,23 +101,27 @@ pub async fn whoami(api_url: &str, token: &str) -> Result<()> {
         .await
         .context("Failed to get user info")?;
 
-    println!("👤 Current user:");
-    println!("   ID: {}", user.id);
-    println!("   Email: {}", user.email);
-    println!("   Name: {}", user.name.as_deref().unwrap_or("N/A"));
-    println!("   Status: {}", user.status);
-    println!(
-        "   MFA: {}",
-        if user.mfa_enabled {
-            "Enabled"
-        } else {
-            "Disabled"
+    match format {
+        OutputFormat::Table => {
+            println!("👤 Current user:");
+            println!("   ID:       {}", user.id);
+            println!("   Email:    {}", user.email);
+            println!("   Name:     {}", user.name.as_deref().unwrap_or("N/A"));
+            println!("   Status:   {}", user.status);
+            println!(
+                "   MFA:      {}",
+                if user.mfa_enabled { "Enabled" } else { "Disabled" }
+            );
+            println!(
+                "   Verified: {}",
+                if user.email_verified { "Yes" } else { "No" }
+            );
+            println!("   Created:  {}", super::format_timestamp(&user.created_at));
         }
-    );
-    println!(
-        "   Email verified: {}",
-        if user.email_verified { "Yes" } else { "No" }
-    );
+        _ => {
+            print_data(&user, format)?;
+        }
+    }
 
     Ok(())
 }

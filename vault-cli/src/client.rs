@@ -95,6 +95,18 @@ impl VaultClient {
         self.handle_response(response).await
     }
 
+    /// Send PUT request
+    pub async fn put<T: DeserializeOwned, B: Serialize>(&self, path: &str, body: &B) -> Result<T> {
+        let response = self
+            .build_request(reqwest::Method::PUT, path)
+            .json(body)
+            .send()
+            .await
+            .context("Failed to send request")?;
+
+        self.handle_response(response).await
+    }
+
     /// Send PATCH request
     pub async fn patch<T: DeserializeOwned, B: Serialize>(
         &self,
@@ -141,6 +153,12 @@ impl VaultClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| format!("HTTP {}", status));
+            
+            // Try to parse as API error
+            if let Ok(api_error) = serde_json::from_str::<types::ErrorResponse>(&error_text) {
+                anyhow::bail!("API error: {} - {}", api_error.error.code, api_error.error.message);
+            }
+            
             anyhow::bail!("API error: {}", error_text)
         }
     }
@@ -150,6 +168,7 @@ impl VaultClient {
 pub mod types {
     use serde::{Deserialize, Serialize};
 
+    /// User representation
     #[derive(Debug, Serialize, Deserialize)]
     pub struct User {
         pub id: String,
@@ -164,30 +183,36 @@ pub mod types {
         pub created_at: String,
     }
 
+    /// User list response
     #[derive(Debug, Serialize, Deserialize)]
     pub struct UserList {
-        pub data: Vec<User>,
-        pub pagination: Pagination,
+        pub users: Vec<User>,
+        pub total: i64,
+        pub page: i64,
+        pub per_page: i64,
     }
 
+    /// Organization representation
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Organization {
         pub id: String,
         pub name: String,
         pub slug: String,
         #[serde(rename = "memberCount")]
-        pub member_count: i32,
+        pub member_count: i64,
         pub status: String,
         #[serde(rename = "createdAt")]
         pub created_at: String,
     }
 
+    /// Organization list response
     #[derive(Debug, Serialize, Deserialize)]
     pub struct OrgList {
         pub data: Vec<Organization>,
         pub pagination: Pagination,
     }
 
+    /// Pagination information
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Pagination {
         pub page: i64,
@@ -198,6 +223,7 @@ pub mod types {
         pub total_pages: i64,
     }
 
+    /// Session representation
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Session {
         pub id: String,
@@ -212,6 +238,7 @@ pub mod types {
         pub current: bool,
     }
 
+    /// Authentication response
     #[derive(Debug, Serialize, Deserialize)]
     pub struct AuthResponse {
         #[serde(rename = "accessToken")]
@@ -221,17 +248,20 @@ pub mod types {
         pub user: User,
     }
 
+    /// Error response from API
     #[derive(Debug, Deserialize)]
     pub struct ErrorResponse {
         pub error: ApiError,
     }
 
+    /// API error details
     #[derive(Debug, Deserialize)]
     pub struct ApiError {
         pub code: String,
         pub message: String,
     }
 
+    /// Message response (for success messages)
     #[derive(Debug, Deserialize)]
     pub struct MessageResponse {
         pub message: String,
