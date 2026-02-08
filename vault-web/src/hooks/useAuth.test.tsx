@@ -90,7 +90,7 @@ describe('useAuth', () => {
     expect(authRef.current?.isAuthenticated).toBe(false)
   })
 
-  it.skip('logout clears user state', async () => {
+  it('logout clears user state', async () => {
     const authRef = await setup()
     expect(authRef.current).not.toBeNull()
     
@@ -114,7 +114,13 @@ describe('useAuth', () => {
     })
   })
 
-  it.skip('checkAuth returns correct state', async () => {
+  it('checkAuth returns correct state', async () => {
+    getUiSessionStatusMock.mockReset()
+    getUiSessionStatusMock
+      .mockRejectedValueOnce(new Error('Unauthorized'))
+      .mockRejectedValueOnce(new Error('Unauthorized'))
+      .mockResolvedValueOnce({ ok: true })
+
     const authRef = await setup()
     expect(authRef.current).not.toBeNull()
     

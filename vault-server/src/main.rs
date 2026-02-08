@@ -24,6 +24,7 @@ mod metrics_internal;
 mod middleware;
 mod monitoring;
 mod observability;
+mod permissions;
 mod routes;
 mod scim;
 mod security;

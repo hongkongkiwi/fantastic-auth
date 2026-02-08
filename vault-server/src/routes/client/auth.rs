@@ -88,6 +88,11 @@ pub fn routes() -> Router<AppState> {
         // Anonymous/guest authentication endpoints
         .route("/anonymous", post(create_anonymous_session_handler))
         .route("/anonymous/convert", post(convert_anonymous_handler))
+        // Biometric authentication endpoints
+        .route("/biometric/challenge", post(biometric_challenge))
+        .route("/biometric/authenticate", post(biometric_authenticate))
+        .route("/biometric/keys", post(biometric_register_key).get(biometric_list_keys))
+        .route("/biometric/keys/:id", delete(biometric_revoke_key))
 }
 
 #[derive(Debug, Deserialize)]

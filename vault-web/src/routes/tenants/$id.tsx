@@ -25,10 +25,12 @@ import { DataTable } from '../../components/DataTable'
 import { useServerFn } from '@tanstack/react-start'
 import {
   getTenantDetail,
+  searchUsers,
   suspendTenant,
   activateTenant,
   deleteTenant,
   type TenantDetail,
+  type PlatformUserResponse,
 } from '../../server/internal-api'
 import { toast } from '../../components/ui/Toaster'
 import { formatDate, formatDateTime, formatNumber, formatRelativeTime } from '../../lib/utils'
@@ -65,31 +67,27 @@ const recentActivity = [
   { id: 4, action: 'Failed Login', user: 'unknown', timestamp: new Date(now - 2 * 60 * 60 * 1000).toISOString(), status: 'error' },
 ]
 
-const tenantUsersMock = [
-  { id: 'user-1', name: 'Avery Stone', email: 'avery@tenant.com', role: 'Admin', seats: 3, status: 'active' },
-  { id: 'user-2', name: 'Jordan Lee', email: 'jordan@tenant.com', role: 'Member', seats: 1, status: 'active' },
-  { id: 'user-3', name: 'Morgan Patel', email: 'morgan@tenant.com', role: 'Viewer', seats: 1, status: 'invited' },
-]
-
-const tenantUserColumns: ColumnDef<(typeof tenantUsersMock)[number]>[] = [
+const tenantUserColumns: ColumnDef<PlatformUserResponse>[] = [
   {
     accessorKey: 'name',
     header: 'User',
     cell: ({ row }) => (
       <div>
-        <p className="font-medium">{row.original.name}</p>
-        <p className="text-sm text-muted-foreground">{row.original.email}</p>
+        <p className="font-medium">{row.original.name || 'Unnamed User'}</p>
+        <p className="text-sm text-muted-foreground">{row.original.email ?? '—'}</p>
       </div>
     ),
   },
   {
-    accessorKey: 'role',
+    id: 'role',
     header: 'Role',
+    accessorFn: () => 'member',
     cell: ({ getValue }) => <Badge variant="secondary">{getValue() as string}</Badge>,
   },
   {
-    accessorKey: 'seats',
+    id: 'seats',
     header: 'Seats',
+    accessorFn: () => 1,
     cell: ({ getValue }) => getValue() as number,
   },
   {
@@ -105,11 +103,14 @@ function TenantDetailPage() {
   const { id } = useParams({ from: '/tenants/$id' })
   const [tenant, setTenant] = useState<TenantDetail | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [tenantUsers, setTenantUsers] = useState<PlatformUserResponse[]>([])
+  const [isUsersLoading, setIsUsersLoading] = useState(false)
   const [dialogState, setDialogState] = useState<'suspend' | 'activate' | 'delete' | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const prefersReducedMotion = useReducedMotion()
 
   const getTenantFn = useServerFn(getTenantDetail)
+  const searchUsersFn = useServerFn(searchUsers)
   const suspendTenantFn = useServerFn(suspendTenant)
   const activateTenantFn = useServerFn(activateTenant)
   const deleteTenantFn = useServerFn(deleteTenant)
@@ -126,6 +127,21 @@ function TenantDetailPage() {
       }
     }
     fetchTenant()
+  }, [id])
+
+  useEffect(() => {
+    const fetchTenantUsers = async () => {
+      setIsUsersLoading(true)
+      try {
+        const result = await searchUsersFn({ data: { tenantId: id, page: 1 } })
+        setTenantUsers(result.data || [])
+      } catch {
+        toast.error('Failed to load tenant users')
+      } finally {
+        setIsUsersLoading(false)
+      }
+    }
+    fetchTenantUsers()
   }, [id])
 
   const handleAction = async () => {
@@ -451,7 +467,8 @@ function TenantDetailPage() {
             <CardContent>
               <DataTable
                 columns={tenantUserColumns}
-                data={tenantUsersMock}
+                data={tenantUsers}
+                isLoading={isUsersLoading}
                 searchable
                 searchPlaceholder="Search users…"
                 pagination

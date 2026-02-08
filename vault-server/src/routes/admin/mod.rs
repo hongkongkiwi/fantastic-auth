@@ -23,6 +23,7 @@ pub mod domains;
 pub mod i18n;
 pub mod organizations;
 pub mod password_policy;
+pub mod permissions;
 pub mod risk;
 pub mod roles;
 pub mod scim;
@@ -59,6 +60,7 @@ pub fn routes() -> Router<AppState> {
         .merge(webhooks::routes())
         .merge(billing::routes())
         .merge(password_policy::routes())
+        .merge(permissions::routes())
         .merge(bulk::routes())
         .merge(analytics::routes())
         .merge(consent::routes())

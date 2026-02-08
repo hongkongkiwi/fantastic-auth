@@ -40,6 +40,23 @@ export type SubscriptionListResponse = {
 }
 export type PlatformOverview = components['schemas']['PlatformOverviewResponse']
 export type InvoiceResponse = components['schemas']['InvoiceResponse']
+export type FeatureFlag = components['schemas']['FeatureFlagResponse']
+export type TenantAnalyticsPoint = {
+  date?: string
+  newTenants?: number
+  activeTenants?: number
+  churnedTenants?: number
+}
+export type TenantAnalyticsResponse = {
+  data?: TenantAnalyticsPoint[]
+}
+export type UsageAnalyticsResponse = {
+  total?: number
+  byTenant?: {
+    tenantId?: string
+    value?: number
+  }[]
+}
 export type MigrationResult = {
   success?: boolean
   version?: string
@@ -150,6 +167,27 @@ type GenerateInvoiceInput = {
   tenantId: string
   amount?: number
   description?: string
+} & UiAuth
+
+type GetUsageAnalyticsInput = {
+  baseUrl?: string
+  metric: 'activeUsers' | 'logins' | 'apiCalls' | 'storage'
+} & UiAuth
+
+type GetTenantAnalyticsInput = {
+  baseUrl?: string
+} & UiAuth
+
+type ListFeatureFlagsInput = {
+  baseUrl?: string
+} & UiAuth
+
+type UpdateFeatureFlagInput = {
+  baseUrl?: string
+  flagId: string
+  enabled?: boolean
+  rolloutPercentage?: number
+  allowedTenants?: string[]
 } & UiAuth
 
 type DeleteTenantInput = {
@@ -490,6 +528,128 @@ export const getPlatformOverview = createServerFn({ method: 'GET' })
     const result = payload ?? {}
     setCached(cacheKey, result)
     return result
+  })
+
+export const getUsageAnalytics = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .inputValidator((input: GetUsageAnalyticsInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('usageAnalytics', data)
+    const cached = getCached<UsageAnalyticsResponse>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET(
+      '/analytics/usage',
+      {
+        params: {
+          query: {
+            metric: data.metric,
+          },
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? {}
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const getTenantAnalytics = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .inputValidator((input: GetTenantAnalyticsInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('tenantAnalytics', data)
+    const cached = getCached<TenantAnalyticsResponse>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET(
+      '/analytics/tenants',
+      {
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? {}
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const listFeatureFlags = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .inputValidator((input: ListFeatureFlagsInput | undefined) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('featureFlags', data)
+    const cached = getCached<FeatureFlag[]>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET(
+      '/config/features',
+      {
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? []
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const updateFeatureFlag = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: UpdateFeatureFlagInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.PATCH(
+      '/config/features/{flagId}',
+      {
+        params: {
+          path: {
+            flagId: data.flagId,
+          },
+        },
+        body: {
+          enabled: data.enabled,
+          rolloutPercentage: data.rolloutPercentage,
+          allowedTenants: data.allowedTenants,
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    cache.clear()
+    return payload ?? {}
   })
 
 export const updateTenant = createServerFn({ method: 'POST' })

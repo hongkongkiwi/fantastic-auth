@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Activity, Shield, ToggleLeft, Server, CheckCircle2, AlertCircle } from 'lucide-react'
 import { PageHeader } from '../components/layout/Layout'
@@ -8,6 +8,14 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs'
 import { Switch } from '../components/ui/Switch'
+import { toast } from '../components/ui/Toaster'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import {
+  listFeatureFlags,
+  updateFeatureFlag,
+  type FeatureFlag,
+} from '../server/internal-api'
 
 export const Route = createFileRoute('/system')({
   component: SystemPage,
@@ -29,7 +37,7 @@ const flagsMock: FeatureFlag[] = [
     key: 'billing_v2',
     description: 'Enable the new billing pipeline for eligible tenants',
     enabled: true,
-    rollout: 25,
+    rolloutPercentage: 25,
   },
   {
     id: 'ff-2',
@@ -37,7 +45,7 @@ const flagsMock: FeatureFlag[] = [
     key: 'audit_stream',
     description: 'Stream audit events to configured destinations',
     enabled: false,
-    rollout: 0,
+    rolloutPercentage: 0,
   },
 ]
 
@@ -49,11 +57,35 @@ const healthChecks = [
 ]
 
 function SystemPage() {
-  const [flags, setFlags] = useState(flagsMock)
   const prefersReducedMotion = useReducedMotion()
+  const queryClient = useQueryClient()
+  const listFeatureFlagsFn = useServerFn(listFeatureFlags)
+  const updateFeatureFlagFn = useServerFn(updateFeatureFlag)
 
-  const toggleFlag = (id: string) => {
-    setFlags((prev) => prev.map((flag) => (flag.id === id ? { ...flag, enabled: !flag.enabled } : flag)))
+  const { data: featureFlags, isLoading } = useQuery({
+    queryKey: ['feature-flags'],
+    queryFn: () => listFeatureFlagsFn({ data: {} }),
+  })
+
+  const flags = useMemo(() => {
+    if (!featureFlags || featureFlags.length === 0) return flagsMock
+    return featureFlags
+  }, [featureFlags])
+
+  const updateMutation = useMutation({
+    mutationFn: async (payload: { flagId: string; enabled?: boolean; rolloutPercentage?: number }) => {
+      return updateFeatureFlagFn({ data: { flagId: payload.flagId, enabled: payload.enabled, rolloutPercentage: payload.rolloutPercentage } })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feature-flags'] })
+      toast.success('Feature flag updated')
+    },
+    onError: () => toast.error('Failed to update feature flag'),
+  })
+
+  const toggleFlag = (flag: FeatureFlag) => {
+    if (!flag.id) return
+    updateMutation.mutate({ flagId: flag.id, enabled: !flag.enabled })
   }
 
   return (
@@ -120,11 +152,15 @@ function SystemPage() {
                     </div>
                     <p className="text-sm text-muted-foreground mt-2">{flag.description}</p>
                     <p className="text-xs text-muted-foreground mt-2">
-                      Rollout: {flag.rollout}%
+                      Rollout: {flag.rolloutPercentage ?? 0}%
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Switch checked={flag.enabled} onCheckedChange={() => toggleFlag(flag.id)} />
+                    <Switch
+                      checked={Boolean(flag.enabled)}
+                      onCheckedChange={() => toggleFlag(flag)}
+                      disabled={isLoading || updateMutation.isPending}
+                    />
                   </div>
                 </div>
               </Card>
