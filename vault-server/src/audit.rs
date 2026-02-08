@@ -179,6 +179,10 @@ pub enum AuditAction {
     // Session validation
     SessionValidated,
     SessionValidationFailed,
+    
+    // Risk-based authentication
+    RiskAssessmentCreated,
+    LoginBlockedRisk,
 
     // Admin access
     AdminAccessGranted,
@@ -283,6 +287,8 @@ impl AuditAction {
             AuditAction::SessionRevoked => "session.revoked",
             AuditAction::SessionValidated => "session.validated",
             AuditAction::SessionValidationFailed => "session.validation_failed",
+            AuditAction::RiskAssessmentCreated => "risk.assessment_created",
+            AuditAction::LoginBlockedRisk => "risk.login_blocked",
             AuditAction::AdminAccessGranted => "admin.access_granted",
             AuditAction::AdminAccessDenied => "admin.access_denied",
             AuditAction::SuperadminAccessGranted => "superadmin.access_granted",
@@ -349,6 +355,7 @@ pub enum ResourceType {
     Domain,
     BulkJob,
     Consent,
+    RiskAssessment,
 }
 
 impl ResourceType {
@@ -370,6 +377,7 @@ impl ResourceType {
             ResourceType::Domain => "domain",
             ResourceType::BulkJob => "bulk_job",
             ResourceType::Consent => "consent",
+            ResourceType::RiskAssessment => "risk_assessment",
         }
     }
 }

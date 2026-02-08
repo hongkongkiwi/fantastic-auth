@@ -111,7 +111,7 @@ function OrganizationsPage() {
 
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link to="/organizations">
+                      <Link to={`/organizations/${org.id}`}>
                         Manage
                         <ChevronRight className="ml-1 h-4 w-4" />
                       </Link>
@@ -123,8 +123,12 @@ function OrganizationsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem>View Settings</DropdownMenuItem>
-                        <DropdownMenuItem>Manage Members</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/organizations/${org.id}`}>View Settings</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link to={`/organizations/${org.id}`}>Manage Members</Link>
+                        </DropdownMenuItem>
                         {org.role === 'owner' && (
                           <DropdownMenuItem className="text-destructive">
                             Delete Organization

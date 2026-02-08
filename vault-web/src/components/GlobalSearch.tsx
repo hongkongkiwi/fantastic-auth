@@ -13,6 +13,11 @@ import {
   ArrowRight,
   Plus,
   LogOut,
+  Lock,
+  BarChart3,
+  Bell,
+  LifeBuoy,
+  Server,
 } from 'lucide-react'
 import { Dialog, DialogContent } from './ui/Dialog'
 import { cn } from '../lib/utils'
@@ -87,6 +92,20 @@ export function GlobalSearch() {
       section: 'Navigation',
     },
     {
+      id: 'roles',
+      title: 'Roles & Permissions',
+      icon: Lock,
+      href: '/roles',
+      section: 'Navigation',
+    },
+    {
+      id: 'usage',
+      title: 'Usage & Analytics',
+      icon: BarChart3,
+      href: '/usage',
+      section: 'Navigation',
+    },
+    {
       id: 'billing',
       title: 'Billing',
       icon: CreditCard,
@@ -98,6 +117,27 @@ export function GlobalSearch() {
       title: 'Audit Logs',
       icon: ClipboardList,
       href: '/audit',
+      section: 'Navigation',
+    },
+    {
+      id: 'notifications',
+      title: 'Notifications',
+      icon: Bell,
+      href: '/notifications',
+      section: 'Navigation',
+    },
+    {
+      id: 'support',
+      title: 'Support',
+      icon: LifeBuoy,
+      href: '/support',
+      section: 'Navigation',
+    },
+    {
+      id: 'system',
+      title: 'System',
+      icon: Server,
+      href: '/system',
       section: 'Navigation',
     },
     {

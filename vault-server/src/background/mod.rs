@@ -24,6 +24,13 @@ pub fn start(config: &Config, _db: &Database, state: &AppState) {
         info!(path = prune.path.as_str(), "Audit log prune enabled");
     }
 
+    // Start analytics aggregation worker
+    spawn_analytics_worker(
+        state.db.clone(),
+        crate::analytics::models::AggregationConfig::default(),
+    );
+    info!("Analytics aggregation worker started");
+
     // Start webhook worker if enabled
     if config.webhook.enabled {
         webhook_worker::spawn_worker_with_config(

@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -6,6 +6,7 @@ import {
   Mail,
   Shield,
   Trash2,
+  User,
 } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { PageHeader } from '../components/layout/Layout'
@@ -100,7 +101,13 @@ function UsersPage() {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link to={`/users/${user.id ?? ''}`}>
+                  <User className="mr-2 h-4 w-4" />
+                  View Profile
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem>
                 <Mail className="mr-2 h-4 w-4" />
                 Send Email

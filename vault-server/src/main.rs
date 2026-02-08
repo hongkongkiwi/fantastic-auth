@@ -8,6 +8,7 @@ use std::time::Duration;
 use tower_http::{compression::CompressionLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
 use tracing::info;
 
+mod analytics;
 mod audit;
 mod auth;
 mod background;

@@ -24,7 +24,7 @@ use crate::{
         CaptchaSiteKeyResponse,
     },
     routes::{ApiError, SessionLimitError},
-    security::{EnforcementMode, UserInfo},
+    security::{EnforcementMode, LoginContext, RiskAction, UserInfo},
     state::{AppState, CurrentUser, SessionLimitStatus},
 };
 use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType};
@@ -694,6 +694,105 @@ async fn login(
                 Err(e) => {
                     tracing::error!("Failed to check session limits: {}", e);
                     return Err(ApiError::Internal);
+                }
+            }
+
+            // ===== Risk-Based Authentication =====
+            // Perform risk assessment after successful auth but before completing login
+            let login_context = LoginContext::new(&tenant_id)
+                .with_ip(addr.ip())
+                .with_headers(headers.clone())
+                .with_email(&auth_result.user.email)
+                .with_user_id(&auth_result.user.id)
+                .with_failed_attempts(
+                    state.failed_login_tracker.get_failure_count(&failed_login_key).await,
+                )
+                .with_mfa_enabled(auth_result.user.mfa_enabled);
+
+            let risk_assessment = state.risk_engine.assess(login_context).await;
+
+            // Handle risk-based action
+            match risk_assessment.action {
+                RiskAction::Block => {
+                    // Log blocked login due to risk
+                    audit.log(
+                        &tenant_id,
+                        crate::audit::AuditAction::LoginBlockedRisk,
+                        crate::audit::ResourceType::RiskAssessment,
+                        &risk_assessment.id,
+                        Some(auth_result.user.id.clone()),
+                        None,
+                        context.clone(),
+                        false,
+                        Some(format!("Risk score {} exceeds threshold", risk_assessment.score.value())),
+                        Some(serde_json::json!({
+                            "risk_score": risk_assessment.score.value(),
+                            "risk_level": risk_assessment.score.level(),
+                            "factors": risk_assessment.factors,
+                        })),
+                    );
+
+                    tracing::warn!(
+                        "Login blocked for user {} due to high risk score: {}",
+                        auth_result.user.id,
+                        risk_assessment.score.value()
+                    );
+
+                    return Err(ApiError::Forbidden);
+                }
+                RiskAction::Challenge => {
+                    // Log challenge required
+                    audit.log(
+                        &tenant_id,
+                        crate::audit::AuditAction::RiskAssessmentCreated,
+                        crate::audit::ResourceType::RiskAssessment,
+                        &risk_assessment.id,
+                        Some(auth_result.user.id.clone()),
+                        None,
+                        context.clone(),
+                        true,
+                        None,
+                        Some(serde_json::json!({
+                            "action": "challenge",
+                            "risk_score": risk_assessment.score.value(),
+                            "risk_level": risk_assessment.score.level(),
+                        })),
+                    );
+
+                    // Return response indicating challenge is required
+                    // Note: In a full implementation, this would return a challenge token
+                    return Err(ApiError::Forbidden);
+                }
+                RiskAction::StepUp => {
+                    // If MFA is already required, continue with normal MFA flow
+                    if auth_result.user.mfa_enabled {
+                        // MFA will be handled below
+                    } else {
+                        // User doesn't have MFA enabled but risk requires it
+                        // Log and require MFA setup
+                        audit.log(
+                            &tenant_id,
+                            crate::audit::AuditAction::RiskAssessmentCreated,
+                            crate::audit::ResourceType::RiskAssessment,
+                            &risk_assessment.id,
+                            Some(auth_result.user.id.clone()),
+                            None,
+                            context.clone(),
+                            true,
+                            None,
+                            Some(serde_json::json!({
+                                "action": "step_up",
+                                "risk_score": risk_assessment.score.value(),
+                                "risk_level": risk_assessment.score.level(),
+                            })),
+                        );
+
+                        // Return error indicating MFA setup is required
+                        return Err(ApiError::Forbidden);
+                    }
+                }
+                RiskAction::Allow => {
+                    // Low risk, continue with normal login flow
                 }
             }
 

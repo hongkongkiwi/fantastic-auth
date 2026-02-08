@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Building2,
-  Users,
   Shield,
   Settings,
   Plus,
