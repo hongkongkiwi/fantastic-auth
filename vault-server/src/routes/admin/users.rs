@@ -14,6 +14,7 @@ use std::net::SocketAddr;
 use validator::Validate;
 
 use crate::audit::{AuditLogger, RequestContext};
+use crate::impersonation::{CreateImpersonationRequest, ImpersonationService};
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser, SessionLimitStatus};
 use vault_core::models::user::{User, UserStatus};
@@ -656,8 +657,7 @@ async fn impersonate_user(
         .map_err(|_| ApiError::Internal)?
         .ok_or(ApiError::NotFound)?;
 
-    // Security check 3: Cannot impersonate users with higher privileges
-    // Check if target user has superadmin role
+    // Security check 3: Use impersonation service to validate privilege levels
     let target_roles = target_user
         .metadata
         .get("roles")
@@ -671,15 +671,15 @@ async fn impersonate_user(
 
     let impersonator_roles = current_user.claims.roles.clone().unwrap_or_default();
 
-    let target_is_superadmin = target_roles.iter().any(|r| r == "superadmin");
-    let impersonator_is_superadmin = impersonator_roles.iter().any(|r| r == "superadmin");
-
-    if target_is_superadmin && !impersonator_is_superadmin {
+    if !state
+        .impersonation_service
+        .is_impersonation_allowed(&impersonator_roles, &target_roles)
+    {
         audit.log_impersonation_denied(
             &current_user.tenant_id,
             &current_user.user_id,
             &user_id,
-            "Cannot impersonate users with higher privileges (superadmin)",
+            "Cannot impersonate users with equal or higher privileges",
         );
         return Err(ApiError::Forbidden);
     }

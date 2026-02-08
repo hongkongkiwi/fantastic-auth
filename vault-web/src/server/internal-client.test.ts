@@ -23,4 +23,38 @@ describe('fetchWithRetry', () => {
     expect(res.status).toBe(503)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('retries on network errors for GET requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('Network'))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const res = await fetchWithRetry('https://example.com', { method: 'GET' }, { retries: 1, retryDelayMs: 0 })
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('throws after retries are exhausted', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('Network'))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    await expect(
+      fetchWithRetry('https://example.com', { method: 'GET' }, { retries: 1, retryDelayMs: 0 })
+    ).rejects.toThrow('Network')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries on 429 for HEAD requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('', { status: 429 }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const res = await fetchWithRetry('https://example.com', { method: 'HEAD' }, { retries: 1, retryDelayMs: 0 })
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })
