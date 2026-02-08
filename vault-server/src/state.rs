@@ -106,12 +106,21 @@ impl AppState {
         // Initialize auth service with database
         let db_context = Arc::new(vault_core::db::DbContext::new(db.pool().clone()));
         let base_url = format!("https://{}:{}", config.host, config.port);
-        let auth_service = Arc::new(AuthService::new(
-            &config.jwt.issuer,
-            &config.jwt.audience,
-            db_context,
-            &base_url,
-        ));
+        let auth_service = match &config.redis_url {
+            Some(redis_url) => Arc::new(AuthService::with_redis(
+                &config.jwt.issuer,
+                &config.jwt.audience,
+                db_context,
+                &base_url,
+                redis_url,
+            ).await?),
+            None => Arc::new(AuthService::new(
+                &config.jwt.issuer,
+                &config.jwt.audience,
+                db_context,
+                &base_url,
+            )),
+        };
 
         // Initialize WebAuthn service
         let rp_id = config
