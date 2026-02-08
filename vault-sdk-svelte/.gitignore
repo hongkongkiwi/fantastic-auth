@@ -1,0 +1,25 @@
+# Development
+.DS_Store
+node_modules
+/dist
+*.local
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Testing
+coverage
+.nyc_output
+
+# SvelteKit
+.svelte-kit
+package
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo

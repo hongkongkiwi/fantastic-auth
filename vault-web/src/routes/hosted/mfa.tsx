@@ -15,10 +15,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Alert, AlertDescription } from '../../components/ui/Alert'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs'
 import { HostedLayout } from '../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedVerifyMfa } from '../../hosted/api'
 
-export const Route = createFileRoute('/hosted/mfa')({
+export const Route = createFileRoute('/hosted/mfa' as any)({
   component: HostedMfaPage,
 })
 
@@ -46,22 +46,16 @@ const methodConfig = {
 }
 
 function HostedMfaPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <MfaContent searchParams={searchParams} />
+      <MfaContent />
     </HostedLayout>
   )
 }
 
-interface MfaContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function MfaContent({ searchParams }: MfaContentProps) {
+function MfaContent() {
   const navigate = useNavigate()
   const { config, tenantId, redirectUrl } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
@@ -93,8 +87,8 @@ function MfaContent({ searchParams }: MfaContentProps) {
   // Redirect if missing MFA token
   if (!mfaToken) {
     navigate({
-      to: '/hosted/sign-in',
-      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined },
+      to: '/hosted/sign-in' as any,
+      search: { tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any,
     })
     return null
   }
@@ -259,8 +253,8 @@ function MfaContent({ searchParams }: MfaContentProps) {
         {/* Back Link */}
         <div className="text-center pt-4 border-t">
           <Link
-            to="/hosted/sign-in"
-            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined }}
+            to={'/hosted/sign-in' as any}
+            search={{ tenant_id: tenantId, redirect_url: redirectUrl || undefined } as any}
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />

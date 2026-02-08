@@ -10,35 +10,29 @@ import { useState, useEffect } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { CheckCircle, XCircle, Loader2, Mail, ArrowRight } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card'
+import { Card, CardContent } from '../../components/ui/Card'
 import { Alert, AlertDescription } from '../../components/ui/Alert'
 import { HostedLayout } from '../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedVerifyEmail } from '../../hosted/api'
 
-export const Route = createFileRoute('/hosted/verify-email')({
+export const Route = createFileRoute('/hosted/verify-email' as any)({
   component: HostedVerifyEmailPage,
 })
 
 type VerificationState = 'loading' | 'success' | 'error'
 
 function HostedVerifyEmailPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <VerifyEmailContent searchParams={searchParams} />
+      <VerifyEmailContent />
     </HostedLayout>
   )
 }
 
-interface VerifyEmailContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function VerifyEmailContent({ searchParams }: VerifyEmailContentProps) {
+function VerifyEmailContent() {
   const navigate = useNavigate()
   const { config, tenantId } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
@@ -86,8 +80,8 @@ function VerifyEmailContent({ searchParams }: VerifyEmailContentProps) {
   const handleContinue = () => {
     const redirectUrl = config.afterSignInUrl || '/hosted/sign-in'
     navigate({
-      to: redirectUrl as '/hosted/sign-in',
-      search: { tenant_id: tenantId },
+      to: redirectUrl as any,
+      search: { tenant_id: tenantId } as any,
     })
   }
 
@@ -158,8 +152,8 @@ function VerifyEmailContent({ searchParams }: VerifyEmailContentProps) {
 
             <div className="space-y-3">
               <Link
-                to="/hosted/sign-in"
-                search={{ tenant_id: tenantId }}
+                to={'/hosted/sign-in' as any}
+                search={{ tenant_id: tenantId } as any}
                 className="block"
               >
                 <Button fullWidth>
@@ -168,8 +162,8 @@ function VerifyEmailContent({ searchParams }: VerifyEmailContentProps) {
               </Link>
               {config.allowSignUp && (
                 <Link
-                  to="/hosted/sign-up"
-                  search={{ tenant_id: tenantId }}
+                  to={'/hosted/sign-up' as any}
+                  search={{ tenant_id: tenantId } as any}
                   className="block"
                 >
                   <Button variant="outline" fullWidth>

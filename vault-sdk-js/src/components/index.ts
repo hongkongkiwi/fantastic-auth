@@ -84,6 +84,39 @@ export {
 export type { ProtectProps } from './Protect';
 
 // ============================================================================
+// Billing Components
+// ============================================================================
+
+export { PricingTable } from './PricingTable';
+export type { PricingTableProps } from './PricingTable';
+
+export { CheckoutButton, QuickCheckoutButton } from './CheckoutButton';
+export type { CheckoutButtonProps, QuickCheckoutButtonProps } from './CheckoutButton';
+
+export {
+  CustomerPortalButton,
+  ManageSubscriptionButton,
+  UpdatePaymentMethodButton,
+  ViewInvoicesButton,
+  BillingSettings,
+} from './CustomerPortal';
+export type {
+  CustomerPortalButtonProps,
+  BillingSettingsProps,
+} from './CustomerPortal';
+
+export {
+  SubscriptionStatus,
+  UsageMeter,
+  InvoiceList,
+} from './SubscriptionStatus';
+export type {
+  SubscriptionStatusProps,
+  UsageMeterProps,
+  InvoiceListProps,
+} from './SubscriptionStatus';
+
+// ============================================================================
 // UI Components (Themed)
 // ============================================================================
 

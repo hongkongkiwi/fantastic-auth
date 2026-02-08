@@ -3735,3 +3735,79 @@ async fn oauth_link_account(
         }
     }
 }
+
+
+/// Record consents during user registration
+async fn record_registration_consents(
+    state: &AppState,
+    user_id: &str,
+    tenant_id: &str,
+    terms_accepted: bool,
+    privacy_accepted: bool,
+    marketing_consent: bool,
+    analytics_consent: bool,
+    cookies_consent: bool,
+    context: crate::consent::ConsentContext,
+) -> anyhow::Result<()> {
+    use crate::consent::{ConsentManager, ConsentConfig, ConsentRepository, ConsentType, SubmitConsentRequest};
+
+    let repository = ConsentRepository::new(state.db.pool().clone());
+    let config = ConsentConfig::default();
+    let manager = ConsentManager::new(repository, config);
+
+    // Record Terms of Service consent
+    if terms_accepted {
+        let request = SubmitConsentRequest {
+            consent_type: ConsentType::TermsOfService,
+            granted: true,
+            version_id: None,
+        };
+        if let Err(e) = manager.submit_consent(user_id, request, context.clone()).await {
+            tracing::warn!("Failed to record ToS consent for user {}: {}", user_id, e);
+        }
+    }
+
+    // Record Privacy Policy consent
+    if privacy_accepted {
+        let request = SubmitConsentRequest {
+            consent_type: ConsentType::PrivacyPolicy,
+            granted: true,
+            version_id: None,
+        };
+        if let Err(e) = manager.submit_consent(user_id, request, context.clone()).await {
+            tracing::warn!("Failed to record Privacy consent for user {}: {}", user_id, e);
+        }
+    }
+
+    // Record Marketing consent (optional)
+    let request = SubmitConsentRequest {
+        consent_type: ConsentType::Marketing,
+        granted: marketing_consent,
+        version_id: None,
+    };
+    if let Err(e) = manager.submit_consent(user_id, request, context.clone()).await {
+        tracing::warn!("Failed to record Marketing consent for user {}: {}", user_id, e);
+    }
+
+    // Record Analytics consent (optional)
+    let request = SubmitConsentRequest {
+        consent_type: ConsentType::Analytics,
+        granted: analytics_consent,
+        version_id: None,
+    };
+    if let Err(e) = manager.submit_consent(user_id, request, context.clone()).await {
+        tracing::warn!("Failed to record Analytics consent for user {}: {}", user_id, e);
+    }
+
+    // Record Cookies consent (optional)
+    let request = SubmitConsentRequest {
+        consent_type: ConsentType::Cookies,
+        granted: cookies_consent,
+        version_id: None,
+    };
+    if let Err(e) = manager.submit_consent(user_id, request, context).await {
+        tracing::warn!("Failed to record Cookies consent for user {}: {}", user_id, e);
+    }
+
+    Ok(())
+}

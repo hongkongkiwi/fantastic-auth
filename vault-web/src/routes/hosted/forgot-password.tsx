@@ -15,30 +15,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../..
 import { Alert, AlertDescription } from '../../components/ui/Alert'
 import { useForm } from '@tanstack/react-form'
 import { HostedLayout } from '../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedRequestPasswordReset } from '../../hosted/api'
 
-export const Route = createFileRoute('/hosted/forgot-password')({
+export const Route = createFileRoute('/hosted/forgot-password' as any)({
   component: HostedForgotPasswordPage,
 })
 
 function HostedForgotPasswordPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <ForgotPasswordContent searchParams={searchParams} />
+      <ForgotPasswordContent />
     </HostedLayout>
   )
 }
 
-interface ForgotPasswordContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function ForgotPasswordContent({ searchParams }: ForgotPasswordContentProps) {
+function ForgotPasswordContent() {
   const { config, tenantId } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()
   
@@ -106,8 +100,8 @@ function ForgotPasswordContent({ searchParams }: ForgotPasswordContentProps) {
                 Use a different email
               </Button>
               <Link
-                to="/hosted/sign-in"
-                search={{ tenant_id: tenantId }}
+                to={'/hosted/sign-in' as any}
+                search={{ tenant_id: tenantId } as any}
                 className="block"
               >
                 <Button variant="ghost" fullWidth className="gap-2">
@@ -154,7 +148,7 @@ function ForgotPasswordContent({ searchParams }: ForgotPasswordContentProps) {
           <form.Field
             name="email"
             validators={{
-              onChange: ({ value }) => {
+              onChange: ({ value }: { value: string }) => {
                 if (!value.trim()) return 'Email is required'
                 if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
                   return 'Please enter a valid email'
@@ -163,7 +157,7 @@ function ForgotPasswordContent({ searchParams }: ForgotPasswordContentProps) {
               },
             }}
           >
-            {(field) => (
+            {(field: any) => (
               <Input
                 label="Email"
                 type="email"

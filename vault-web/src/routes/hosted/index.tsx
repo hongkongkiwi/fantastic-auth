@@ -9,7 +9,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { Loader2 } from 'lucide-react'
 
-export const Route = createFileRoute('/hosted/')({
+export const Route = createFileRoute('/hosted/' as any)({
   component: HostedIndexPage,
 })
 
@@ -24,12 +24,12 @@ function HostedIndexPage() {
     
     // Redirect to sign-in with all params preserved
     navigate({
-      to: '/hosted/sign-in',
+      to: '/hosted/sign-in' as any,
       search: {
         tenant_id: tenantId || '',
         redirect_url: redirectUrl || undefined,
         organization_id: organizationId || undefined,
-      },
+      } as any,
     })
   }, [navigate])
 

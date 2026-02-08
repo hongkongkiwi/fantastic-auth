@@ -821,5 +821,71 @@ export interface UseCheckAuthorizationReturn {
   check: (params: PermissionCheck) => boolean;
 }
 
+// ============================================================================
+// Billing Types
+// ============================================================================
+
+export type {
+  // Plan types
+  BillingPlan,
+  PlanTier,
+  PlanFeature,
+  
+  // Subscription types
+  Subscription,
+  SubscriptionStatus,
+  
+  // Customer types
+  BillingCustomer,
+  BillingAddress,
+  
+  // Payment types
+  PaymentMethod,
+  CardInfo,
+  BillingDetails,
+  
+  // Invoice types
+  Invoice,
+  InvoiceStatus,
+  InvoiceLineItem,
+  
+  // Usage types
+  UsageMetric,
+  UsageRecord,
+  UsageQuota,
+  UsageSummary,
+  
+  // Checkout types
+  CheckoutSession,
+  PortalSession,
+  CreateCheckoutOptions,
+  CreatePortalOptions,
+  
+  // Request/Response types
+  CreateSubscriptionRequest,
+  UpdateSubscriptionRequest,
+  ReportUsageRequest,
+  SubscriptionResponse,
+  BillingStatusResponse,
+  ListPlansResponse,
+  BillingSummary,
+  SubscriptionLimits,
+  
+  // Component props
+  PricingTableProps,
+  CheckoutButtonProps,
+  QuickCheckoutButtonProps,
+  CustomerPortalButtonProps,
+  BillingSettingsProps,
+  SubscriptionStatusProps,
+  UsageMeterProps,
+  InvoiceListProps,
+  
+  // Hook return types
+  UseBillingReturn,
+  UseSubscriptionReturn,
+  UseUsageReturn,
+} from './billing';
+
 // Re-export from vault-api (generated) if available
 // export * from '../generated';

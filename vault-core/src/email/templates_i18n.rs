@@ -2,7 +2,7 @@
 //!
 //! These templates support multiple languages and RTL (Right-to-Left) text direction.
 
-use super::{EmailError, TemplateEngine};
+use super::EmailError;
 use serde::Serialize;
 
 /// Supported languages for email templates
@@ -79,10 +79,10 @@ pub trait I18nEmailTemplate: Serialize {
     fn subject(&self, lang: EmailLanguage) -> String;
 
     /// Render HTML version for the given language
-    fn render_html(&self, engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_html(&self, _engine: &super::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
 
     /// Render plain text version for the given language
-    fn render_text(&self, engine: &TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_text(&self, _engine: &super::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
 }
 
 /// Email template context with language
@@ -441,32 +441,27 @@ impl I18nPasswordResetEmail {
     }
 }
 
-/// Helper to extend TemplateEngine with i18n support
-pub trait I18nTemplateEngine {
-    /// Render an i18n-enabled template
-    fn render_i18n<T: I18nEmailTemplate>(
-        &self,
-        template: &T,
-        lang: EmailLanguage,
-    ) -> Result<super::RenderedEmail, EmailError>;
-}
+/// Render an i18n-enabled email template
+pub fn render_i18n_template<T: I18nEmailTemplate>(
+    template: &T,
+    lang: EmailLanguage,
+) -> Result<super::RenderedEmail, EmailError> {
+    // Create a default template engine (not used for i18n templates but needed for compatibility)
+    let engine = super::TemplateEngine::new(
+        "https://example.com".to_string(),
+        "Vault".to_string(),
+        None,
+    );
+    
+    let html = template.render_html(&engine, lang)?;
+    let text = template.render_text(&engine, lang)?;
+    let subject = template.subject(lang);
 
-impl I18nTemplateEngine for TemplateEngine {
-    fn render_i18n<T: I18nEmailTemplate>(
-        &self,
-        template: &T,
-        lang: EmailLanguage,
-    ) -> Result<super::RenderedEmail, EmailError> {
-        let html = template.render_html(self, lang)?;
-        let text = template.render_text(self, lang)?;
-        let subject = template.subject(lang);
-
-        Ok(super::RenderedEmail {
-            subject,
-            html_body: html,
-            text_body: text,
-        })
-    }
+    Ok(super::RenderedEmail {
+        subject,
+        html_body: html,
+        text_body: text,
+    })
 }
 
 #[cfg(test)]

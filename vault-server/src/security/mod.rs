@@ -5,6 +5,7 @@
 
 pub mod bot_protection;
 pub mod device_fingerprint;
+pub mod encryption;
 pub mod geo;
 pub mod hibp;
 pub mod password_policy;

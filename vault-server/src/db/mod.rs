@@ -101,6 +101,11 @@ impl Database {
     pub fn domains(&self) -> crate::domains::repository::DomainRepository {
         crate::domains::repository::DomainRepository::new(Arc::new(self.pool.clone()))
     }
+
+    /// Consent repository
+    pub fn consent(&self) -> crate::consent::ConsentRepository {
+        crate::consent::ConsentRepository::new(self.pool.clone())
+    }
 }
 
 /// Simple audit repository

@@ -16,32 +16,26 @@ import { Alert, AlertDescription } from '../../components/ui/Alert'
 import { Checkbox } from '../../components/ui/Checkbox'
 import { useForm } from '@tanstack/react-form'
 import { HostedLayout } from '../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedSignUp, hostedOAuthStart } from '../../hosted/api'
 import { SocialLoginButtons } from '../../components/auth/SocialLoginButtons'
 import type { OAuthProvider } from '../../hosted/types'
 
-export const Route = createFileRoute('/hosted/sign-up')({
+export const Route = createFileRoute('/hosted/sign-up' as any)({
   component: HostedSignUpPage,
 })
 
 function HostedSignUpPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <SignUpContent searchParams={searchParams} />
+      <SignUpContent />
     </HostedLayout>
   )
 }
 
-interface SignUpContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function SignUpContent({ searchParams }: SignUpContentProps) {
+function SignUpContent() {
   const navigate = useNavigate()
   const { config, tenantId, redirectUrl } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()

@@ -129,6 +129,11 @@ export {
   // Permission hooks
   usePermissions,
   useCheckAuthorization,
+
+  // Billing hooks
+  useBilling,
+  useSubscription,
+  useUsage,
 } from './hooks';
 
 // ============================================================================
@@ -168,6 +173,19 @@ export {
   Protect,
   RedirectToSignIn,
   RedirectToSignUp,
+
+  // Billing Components
+  PricingTable,
+  CheckoutButton,
+  QuickCheckoutButton,
+  CustomerPortalButton,
+  ManageSubscriptionButton,
+  UpdatePaymentMethodButton,
+  ViewInvoicesButton,
+  BillingSettings,
+  SubscriptionStatus,
+  UsageMeter,
+  InvoiceList,
 
   // UI Components
   Button,
@@ -223,6 +241,16 @@ export type {
   // Route Protection
   ProtectProps,
 
+  // Billing Component Props
+  PricingTableProps,
+  CheckoutButtonProps,
+  QuickCheckoutButtonProps,
+  CustomerPortalButtonProps,
+  BillingSettingsProps,
+  SubscriptionStatusProps,
+  UsageMeterProps,
+  InvoiceListProps,
+
   // UI Components
   ButtonProps,
   InputProps,
@@ -264,6 +292,22 @@ export type {
   // Permission types
   Permission,
   PermissionCheck,
+
+  // Billing types
+  BillingPlan,
+  PlanTier,
+  Subscription,
+  SubscriptionStatus,
+  Invoice,
+  InvoiceStatus,
+  PaymentMethod,
+  UsageSummary,
+  UsageMetric,
+  CheckoutSession,
+  PortalSession,
+  CreateCheckoutOptions,
+  CreatePortalOptions,
+  SubscriptionLimits,
 
   // Config types
   VaultConfig,

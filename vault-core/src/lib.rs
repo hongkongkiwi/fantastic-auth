@@ -42,6 +42,7 @@ pub mod crypto;
 pub mod db;
 pub mod email;
 pub mod error;
+pub mod hosted;
 pub mod models;
 pub mod security;
 pub mod sms;

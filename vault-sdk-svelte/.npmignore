@@ -1,0 +1,42 @@
+# Development files
+.DS_Store
+node_modules
+/dist
+*.local
+*.log
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Testing
+coverage
+.nyc_output
+
+# SvelteKit
+.svelte-kit
+package
+.env
+.env.*
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Git
+.git
+.gitignore
+
+# CI/CD
+.github
+.travis.yml
+.gitlab-ci.yml
+
+# Documentation (keep README.md)
+docs
+*.md
+!README.md
+
+# Source maps (if you don't want to publish them)
+# *.map
