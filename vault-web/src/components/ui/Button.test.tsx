@@ -98,4 +98,14 @@ describe('Button', () => {
     rerender(<Button type="reset">Reset</Button>)
     expect(screen.getByRole('button')).toHaveAttribute('type', 'reset')
   })
+
+  it('renders as child element when asChild is true', () => {
+    render(
+      <Button asChild>
+        <a href="/docs">Docs</a>
+      </Button>
+    )
+    const link = screen.getByRole('link', { name: 'Docs' })
+    expect(link).toHaveAttribute('href', '/docs')
+  })
 })

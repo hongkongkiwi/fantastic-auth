@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod config;
 pub mod orgs;
+pub mod plugin;
 pub mod sessions;
 pub mod users;
 

@@ -30,6 +30,11 @@ describe('Input', () => {
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
   })
 
+  it('shows required indicator', () => {
+    render(<Input label="Email" id="email-required" required />)
+    expect(screen.getByText('*')).toBeInTheDocument()
+  })
+
   it('can be disabled', () => {
     render(<Input disabled />)
     expect(screen.getByRole('textbox')).toBeDisabled()
@@ -49,6 +54,19 @@ describe('Input', () => {
   it('displays helper text', () => {
     render(<Input helperText="Enter your email address" />)
     expect(screen.getByText('Enter your email address')).toBeInTheDocument()
+  })
+
+  it('renders left and right icons', () => {
+    const { container } = render(
+      <Input
+        leftIcon={<span data-testid="left">L</span>}
+        rightIcon={<span data-testid="right">R</span>}
+      />
+    )
+    expect(screen.getByTestId('left')).toBeInTheDocument()
+    expect(screen.getByTestId('right')).toBeInTheDocument()
+    expect(container.querySelector('.pl-10')).toBeTruthy()
+    expect(container.querySelector('.pr-10')).toBeTruthy()
   })
 
   it('forwards ref correctly', () => {

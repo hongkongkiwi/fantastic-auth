@@ -808,7 +808,20 @@ async fn stop_impersonation(
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    // Revoke the impersonation session
+    // End the impersonation session record
+    if let Ok(Some(impersonation_session)) = state
+        .impersonation_service
+        .get_by_target_session(&current_user.tenant_id, &session_id)
+        .await
+    {
+        state
+            .impersonation_service
+            .end_session(&impersonation_session.id, Some(&current_user.user_id))
+            .await
+            .ok();
+    }
+
+    // Revoke the user session
     state
         .db
         .sessions()
