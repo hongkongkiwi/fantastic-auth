@@ -876,6 +876,8 @@ async fn disable_sms_mfa(
             ApiError::Internal
         })?;
 
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
     // Trigger webhook
     crate::webhooks::events::trigger_mfa_disabled(
         &state,
@@ -899,6 +901,63 @@ fn get_sms_service(state: &AppState) -> Result<std::sync::Arc<vault_core::sms::S
 }
 
 // Helper functions
+
+async fn sync_user_mfa_methods(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+) -> Result<(), ApiError> {
+    let methods = state
+        .db
+        .mfa()
+        .get_enabled_methods(tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load MFA methods: {}", e);
+            ApiError::Internal
+        })?;
+
+    let mut method_names: Vec<String> = methods
+        .iter()
+        .filter_map(|m| {
+            // Only methods verified by core auth flow
+            match m.method_type {
+                vault_core::db::mfa::MfaMethodType::Totp => Some("totp".to_string()),
+                vault_core::db::mfa::MfaMethodType::Webauthn => Some("webauthn".to_string()),
+                _ => None,
+            }
+        })
+        .collect();
+
+    let backup_codes = state
+        .db
+        .mfa()
+        .get_backup_codes(tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load backup codes: {}", e);
+            ApiError::Internal
+        })?;
+
+    if !backup_codes.is_empty() {
+        method_names.push("backup_codes".to_string());
+    }
+
+    method_names.sort();
+    method_names.dedup();
+
+    state
+        .db
+        .users()
+        .set_mfa_methods(tenant_id, user_id, &method_names)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update user MFA methods: {}", e);
+            ApiError::Internal
+        })?;
+
+    Ok(())
+}
 
 fn encrypt_secret(state: &AppState, secret: &str) -> Result<String, ApiError> {
     crate::security::encryption::encrypt_to_base64(&state.data_encryption_key, secret.as_bytes())
