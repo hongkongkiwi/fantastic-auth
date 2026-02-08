@@ -361,6 +361,77 @@ export {
 } from './api/client';
 
 // ============================================================================
+// Zero-Knowledge Module
+// ============================================================================
+
+export {
+  // Key derivation
+  deriveMasterKey,
+  exportMasterKey,
+  importMasterKey,
+  generateSalt,
+  encryptPrivateKeyForStorage,
+  decryptPrivateKeyFromStorage,
+  generatePasswordCommitment,
+  DEFAULT_ARGON2_PARAMS,
+  CONSERVATIVE_ARGON2_PARAMS,
+  FAST_ARGON2_PARAMS,
+
+  // Encryption
+  generateDek,
+  wrapDek,
+  unwrapDek,
+  aesGcmEncrypt,
+  aesGcmDecrypt,
+  encryptUserData,
+  decryptUserData,
+  encryptWithMasterKey,
+  decryptWithMasterKey,
+  serializeEncryptedData,
+  deserializeEncryptedData,
+
+  // Proofs
+  ZkPasswordProver,
+  ZkPasswordVerifier,
+  ZkAuthentication,
+  generateChallenge,
+  serializeProof,
+  deserializeProof,
+
+  // Recovery
+  SocialRecovery,
+  ShareValidator,
+  RecoverySessionManager,
+  RecoverySessionStatus,
+
+  // Utils
+  isWebCryptoAvailable,
+  initZk,
+  ZK_VERSION,
+
+  // Errors
+  ZkError,
+  ZkEncryptionError,
+  ZkKeyDerivationError,
+  ZkProofError,
+  ZkRecoveryError,
+} from './zk';
+
+export type {
+  MasterKey,
+  Argon2Params,
+  DataEncryptionKey,
+  WrappedDek,
+  EncryptedUserData,
+  UserProfile as ZkUserProfile,
+  Address,
+  ZkPasswordProof,
+  RecoveryShare,
+  ShareMetadata,
+  RecoverySession,
+} from './zk';
+
+// ============================================================================
 // Version
 // ============================================================================
 

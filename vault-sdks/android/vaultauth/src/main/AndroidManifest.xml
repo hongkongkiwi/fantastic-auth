@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.vault">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Biometric permissions (optional) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    
+    <!-- Biometric permission for older devices -->
+    <uses-permission 
+        android:name="android.permission.USE_FINGERPRINT" 
+        android:maxSdkVersion="28" />
+
+    <application>
+        <!-- Activities will be registered by the host app -->
+    </application>
+
+</manifest>

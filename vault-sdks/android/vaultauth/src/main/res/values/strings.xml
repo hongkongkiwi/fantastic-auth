@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="vault_app_name">VaultAuth</string>
+    
+    <!-- Common -->
+    <string name="vault_logo_description">Vault Logo</string>
+    <string name="vault_avatar_description">User Avatar</string>
+    <string name="vault_or">or</string>
+    
+    <!-- Login -->
+    <string name="vault_login_title">Welcome Back</string>
+    <string name="vault_email_hint">Email</string>
+    <string name="vault_password_hint">Password</string>
+    <string name="vault_login_button">Log In</string>
+    <string name="vault_biometric_login">Log In with Biometric</string>
+    <string name="vault_signup_button">Create Account</string>
+    <string name="vault_forgot_password">Forgot password?</string>
+    
+    <!-- Signup -->
+    <string name="vault_signup_title">Create Account</string>
+    <string name="vault_name_hint">Full Name</string>
+    <string name="vault_confirm_password_hint">Confirm Password</string>
+    <string name="vault_password_requirements">Password must be at least 8 characters with uppercase, lowercase, and a number</string>
+    <string name="vault_already_have_account">Already have an account? Log In</string>
+    
+    <!-- Profile -->
+    <string name="vault_account_settings">Account Settings</string>
+    <string name="vault_edit_profile">Edit Profile</string>
+    <string name="vault_change_password">Change Password</string>
+    <string name="vault_enable_mfa">Enable MFA</string>
+    <string name="vault_disable_mfa">Disable MFA</string>
+    <string name="vault_active_sessions">Active Sessions</string>
+    <string name="vault_organizations">Organizations</string>
+    <string name="vault_logout">Logout</string>
+    <string name="vault_email_verified">Email verified</string>
+    
+    <!-- MFA -->
+    <string name="vault_mfa_enabled">MFA Enabled</string>
+    <string name="vault_mfa_disabled">MFA Disabled</string>
+    <string name="vault_mfa_setup_title">Set Up Authenticator</string>
+    <string name="vault_mfa_scan_qr">Scan this QR code with your authenticator app</string>
+    <string name="vault_mfa_enter_code">Enter the 6-digit code from your authenticator</string>
+    <string name="vault_mfa_backup_codes">Save these backup codes in a safe place</string>
+    
+    <!-- Biometric -->
+    <string name="vault_biometric_title">Biometric Authentication</string>
+    <string name="vault_biometric_subtitle">Verify your identity</string>
+    <string name="vault_biometric_description">Use your biometric to securely access your account</string>
+    <string name="vault_biometric_cancel">Cancel</string>
+    <string name="vault_biometric_use_password">Use Password</string>
+    
+    <!-- Errors -->
+    <string name="vault_error_network">Network error. Please check your connection.</string>
+    <string name="vault_error_invalid_credentials">Invalid email or password</string>
+    <string name="vault_error_account_locked">Account is locked. Please contact support.</string>
+    <string name="vault_error_not_verified">Please verify your email before logging in</string>
+    <string name="vault_error_generic">Something went wrong. Please try again.</string>
+    
+    <!-- Push Notifications -->
+    <string name="vault_push_mfa_title">Sign-in Request</string>
+    <string name="vault_push_mfa_content">Approve sign-in from %1$s</string>
+    <string name="vault_push_approve">Approve</string>
+    <string name="vault_push_deny">Deny</string>
+    
+    <!-- Session -->
+    <string name="vault_session_current">Current Session</string>
+    <string name="vault_session_revoke">Revoke</string>
+    <string name="vault_session_revoke_all">Revoke All Other Sessions</string>
+</resources>

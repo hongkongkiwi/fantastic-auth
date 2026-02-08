@@ -1,0 +1,228 @@
+/**
+ * Vault React UI - Default Theme
+ * 
+ * CSS variables for theming Vault React UI components.
+ * Override these variables to customize the appearance.
+ */
+
+/* ==========================================================================
+   Default Theme (Light)
+   ========================================================================== */
+
+:root {
+  /* Primary Colors */
+  --vault-primary: #3b82f6;
+  --vault-primary-hover: #2563eb;
+  --vault-primary-active: #1d4ed8;
+  --vault-primary-light: #dbeafe;
+  --vault-primary-dark: #1e40af;
+
+  /* Semantic Colors */
+  --vault-error: #ef4444;
+  --vault-error-light: #fee2e2;
+  --vault-error-dark: #991b1b;
+  --vault-success: #10b981;
+  --vault-success-light: #d1fae5;
+  --vault-success-dark: #065f46;
+  --vault-warning: #f59e0b;
+  --vault-warning-light: #fef3c7;
+  --vault-warning-dark: #92400e;
+  --vault-info: #3b82f6;
+  --vault-info-light: #dbeafe;
+  --vault-info-dark: #1e40af;
+
+  /* Neutral Colors */
+  --vault-background: #ffffff;
+  --vault-surface: #f9fafb;
+  --vault-surface-hover: #f3f4f6;
+  --vault-border: #e5e7eb;
+  --vault-border-strong: #d1d5db;
+  --vault-text: #111827;
+  --vault-text-secondary: #4b5563;
+  --vault-text-muted: #6b7280;
+  --vault-text-placeholder: #9ca3af;
+
+  /* Spacing */
+  --vault-spacing-xs: 0.25rem;
+  --vault-spacing-sm: 0.5rem;
+  --vault-spacing-md: 1rem;
+  --vault-spacing-lg: 1.5rem;
+  --vault-spacing-xl: 2rem;
+  --vault-spacing-2xl: 3rem;
+
+  /* Typography */
+  --vault-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --vault-font-size-xs: 0.75rem;
+  --vault-font-size-sm: 0.875rem;
+  --vault-font-size-md: 1rem;
+  --vault-font-size-lg: 1.125rem;
+  --vault-font-size-xl: 1.25rem;
+  --vault-font-size-2xl: 1.5rem;
+  --vault-font-weight-normal: 400;
+  --vault-font-weight-medium: 500;
+  --vault-font-weight-semibold: 600;
+  --vault-font-weight-bold: 700;
+  --vault-line-height-tight: 1.25;
+  --vault-line-height-normal: 1.5;
+  --vault-line-height-relaxed: 1.75;
+
+  /* Border Radius */
+  --vault-border-radius-sm: 4px;
+  --vault-border-radius-md: 8px;
+  --vault-border-radius-lg: 12px;
+  --vault-border-radius-xl: 16px;
+  --vault-border-radius-full: 9999px;
+
+  /* Shadows */
+  --vault-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --vault-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --vault-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --vault-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+  /* Transitions */
+  --vault-transition-fast: 150ms ease-in-out;
+  --vault-transition-normal: 250ms ease-in-out;
+  --vault-transition-slow: 350ms ease-in-out;
+
+  /* Form Elements */
+  --vault-input-height-sm: 2rem;
+  --vault-input-height-md: 2.5rem;
+  --vault-input-height-lg: 3rem;
+  --vault-button-height-sm: 2rem;
+  --vault-button-height-md: 2.5rem;
+  --vault-button-height-lg: 3rem;
+
+  /* Z-Index Scale */
+  --vault-z-dropdown: 100;
+  --vault-z-sticky: 200;
+  --vault-z-fixed: 300;
+  --vault-z-modal-backdrop: 400;
+  --vault-z-modal: 500;
+  --vault-z-popover: 600;
+  --vault-z-tooltip: 700;
+}
+
+/* ==========================================================================
+   Dark Theme
+   ========================================================================== */
+
+[data-vault-theme="dark"],
+.vault-dark {
+  /* Primary Colors */
+  --vault-primary: #60a5fa;
+  --vault-primary-hover: #3b82f6;
+  --vault-primary-active: #2563eb;
+  --vault-primary-light: #1e3a8a;
+  --vault-primary-dark: #93c5fd;
+
+  /* Semantic Colors */
+  --vault-error: #f87171;
+  --vault-error-light: #7f1d1d;
+  --vault-error-dark: #fecaca;
+  --vault-success: #34d399;
+  --vault-success-light: #064e3b;
+  --vault-success-dark: #a7f3d0;
+  --vault-warning: #fbbf24;
+  --vault-warning-light: #78350f;
+  --vault-warning-dark: #fde68a;
+  --vault-info: #60a5fa;
+  --vault-info-light: #1e3a8a;
+  --vault-info-dark: #bfdbfe;
+
+  /* Neutral Colors */
+  --vault-background: #111827;
+  --vault-surface: #1f2937;
+  --vault-surface-hover: #374151;
+  --vault-border: #374151;
+  --vault-border-strong: #4b5563;
+  --vault-text: #f9fafb;
+  --vault-text-secondary: #d1d5db;
+  --vault-text-muted: #9ca3af;
+  --vault-text-placeholder: #6b7280;
+
+  /* Shadows (adjusted for dark mode) */
+  --vault-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --vault-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --vault-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  --vault-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================================================
+   Auto Theme (follows system preference)
+   ========================================================================== */
+
+@media (prefers-color-scheme: dark) {
+  [data-vault-theme="auto"],
+  .vault-auto {
+    /* Primary Colors */
+    --vault-primary: #60a5fa;
+    --vault-primary-hover: #3b82f6;
+    --vault-primary-active: #2563eb;
+    --vault-primary-light: #1e3a8a;
+    --vault-primary-dark: #93c5fd;
+
+    /* Semantic Colors */
+    --vault-error: #f87171;
+    --vault-error-light: #7f1d1d;
+    --vault-error-dark: #fecaca;
+    --vault-success: #34d399;
+    --vault-success-light: #064e3b;
+    --vault-success-dark: #a7f3d0;
+    --vault-warning: #fbbf24;
+    --vault-warning-light: #78350f;
+    --vault-warning-dark: #fde68a;
+    --vault-info: #60a5fa;
+    --vault-info-light: #1e3a8a;
+    --vault-info-dark: #bfdbfe;
+
+    /* Neutral Colors */
+    --vault-background: #111827;
+    --vault-surface: #1f2937;
+    --vault-surface-hover: #374151;
+    --vault-border: #374151;
+    --vault-border-strong: #4b5563;
+    --vault-text: #f9fafb;
+    --vault-text-secondary: #d1d5db;
+    --vault-text-muted: #9ca3af;
+    --vault-text-placeholder: #6b7280;
+
+    /* Shadows (adjusted for dark mode) */
+    --vault-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --vault-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+    --vault-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    --vault-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* ==========================================================================
+   Base Styles
+   ========================================================================== */
+
+.vault-ui {
+  font-family: var(--vault-font-family);
+  font-size: var(--vault-font-size-md);
+  line-height: var(--vault-line-height-normal);
+  color: var(--vault-text);
+  background-color: var(--vault-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.vault-ui * {
+  box-sizing: border-box;
+}
+
+/* Focus styles for accessibility */
+.vault-ui *:focus-visible {
+  outline: 2px solid var(--vault-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .vault-ui * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
