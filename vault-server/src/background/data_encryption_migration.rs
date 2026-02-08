@@ -24,15 +24,17 @@ async fn run_once(state: &AppState) -> anyhow::Result<()> {
 
     for tenant_id in tenant_ids {
         let tenant_id_str = tenant_id.to_string();
+        info!(tenant_id = %tenant_id_str, "Running data encryption migration for tenant");
         let tenant_key = state
             .tenant_key_service
             .get_data_key(&tenant_id_str)
             .await?;
 
-        migrate_mfa_methods(state, &tenant_id_str, &tenant_key).await?;
-        migrate_mfa_config(state, &tenant_id_str, &tenant_key).await?;
-        migrate_webhook_secrets(state, &tenant_id_str, &tenant_key).await?;
-        migrate_ldap_passwords(state, &tenant_id_str, &tenant_key).await?;
+        let master_key = state.data_encryption_key.as_ref();
+        migrate_mfa_methods(state, &tenant_id_str, &tenant_key, master_key).await?;
+        migrate_mfa_config(state, &tenant_id_str, &tenant_key, master_key).await?;
+        migrate_webhook_secrets(state, &tenant_id_str, &tenant_key, master_key).await?;
+        migrate_ldap_passwords(state, &tenant_id_str, &tenant_key, master_key).await?;
     }
 
     Ok(())
@@ -51,6 +53,7 @@ async fn migrate_mfa_methods(
     state: &AppState,
     tenant_id: &str,
     tenant_key: &[u8],
+    master_key: &[u8],
 ) -> anyhow::Result<()> {
     let mut conn = state.db.acquire().await?;
     set_connection_context(&mut conn, tenant_id).await?;
@@ -63,7 +66,7 @@ async fn migrate_mfa_methods(
     .await?;
 
     for (id, encrypted) in rows {
-        let plaintext = match decrypt_with_keys(&encrypted, tenant_key, &state.data_encryption_key) {
+        let plaintext = match decrypt_with_keys(&encrypted, tenant_key, master_key) {
             Some(value) => value,
             None => {
                 warn!(method_id = %id, tenant_id = tenant_id, "Skipping MFA secret migration: unable to decrypt");
@@ -86,6 +89,7 @@ async fn migrate_mfa_config(
     state: &AppState,
     tenant_id: &str,
     tenant_key: &[u8],
+    master_key: &[u8],
 ) -> anyhow::Result<()> {
     let mut conn = state.db.acquire().await?;
     set_connection_context(&mut conn, tenant_id).await?;
@@ -101,7 +105,7 @@ async fn migrate_mfa_config(
         let mut changed = false;
         if let Some(totp) = config.get_mut("totp") {
             if let Some(secret_value) = totp.get("secret").and_then(|v| v.as_str()) {
-                if let Some(plaintext) = decrypt_with_keys(secret_value, tenant_key, &state.data_encryption_key) {
+                if let Some(plaintext) = decrypt_with_keys(secret_value, tenant_key, master_key) {
                     let reencrypted = crate::security::encryption::encrypt_to_base64(tenant_key, &plaintext)?;
                     if let Some(totp_obj) = totp.as_object_mut() {
                         totp_obj.insert("secret".to_string(), serde_json::Value::String(reencrypted));
@@ -128,6 +132,7 @@ async fn migrate_webhook_secrets(
     state: &AppState,
     tenant_id: &str,
     tenant_key: &[u8],
+    master_key: &[u8],
 ) -> anyhow::Result<()> {
     let mut conn = state.db.acquire().await?;
     set_connection_context(&mut conn, tenant_id).await?;
@@ -140,7 +145,7 @@ async fn migrate_webhook_secrets(
     .await?;
 
     for (id, secret) in rows {
-        let plaintext = decrypt_with_keys(&secret, tenant_key, &state.data_encryption_key)
+        let plaintext = decrypt_with_keys(&secret, tenant_key, master_key)
             .or_else(|| Some(secret.as_bytes().to_vec()));
 
         let plaintext = match plaintext {
@@ -162,6 +167,7 @@ async fn migrate_ldap_passwords(
     state: &AppState,
     tenant_id: &str,
     tenant_key: &[u8],
+    master_key: &[u8],
 ) -> anyhow::Result<()> {
     let mut conn = state.db.acquire().await?;
     set_connection_context(&mut conn, tenant_id).await?;
@@ -179,7 +185,7 @@ async fn migrate_ldap_passwords(
             None => continue,
         };
 
-        let plaintext = decrypt_with_keys(&secret, tenant_key, &state.data_encryption_key)
+        let plaintext = decrypt_with_keys(&secret, tenant_key, master_key)
             .or_else(|| Some(secret.as_bytes().to_vec()));
 
         let plaintext = match plaintext {
