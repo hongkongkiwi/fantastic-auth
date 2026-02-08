@@ -383,8 +383,13 @@ async fn test_webhook(
         let payload_str = serde_json::to_string(&payload).map_err(|_| ApiError::Internal)?;
         let signature_payload = format!("test.{}.{}", chrono::Utc::now().timestamp(), payload_str);
 
-        let mut mac = HmacSha256::new_from_slice(endpoint.secret.as_bytes())
+        let secret = state
+            .webhook_service
+            .decrypt_secret(&current_user.tenant_id, &endpoint.secret)
+            .await
             .map_err(|_| ApiError::Internal)?;
+        let mut mac =
+            HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| ApiError::Internal)?;
         mac.update(signature_payload.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
 

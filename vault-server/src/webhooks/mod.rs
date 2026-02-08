@@ -382,7 +382,7 @@ impl WebhookService {
             .map_err(|e| anyhow::anyhow!("Failed to encrypt webhook secret: {}", e))
     }
 
-    async fn decrypt_secret(&self, tenant_id: &str, encrypted: &str) -> Result<String> {
+    pub(crate) async fn decrypt_secret(&self, tenant_id: &str, encrypted: &str) -> Result<String> {
         let key = self
             .tenant_keys
             .get_data_key(tenant_id)
