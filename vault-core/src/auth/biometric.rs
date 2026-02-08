@@ -169,9 +169,7 @@ impl From<BiometricError> for VaultError {
                 VaultError::authentication("Biometric verification failed")
             }
             BiometricError::ChallengeExpired => VaultError::authentication("Challenge expired"),
-            BiometricError::ChallengeNotFound => {
-                VaultError::authentication("Challenge not found")
-            }
+            BiometricError::ChallengeNotFound => VaultError::authentication("Challenge not found"),
             BiometricError::InvalidChallenge => {
                 VaultError::authentication("Invalid challenge response")
             }
@@ -179,7 +177,9 @@ impl From<BiometricError> for VaultError {
                 VaultError::conflict("Biometric key already exists")
             }
             BiometricError::RateLimited => VaultError::rate_limit(60),
-            BiometricError::DatabaseError(msg) => VaultError::Internal(format!("Database error: {}", msg)),
+            BiometricError::DatabaseError(msg) => {
+                VaultError::Internal(format!("Database error: {}", msg))
+            }
             BiometricError::Internal(msg) => VaultError::internal(msg),
         }
     }
@@ -192,7 +192,10 @@ pub trait BiometricKeyStore: Send + Sync {
     async fn store_key(&self, key: &BiometricKey) -> std::result::Result<(), BiometricError>;
 
     /// Get a biometric key by its key_id
-    async fn get_key_by_key_id(&self, key_id: &str) -> std::result::Result<Option<BiometricKey>, BiometricError>;
+    async fn get_key_by_key_id(
+        &self,
+        key_id: &str,
+    ) -> std::result::Result<Option<BiometricKey>, BiometricError>;
 
     /// Get all biometric keys for a user
     async fn get_keys_for_user(
@@ -219,7 +222,10 @@ pub trait ChallengeStore: Send + Sync {
     ) -> std::result::Result<(), BiometricError>;
 
     /// Get and remove a challenge
-    async fn get_challenge(&self, key_id: &str) -> std::result::Result<Option<BiometricChallenge>, BiometricError>;
+    async fn get_challenge(
+        &self,
+        key_id: &str,
+    ) -> std::result::Result<Option<BiometricChallenge>, BiometricError>;
 
     /// Clean up expired challenges
     async fn cleanup_expired(&self) -> std::result::Result<u64, BiometricError>;
@@ -256,8 +262,8 @@ pub fn verify_ecdsa_signature(
         .map_err(|_| BiometricError::InvalidPublicKey)?;
 
     // Parse the signature
-    let signature = Signature::from_der(signature_bytes)
-        .map_err(|_| BiometricError::InvalidSignature)?;
+    let signature =
+        Signature::from_der(signature_bytes).map_err(|_| BiometricError::InvalidSignature)?;
 
     // Verify the signature
     match verifying_key.verify(message, &signature) {
@@ -322,9 +328,7 @@ mod tests {
         assert!(verify_ecdsa_signature(&public_key_bytes, message, &signature).unwrap());
 
         // Wrong message should fail
-        assert!(
-            !verify_ecdsa_signature(&public_key_bytes, b"wrong message", &signature).unwrap()
-        );
+        assert!(!verify_ecdsa_signature(&public_key_bytes, b"wrong message", &signature).unwrap());
     }
 
     #[test]

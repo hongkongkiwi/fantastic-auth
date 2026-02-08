@@ -4,6 +4,7 @@
 
 use super::errors::{MfaError, MfaResult};
 use crate::state::AppState;
+use subtle::ConstantTimeEq;
 
 /// TOTP MFA handler
 pub struct TotpMfaHandler;
@@ -82,7 +83,7 @@ impl TotpMfaHandler {
             })?;
 
         // Sync user MFA status
-        crate::routes::client::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
+        crate::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to sync MFA methods: {}", e);
@@ -225,11 +226,15 @@ impl TotpMfaHandler {
         let current_step = timestamp / TIME_STEP;
 
         // Check current, previous, and next time windows
-        for window in -1..=1 {
-            let step = current_step.wrapping_add(window as u64);
+        for window in -1_i32..=1_i32 {
+            let step = if window < 0 {
+                current_step.saturating_sub((-window) as u64)
+            } else {
+                current_step.saturating_add(window as u64)
+            };
             let expected_code = Self::generate_totp_code(secret, step)?;
-            
-            if constant_time_eq::constant_time_eq(code.as_bytes(), expected_code.as_bytes()) {
+
+            if code.as_bytes().ct_eq(expected_code.as_bytes()).into() {
                 return Ok(true);
             }
         }

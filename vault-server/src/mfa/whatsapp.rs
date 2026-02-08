@@ -89,7 +89,7 @@ impl WhatsappMfaHandler {
         state
             .db
             .mfa()
-            .create_whatsapp_method(tenant_id, user_id, &normalized)
+            .create_sms_method(tenant_id, user_id, &normalized)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to create WhatsApp method: {}", e);
@@ -97,7 +97,7 @@ impl WhatsappMfaHandler {
             })?;
 
         // Sync user MFA status
-        crate::routes::client::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
+        crate::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to sync MFA methods: {}", e);
@@ -117,7 +117,7 @@ impl WhatsappMfaHandler {
         let phone = state
             .db
             .mfa()
-            .get_whatsapp_phone_number(tenant_id, user_id)
+            .get_sms_phone_number(tenant_id, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get WhatsApp phone: {}", e);
@@ -139,7 +139,7 @@ impl WhatsappMfaHandler {
         let phone = state
             .db
             .mfa()
-            .get_whatsapp_phone_number(tenant_id, user_id)
+            .get_sms_phone_number(tenant_id, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get WhatsApp phone: {}", e);
@@ -168,7 +168,7 @@ impl WhatsappMfaHandler {
                 .mark_method_used(
                     tenant_id,
                     user_id,
-                    vault_core::db::mfa::MfaMethodType::Whatsapp,
+                    vault_core::db::mfa::MfaMethodType::Sms,
                 )
                 .await
                 .ok();
@@ -243,7 +243,7 @@ impl MfaVerificationHandler for WhatsappMfaHandler {
 
         Ok(methods
             .iter()
-            .any(|m| matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Whatsapp) && m.enabled))
+            .any(|m| matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Sms) && m.enabled))
     }
 
     fn method_type(&self) -> super::MfaMethod {

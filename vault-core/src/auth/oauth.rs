@@ -90,7 +90,7 @@ pub enum OAuthProvider {
     Apple,
     Discord,
     Slack,
-    
+
     // Social/Consumer
     Facebook,
     Twitter,
@@ -101,10 +101,10 @@ pub enum OAuthProvider {
     Reddit,
     Twitch,
     Spotify,
-    
+
     // Professional
     LinkedIn,
-    
+
     // Developer/Tech
     GitLab,
     Bitbucket,
@@ -113,7 +113,7 @@ pub enum OAuthProvider {
     Vercel,
     Netlify,
     Cloudflare,
-    
+
     // Enterprise
     Salesforce,
     HubSpot,
@@ -123,14 +123,14 @@ pub enum OAuthProvider {
     Linear,
     Atlassian,
     Okta,
-    
+
     // Regional
     WeChat,
     Line,
     KakaoTalk,
     Vkontakte,
     Yandex,
-    
+
     // Custom/generic
     Custom,
 }
@@ -146,7 +146,7 @@ impl OAuthProvider {
             OAuthProvider::Apple => "apple",
             OAuthProvider::Discord => "discord",
             OAuthProvider::Slack => "slack",
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => "facebook",
             OAuthProvider::Twitter => "twitter",
@@ -157,10 +157,10 @@ impl OAuthProvider {
             OAuthProvider::Reddit => "reddit",
             OAuthProvider::Twitch => "twitch",
             OAuthProvider::Spotify => "spotify",
-            
+
             // Professional
             OAuthProvider::LinkedIn => "linkedin",
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => "gitlab",
             OAuthProvider::Bitbucket => "bitbucket",
@@ -169,7 +169,7 @@ impl OAuthProvider {
             OAuthProvider::Vercel => "vercel",
             OAuthProvider::Netlify => "netlify",
             OAuthProvider::Cloudflare => "cloudflare",
-            
+
             // Enterprise
             OAuthProvider::Salesforce => "salesforce",
             OAuthProvider::HubSpot => "hubspot",
@@ -179,14 +179,14 @@ impl OAuthProvider {
             OAuthProvider::Linear => "linear",
             OAuthProvider::Atlassian => "atlassian",
             OAuthProvider::Okta => "okta",
-            
+
             // Regional
             OAuthProvider::WeChat => "wechat",
             OAuthProvider::Line => "line",
             OAuthProvider::KakaoTalk => "kakaotalk",
             OAuthProvider::Vkontakte => "vkontakte",
             OAuthProvider::Yandex => "yandex",
-            
+
             // Custom
             OAuthProvider::Custom => "custom",
         }
@@ -247,7 +247,7 @@ impl OAuthProvider {
             OAuthProvider::Apple => "https://appleid.apple.com/auth/authorize",
             OAuthProvider::Discord => "https://discord.com/oauth2/authorize",
             OAuthProvider::Slack => "https://slack.com/oauth/v2/authorize",
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => "https://www.facebook.com/v18.0/dialog/oauth",
             OAuthProvider::Twitter => "https://twitter.com/i/oauth2/authorize",
@@ -258,10 +258,10 @@ impl OAuthProvider {
             OAuthProvider::Reddit => "https://www.reddit.com/api/v1/authorize",
             OAuthProvider::Twitch => "https://id.twitch.tv/oauth2/authorize",
             OAuthProvider::Spotify => "https://accounts.spotify.com/authorize",
-            
+
             // Professional
             OAuthProvider::LinkedIn => "https://www.linkedin.com/oauth/v2/authorization",
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => "https://gitlab.com/oauth/authorize",
             OAuthProvider::Bitbucket => "https://bitbucket.org/site/oauth2/authorize",
@@ -270,7 +270,7 @@ impl OAuthProvider {
             OAuthProvider::Vercel => "https://vercel.com/oauth/authorize",
             OAuthProvider::Netlify => "https://app.netlify.com/authorize",
             OAuthProvider::Cloudflare => "https://dash.cloudflare.com/oauth2/auth",
-            
+
             // Enterprise
             OAuthProvider::Salesforce => "https://login.salesforce.com/services/oauth2/authorize",
             OAuthProvider::HubSpot => "https://app.hubspot.com/oauth/authorize",
@@ -280,14 +280,14 @@ impl OAuthProvider {
             OAuthProvider::Linear => "https://linear.app/oauth/authorize",
             OAuthProvider::Atlassian => "https://auth.atlassian.com/authorize",
             OAuthProvider::Okta => "https://{domain}/oauth2/default/v1/authorize",
-            
+
             // Regional
             OAuthProvider::WeChat => "https://open.weixin.qq.com/connect/qrconnect",
             OAuthProvider::Line => "https://access.line.me/oauth2/v2.1/authorize",
             OAuthProvider::KakaoTalk => "https://kauth.kakao.com/oauth/authorize",
             OAuthProvider::Vkontakte => "https://oauth.vk.com/authorize",
             OAuthProvider::Yandex => "https://oauth.yandex.com/authorize",
-            
+
             OAuthProvider::Custom => "",
         }
     }
@@ -304,7 +304,7 @@ impl OAuthProvider {
             OAuthProvider::Apple => "https://appleid.apple.com/auth/token",
             OAuthProvider::Discord => "https://discord.com/api/oauth2/token",
             OAuthProvider::Slack => "https://slack.com/api/oauth.v2.access",
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => "https://graph.facebook.com/v18.0/oauth/access_token",
             OAuthProvider::Twitter => "https://api.twitter.com/2/oauth2/token",
@@ -315,10 +315,10 @@ impl OAuthProvider {
             OAuthProvider::Reddit => "https://www.reddit.com/api/v1/access_token",
             OAuthProvider::Twitch => "https://id.twitch.tv/oauth2/token",
             OAuthProvider::Spotify => "https://accounts.spotify.com/api/token",
-            
+
             // Professional
             OAuthProvider::LinkedIn => "https://www.linkedin.com/oauth/v2/accessToken",
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => "https://gitlab.com/oauth/token",
             OAuthProvider::Bitbucket => "https://bitbucket.org/site/oauth2/access_token",
@@ -327,7 +327,7 @@ impl OAuthProvider {
             OAuthProvider::Vercel => "https://api.vercel.com/v2/oauth/access_token",
             OAuthProvider::Netlify => "https://api.netlify.com/oauth/token",
             OAuthProvider::Cloudflare => "https://dash.cloudflare.com/oauth2/token",
-            
+
             // Enterprise
             OAuthProvider::Salesforce => "https://login.salesforce.com/services/oauth2/token",
             OAuthProvider::HubSpot => "https://api.hubapi.com/oauth/v1/token",
@@ -337,14 +337,14 @@ impl OAuthProvider {
             OAuthProvider::Linear => "https://api.linear.app/oauth/token",
             OAuthProvider::Atlassian => "https://auth.atlassian.com/oauth/token",
             OAuthProvider::Okta => "https://{domain}/oauth2/default/v1/token",
-            
+
             // Regional
             OAuthProvider::WeChat => "https://api.weixin.qq.com/sns/oauth2/access_token",
             OAuthProvider::Line => "https://api.line.me/oauth2/v2.1/token",
             OAuthProvider::KakaoTalk => "https://kauth.kakao.com/oauth/token",
             OAuthProvider::Vkontakte => "https://oauth.vk.com/access_token",
             OAuthProvider::Yandex => "https://oauth.yandex.com/token",
-            
+
             OAuthProvider::Custom => "",
         }
     }
@@ -359,7 +359,7 @@ impl OAuthProvider {
             OAuthProvider::Apple => "https://appleid.apple.com/auth/userinfo",
             OAuthProvider::Discord => "https://discord.com/api/users/@me",
             OAuthProvider::Slack => "https://slack.com/api/users.identity",
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => "https://graph.facebook.com/v18.0/me",
             OAuthProvider::Twitter => "https://api.twitter.com/2/users/me",
@@ -370,10 +370,10 @@ impl OAuthProvider {
             OAuthProvider::Reddit => "https://oauth.reddit.com/api/v1/me",
             OAuthProvider::Twitch => "https://api.twitch.tv/helix/users",
             OAuthProvider::Spotify => "https://api.spotify.com/v1/me",
-            
+
             // Professional
             OAuthProvider::LinkedIn => "https://api.linkedin.com/v2/userinfo",
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => "https://gitlab.com/api/v4/user",
             OAuthProvider::Bitbucket => "https://api.bitbucket.org/2.0/user",
@@ -382,7 +382,7 @@ impl OAuthProvider {
             OAuthProvider::Vercel => "https://api.vercel.com/v2/user",
             OAuthProvider::Netlify => "https://api.netlify.com/api/v1/user",
             OAuthProvider::Cloudflare => "https://api.cloudflare.com/client/v4/user",
-            
+
             // Enterprise
             OAuthProvider::Salesforce => "https://login.salesforce.com/services/oauth2/userinfo",
             OAuthProvider::HubSpot => "https://api.hubapi.com/oauth/v1/access-tokens",
@@ -392,14 +392,14 @@ impl OAuthProvider {
             OAuthProvider::Linear => "https://api.linear.app/graphql",
             OAuthProvider::Atlassian => "https://api.atlassian.com/me",
             OAuthProvider::Okta => "https://{domain}/oauth2/default/v1/userinfo",
-            
+
             // Regional
             OAuthProvider::WeChat => "https://api.weixin.qq.com/sns/userinfo",
             OAuthProvider::Line => "https://api.line.me/v2/profile",
             OAuthProvider::KakaoTalk => "https://kapi.kakao.com/v2/user/me",
             OAuthProvider::Vkontakte => "https://api.vk.com/method/users.get",
             OAuthProvider::Yandex => "https://login.yandex.ru/info",
-            
+
             OAuthProvider::Custom => "",
         }
     }
@@ -414,21 +414,24 @@ impl OAuthProvider {
             OAuthProvider::Apple => vec!["name", "email"],
             OAuthProvider::Discord => vec!["identify", "email"],
             OAuthProvider::Slack => vec!["identity.basic", "identity.email"],
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => vec!["email", "public_profile"],
             OAuthProvider::Twitter => vec!["tweet.read", "users.read"],
             OAuthProvider::Instagram => vec!["instagram_graph_user_profile"],
             OAuthProvider::TikTok => vec!["user.info.basic"],
-            OAuthProvider::Snapchat => vec!["https://auth.snapchat.com/oauth2/api/user.display_name", "https://auth.snapchat.com/oauth2/api/user.bitmoji.avatar"],
+            OAuthProvider::Snapchat => vec![
+                "https://auth.snapchat.com/oauth2/api/user.display_name",
+                "https://auth.snapchat.com/oauth2/api/user.bitmoji.avatar",
+            ],
             OAuthProvider::Pinterest => vec!["user_accounts:read"],
             OAuthProvider::Reddit => vec!["identity"],
             OAuthProvider::Twitch => vec!["user:read:email"],
             OAuthProvider::Spotify => vec!["user-read-email", "user-read-private"],
-            
+
             // Professional
             OAuthProvider::LinkedIn => vec!["openid", "email", "profile"],
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => vec!["read_user", "openid"],
             OAuthProvider::Bitbucket => vec!["account"],
@@ -437,7 +440,7 @@ impl OAuthProvider {
             OAuthProvider::Vercel => vec!["user"],
             OAuthProvider::Netlify => vec!["user"],
             OAuthProvider::Cloudflare => vec!["user:read"],
-            
+
             // Enterprise
             OAuthProvider::Salesforce => vec!["openid", "email", "profile"],
             OAuthProvider::HubSpot => vec!["oauth"],
@@ -447,14 +450,14 @@ impl OAuthProvider {
             OAuthProvider::Linear => vec!["read", "issues:read"],
             OAuthProvider::Atlassian => vec!["read:me"],
             OAuthProvider::Okta => vec!["openid", "email", "profile"],
-            
+
             // Regional
             OAuthProvider::WeChat => vec!["snsapi_login", "snsapi_userinfo"],
             OAuthProvider::Line => vec!["profile", "openid"],
             OAuthProvider::KakaoTalk => vec!["account_email", "profile_nickname", "profile_image"],
             OAuthProvider::Vkontakte => vec!["email", "profile"],
             OAuthProvider::Yandex => vec!["login:email", "login:info", "login:avatar"],
-            
+
             OAuthProvider::Custom => vec!["openid", "email", "profile"],
         }
     }
@@ -490,11 +493,11 @@ impl OAuthProvider {
             | OAuthProvider::Reddit
             | OAuthProvider::Twitch
             | OAuthProvider::Spotify => OAuthProviderCategory::Social,
-            
+
             OAuthProvider::Microsoft | OAuthProvider::Apple | OAuthProvider::LinkedIn => {
                 OAuthProviderCategory::Professional
             }
-            
+
             OAuthProvider::GitLab
             | OAuthProvider::Bitbucket
             | OAuthProvider::DigitalOcean
@@ -502,7 +505,7 @@ impl OAuthProvider {
             | OAuthProvider::Vercel
             | OAuthProvider::Netlify
             | OAuthProvider::Cloudflare => OAuthProviderCategory::Developer,
-            
+
             OAuthProvider::Salesforce
             | OAuthProvider::HubSpot
             | OAuthProvider::Zendesk
@@ -511,13 +514,13 @@ impl OAuthProvider {
             | OAuthProvider::Linear
             | OAuthProvider::Atlassian
             | OAuthProvider::Okta => OAuthProviderCategory::Enterprise,
-            
+
             OAuthProvider::WeChat
             | OAuthProvider::Line
             | OAuthProvider::KakaoTalk
             | OAuthProvider::Vkontakte
             | OAuthProvider::Yandex => OAuthProviderCategory::Regional,
-            
+
             OAuthProvider::Custom => OAuthProviderCategory::Custom,
         }
     }
@@ -729,8 +732,7 @@ impl OAuthService {
                     .append_pair("code_challenge_method", "S256");
             }
             OAuthProvider::Reddit => {
-                url.query_pairs_mut()
-                    .append_pair("duration", "permanent");
+                url.query_pairs_mut().append_pair("duration", "permanent");
             }
             OAuthProvider::WeChat => {
                 // WeChat uses 'appid' instead of 'client_id'
@@ -846,10 +848,13 @@ impl OAuthService {
             _ => {}
         }
 
-        let response = request.send().await.map_err(|e| VaultError::ExternalService {
-            service: "OAuth".into(),
-            message: e.to_string(),
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|e| VaultError::ExternalService {
+                service: "OAuth".into(),
+                message: e.to_string(),
+            })?;
 
         if !response.status().is_success() {
             return Err(VaultError::ExternalService {
@@ -875,7 +880,7 @@ impl OAuthService {
             OAuthProvider::Apple => Self::parse_apple_user_info(&raw),
             OAuthProvider::Discord => Self::parse_discord_user_info(&raw),
             OAuthProvider::Slack => Self::parse_slack_user_info(&raw),
-            
+
             // Social/Consumer
             OAuthProvider::Facebook => Self::parse_facebook_user_info(&raw),
             OAuthProvider::Twitter => Self::parse_twitter_user_info(&raw),
@@ -885,10 +890,10 @@ impl OAuthService {
             OAuthProvider::Reddit => Self::parse_reddit_user_info(&raw),
             OAuthProvider::Twitch => Self::parse_twitch_user_info(&raw),
             OAuthProvider::Spotify => Self::parse_spotify_user_info(&raw),
-            
+
             // Professional
             OAuthProvider::LinkedIn => Self::parse_linkedin_user_info(&raw),
-            
+
             // Developer/Tech
             OAuthProvider::GitLab => Self::parse_gitlab_user_info(&raw),
             OAuthProvider::Bitbucket => Self::parse_bitbucket_user_info(&raw),
@@ -896,21 +901,21 @@ impl OAuthService {
             OAuthProvider::Heroku => Self::parse_heroku_user_info(&raw),
             OAuthProvider::Vercel => Self::parse_vercel_user_info(&raw),
             OAuthProvider::Netlify => Self::parse_netlify_user_info(&raw),
-            
+
             // Enterprise
             OAuthProvider::Salesforce => Self::parse_salesforce_user_info(&raw),
             OAuthProvider::Notion => Self::parse_notion_user_info(&raw),
             OAuthProvider::Figma => Self::parse_figma_user_info(&raw),
             OAuthProvider::Atlassian => Self::parse_atlassian_user_info(&raw),
-            
+
             // Regional
             OAuthProvider::Line => Self::parse_line_user_info(&raw),
             OAuthProvider::KakaoTalk => Self::parse_kakao_user_info(&raw),
             OAuthProvider::Yandex => Self::parse_yandex_user_info(&raw),
-            
+
             _ => Self::parse_generic_user_info(&raw),
         };
-        
+
         user_info.provider = Some(self.config.provider);
         Ok(user_info)
     }
@@ -923,15 +928,15 @@ impl OAuthService {
             access_token
         );
 
-        let response = self
-            .http_client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| VaultError::ExternalService {
-                service: "OAuth".into(),
-                message: e.to_string(),
-            })?;
+        let response =
+            self.http_client
+                .get(&url)
+                .send()
+                .await
+                .map_err(|e| VaultError::ExternalService {
+                    service: "OAuth".into(),
+                    message: e.to_string(),
+                })?;
 
         let raw: serde_json::Value =
             response
@@ -1024,7 +1029,11 @@ impl OAuthService {
             let first = name_obj["firstName"].as_str().unwrap_or("");
             let last = name_obj["lastName"].as_str().unwrap_or("");
             let full = format!("{} {}", first, last).trim().to_string();
-            if full.is_empty() { None } else { Some(full) }
+            if full.is_empty() {
+                None
+            } else {
+                Some(full)
+            }
         } else {
             None
         };
@@ -1053,13 +1062,18 @@ impl OAuthService {
             id: raw["id"].as_str().unwrap_or("").to_string(),
             email: raw["email"].as_str().map(String::from),
             email_verified: raw["verified"].as_bool().unwrap_or(false),
-            name: raw["global_name"].as_str().map(String::from)
+            name: raw["global_name"]
+                .as_str()
+                .map(String::from)
                 .or_else(|| raw["username"].as_str().map(String::from)),
             given_name: None,
             family_name: None,
             picture: raw["avatar"].as_str().map(|a| {
-                format!("https://cdn.discordapp.com/avatars/{}/{}", 
-                    raw["id"].as_str().unwrap_or(""), a)
+                format!(
+                    "https://cdn.discordapp.com/avatars/{}/{}",
+                    raw["id"].as_str().unwrap_or(""),
+                    a
+                )
             }),
             username: raw["username"].as_str().map(String::from),
             locale: raw["locale"].as_str().map(String::from),
@@ -1187,7 +1201,9 @@ impl OAuthService {
             name: raw["name"].as_str().map(String::from),
             given_name: None,
             family_name: None,
-            picture: raw["icon_img"].as_str().map(|s| s.split('?').next().unwrap_or(s).to_string()),
+            picture: raw["icon_img"]
+                .as_str()
+                .map(|s| s.split('?').next().unwrap_or(s).to_string()),
             username: raw["name"].as_str().map(String::from),
             locale: None,
             provider: Some(OAuthProvider::Reddit),
@@ -1215,7 +1231,8 @@ impl OAuthService {
 
     /// Parse Spotify user info
     fn parse_spotify_user_info(raw: &serde_json::Value) -> OAuthUserInfo {
-        let picture = raw["images"].get(0)
+        let picture = raw["images"]
+            .get(0)
             .and_then(|img| img["url"].as_str().map(String::from));
         OAuthUserInfo {
             id: raw["id"].as_str().unwrap_or("").to_string(),
@@ -1474,11 +1491,16 @@ impl OAuthService {
     /// Parse VKontakte user info
     fn parse_vkontakte_user_info(raw: &serde_json::Value) -> OAuthUserInfo {
         let users = raw["response"].as_array();
-        let user = users.and_then(|u| u.get(0)).unwrap_or(&serde_json::Value::Null);
-        let name = format!("{} {}", 
+        let user = users
+            .and_then(|u| u.get(0))
+            .unwrap_or(&serde_json::Value::Null);
+        let name = format!(
+            "{} {}",
             user["first_name"].as_str().unwrap_or(""),
             user["last_name"].as_str().unwrap_or("")
-        ).trim().to_string();
+        )
+        .trim()
+        .to_string();
         OAuthUserInfo {
             id: user["id"].to_string(),
             email: None, // Provided in token response, not user info
@@ -1496,20 +1518,26 @@ impl OAuthService {
 
     /// Parse Yandex user info
     fn parse_yandex_user_info(raw: &serde_json::Value) -> OAuthUserInfo {
-        let name = format!("{} {}", 
+        let name = format!(
+            "{} {}",
             raw["first_name"].as_str().unwrap_or(""),
             raw["last_name"].as_str().unwrap_or("")
-        ).trim().to_string();
+        )
+        .trim()
+        .to_string();
         OAuthUserInfo {
             id: raw["id"].as_str().unwrap_or("").to_string(),
             email: raw["default_email"].as_str().map(String::from),
-            email_verified: raw["is_avatar_empty"].as_bool().map(|_| true).unwrap_or(false),
+            email_verified: raw["is_avatar_empty"]
+                .as_bool()
+                .map(|_| true)
+                .unwrap_or(false),
             name: if name.is_empty() { None } else { Some(name) },
             given_name: raw["first_name"].as_str().map(String::from),
             family_name: raw["last_name"].as_str().map(String::from),
-            picture: raw["default_avatar_id"].as_str().map(|id| {
-                format!("https://avatars.yandex.net/get-yapic/{}/islands-200", id)
-            }),
+            picture: raw["default_avatar_id"]
+                .as_str()
+                .map(|id| format!("https://avatars.yandex.net/get-yapic/{}/islands-200", id)),
             username: raw["login"].as_str().map(String::from),
             locale: raw["locale"].as_str().map(String::from),
             provider: Some(OAuthProvider::Yandex),
@@ -1548,7 +1576,7 @@ pub struct TokenResponse {
 
 /// Generate PKCE code verifier
 /// Generate PKCE code verifier
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
 /// code verifier generation. The code verifier is critical for OAuth 2.0 PKCE flow
 /// to prevent authorization code interception attacks.
@@ -1689,17 +1717,35 @@ mod tests {
 
     #[test]
     fn test_provider_categories() {
-        assert_eq!(OAuthProvider::Google.category(), OAuthProviderCategory::Social);
-        assert_eq!(OAuthProvider::LinkedIn.category(), OAuthProviderCategory::Professional);
-        assert_eq!(OAuthProvider::GitLab.category(), OAuthProviderCategory::Developer);
-        assert_eq!(OAuthProvider::Salesforce.category(), OAuthProviderCategory::Enterprise);
-        assert_eq!(OAuthProvider::WeChat.category(), OAuthProviderCategory::Regional);
+        assert_eq!(
+            OAuthProvider::Google.category(),
+            OAuthProviderCategory::Social
+        );
+        assert_eq!(
+            OAuthProvider::LinkedIn.category(),
+            OAuthProviderCategory::Professional
+        );
+        assert_eq!(
+            OAuthProvider::GitLab.category(),
+            OAuthProviderCategory::Developer
+        );
+        assert_eq!(
+            OAuthProvider::Salesforce.category(),
+            OAuthProviderCategory::Enterprise
+        );
+        assert_eq!(
+            OAuthProvider::WeChat.category(),
+            OAuthProviderCategory::Regional
+        );
     }
 
     #[test]
     fn test_all_providers_count() {
         let providers = get_all_providers();
-        assert!(providers.len() >= 30, "Expected at least 30 OAuth providers");
+        assert!(
+            providers.len() >= 30,
+            "Expected at least 30 OAuth providers"
+        );
     }
 
     #[test]

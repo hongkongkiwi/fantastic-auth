@@ -155,16 +155,16 @@ impl KeystrokeDynamics {
 
     /// Calculate average press duration for a key
     pub fn avg_press_duration(&self, key: char) -> Option<f64> {
-        self.press_durations.get(&key).map(|durations| {
-            durations.iter().sum::<u64>() as f64 / durations.len() as f64
-        })
+        self.press_durations
+            .get(&key)
+            .map(|durations| durations.iter().sum::<u64>() as f64 / durations.len() as f64)
     }
 
     /// Calculate average flight time between keys
     pub fn avg_flight_time(&self, from: char, to: char) -> Option<f64> {
-        self.flight_times.get(&(from, to)).map(|times| {
-            times.iter().sum::<u64>() as f64 / times.len() as f64
-        })
+        self.flight_times
+            .get(&(from, to))
+            .map(|times| times.iter().sum::<u64>() as f64 / times.len() as f64)
     }
 
     /// Calculate entropy (measure of randomness/consistency)
@@ -181,11 +181,8 @@ impl KeystrokeDynamics {
         }
 
         let mean = all_times.iter().sum::<f64>() / all_times.len() as f64;
-        let variance = all_times
-            .iter()
-            .map(|&t| (t - mean).powi(2))
-            .sum::<f64>()
-            / all_times.len() as f64;
+        let variance =
+            all_times.iter().map(|&t| (t - mean).powi(2)).sum::<f64>() / all_times.len() as f64;
 
         // Normalize: higher variance = lower consistency = higher entropy
         let cv = variance.sqrt() / mean; // Coefficient of variation
@@ -305,8 +302,16 @@ impl MouseDynamics {
             let (x3, y3, _) = window[2];
 
             // Check if points are collinear
-            let slope1 = if x2 != x1 { (y2 - y1) / (x2 - x1) } else { f64::INFINITY };
-            let slope2 = if x3 != x2 { (y3 - y2) / (x3 - x2) } else { f64::INFINITY };
+            let slope1 = if x2 != x1 {
+                (y2 - y1) / (x2 - x1)
+            } else {
+                f64::INFINITY
+            };
+            let slope2 = if x3 != x2 {
+                (y3 - y2) / (x3 - x2)
+            } else {
+                f64::INFINITY
+            };
 
             if (slope1 - slope2).abs() < 0.01 {
                 straight_line_count += 1;
@@ -373,11 +378,8 @@ impl TouchDynamics {
 
         let pressures: Vec<f64> = self.touches.iter().map(|t| t.2).collect();
         let mean = pressures.iter().sum::<f64>() / pressures.len() as f64;
-        let variance = pressures
-            .iter()
-            .map(|&p| (p - mean).powi(2))
-            .sum::<f64>()
-            / pressures.len() as f64;
+        let variance =
+            pressures.iter().map(|&p| (p - mean).powi(2)).sum::<f64>() / pressures.len() as f64;
 
         let cv = variance.sqrt() / mean;
         (cv / (1.0 + cv)).min(1.0)
@@ -590,7 +592,10 @@ impl BehavioralBiometrics {
         };
 
         // Check for automated behavior
-        let is_automated = data.mouse.as_ref().map_or(false, |m| m.is_likely_automated());
+        let is_automated = data
+            .mouse
+            .as_ref()
+            .map_or(false, |m| m.is_likely_automated());
 
         let is_likely_impostor = overall_match < 0.3 || is_automated;
         let risk_score = if is_automated {
@@ -621,7 +626,9 @@ impl BehavioralBiometrics {
     /// Record behavioral data for baseline learning
     pub async fn record(&self, user_id: &str, data: &BehavioralData) -> AiResult<()> {
         let mut recent = self.recent_data.write().await;
-        let entry = recent.entry(user_id.to_string()).or_insert_with(VecDeque::new);
+        let entry = recent
+            .entry(user_id.to_string())
+            .or_insert_with(VecDeque::new);
 
         entry.push_back(data.clone());
 
@@ -682,7 +689,8 @@ impl BehavioralBiometrics {
                 .collect();
 
             if !keystroke_samples.is_empty() {
-                pattern.keystroke_baseline = Some(self.build_keystroke_baseline(&keystroke_samples));
+                pattern.keystroke_baseline =
+                    Some(self.build_keystroke_baseline(&keystroke_samples));
             }
 
             // Build mouse baseline
@@ -760,10 +768,7 @@ impl BehavioralBiometrics {
 
     /// Build touch baseline from samples
     fn build_touch_baseline(&self, samples: &[&TouchDynamics]) -> TouchBaseline {
-        let pressures: Vec<f64> = samples
-            .iter()
-            .map(|s| s.calculate_avg_pressure())
-            .collect();
+        let pressures: Vec<f64> = samples.iter().map(|s| s.calculate_avg_pressure()).collect();
         let avg_pressure = pressures.iter().sum::<f64>() / pressures.len() as f64;
 
         TouchBaseline {

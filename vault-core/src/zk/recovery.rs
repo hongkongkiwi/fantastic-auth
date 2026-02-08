@@ -28,10 +28,8 @@ use sha2::{Digest, Sha256};
 /// Prime field for SSS (2^256 - 189, a large prime close to 2^256)
 /// This allows us to work with 256-bit secrets (like our master key)
 pub const FIELD_PRIME: [u8; 32] = [
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x43,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x43,
 ];
 
 /// Maximum number of shares
@@ -417,11 +415,7 @@ pub enum RecoverySessionStatus {
 
 impl RecoverySession {
     /// Create a new recovery session
-    pub fn new(
-        id: impl Into<String>,
-        user_id: impl Into<String>,
-        threshold: usize,
-    ) -> Self {
+    pub fn new(id: impl Into<String>, user_id: impl Into<String>, threshold: usize) -> Self {
         let now = chrono::Utc::now();
         Self {
             id: id.into(),
@@ -511,8 +505,7 @@ mod tests {
         assert_eq!(shares[0].metadata.user_id, "user_123");
 
         // Check all indices are unique
-        let indices: std::collections::HashSet<_> =
-            shares.iter().map(|s| s.index).collect();
+        let indices: std::collections::HashSet<_> = shares.iter().map(|s| s.index).collect();
         assert_eq!(indices.len(), 5);
     }
 
@@ -728,9 +721,7 @@ mod tests {
             value: vec![7, 8, 9],
             metadata: share1.metadata.clone(),
         };
-        assert!(
-            ShareValidator::validate_set(&[share1.clone(), share_duplicate]).is_err()
-        );
+        assert!(ShareValidator::validate_set(&[share1.clone(), share_duplicate]).is_err());
     }
 
     #[test]

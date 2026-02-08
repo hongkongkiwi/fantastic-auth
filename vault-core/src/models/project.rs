@@ -136,7 +136,12 @@ pub struct ProjectGrant {
 }
 
 impl Project {
-    pub fn new(tenant_id: impl Into<String>, organization_id: impl Into<String>, name: impl Into<String>, slug: impl Into<String>) -> Self {
+    pub fn new(
+        tenant_id: impl Into<String>,
+        organization_id: impl Into<String>,
+        name: impl Into<String>,
+        slug: impl Into<String>,
+    ) -> Self {
         let now = Utc::now();
         Project {
             id: Uuid::new_v4().to_string(),

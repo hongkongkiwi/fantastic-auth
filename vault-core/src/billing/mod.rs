@@ -301,7 +301,8 @@ pub trait BillingStore: Send + Sync {
     async fn list_plans(&self) -> Result<Vec<Plan>, BillingError>;
 
     /// Get subscription for tenant
-    async fn get_subscription(&self, tenant_id: &str) -> Result<Option<Subscription>, BillingError>;
+    async fn get_subscription(&self, tenant_id: &str)
+        -> Result<Option<Subscription>, BillingError>;
 
     /// Create or update subscription
     async fn upsert_subscription(&self, subscription: &Subscription) -> Result<(), BillingError>;
@@ -350,7 +351,8 @@ pub trait BillingService: Send + Sync {
     ) -> Result<PortalSession, BillingError>;
 
     /// Get current subscription
-    async fn get_subscription(&self, tenant_id: &str) -> Result<Option<Subscription>, BillingError>;
+    async fn get_subscription(&self, tenant_id: &str)
+        -> Result<Option<Subscription>, BillingError>;
 
     /// Cancel subscription
     async fn cancel_subscription(&self, tenant_id: &str) -> Result<Subscription, BillingError>;

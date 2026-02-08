@@ -1,6 +1,9 @@
 //! Biometric authentication repository
 
-use crate::auth::biometric::{BiometricChallenge, BiometricError, BiometricKey, BiometricKeyStore, BiometricType, ChallengeStore};
+use crate::auth::biometric::{
+    BiometricChallenge, BiometricError, BiometricKey, BiometricKeyStore, BiometricType,
+    ChallengeStore,
+};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -56,10 +59,7 @@ impl BiometricRepository {
     }
 
     /// Create a new biometric key
-    pub async fn create_key(
-        &self,
-        key: &BiometricKey,
-    ) -> Result<BiometricKeyRecord, sqlx::Error> {
+    pub async fn create_key(&self, key: &BiometricKey) -> Result<BiometricKeyRecord, sqlx::Error> {
         let record = sqlx::query_as::<_, BiometricKeyRecord>(
             r#"
             INSERT INTO biometric_keys (
@@ -265,8 +265,14 @@ impl BiometricKeyStore for BiometricRepository {
         Ok(())
     }
 
-    async fn get_key_by_key_id(&self, key_id: &str) -> std::result::Result<Option<BiometricKey>, BiometricError> {
-        let record = self.get_key_by_key_id(key_id).await.map_err(BiometricError::from)?;
+    async fn get_key_by_key_id(
+        &self,
+        key_id: &str,
+    ) -> std::result::Result<Option<BiometricKey>, BiometricError> {
+        let record = self
+            .get_key_by_key_id(key_id)
+            .await
+            .map_err(BiometricError::from)?;
         Ok(record.map(|r| r.into()))
     }
 
@@ -307,7 +313,10 @@ impl ChallengeStore for BiometricRepository {
             .map_err(BiometricError::from)
     }
 
-    async fn get_challenge(&self, key_id: &str) -> std::result::Result<Option<BiometricChallenge>, BiometricError> {
+    async fn get_challenge(
+        &self,
+        key_id: &str,
+    ) -> std::result::Result<Option<BiometricChallenge>, BiometricError> {
         BiometricRepository::get_challenge(self, key_id)
             .await
             .map_err(BiometricError::from)

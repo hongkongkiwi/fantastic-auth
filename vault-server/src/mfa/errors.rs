@@ -103,9 +103,7 @@ impl MfaError {
 impl From<MfaError> for crate::routes::ApiError {
     fn from(err: MfaError) -> Self {
         match &err {
-            MfaError::InvalidCode | MfaError::CodeExpired => {
-                crate::routes::ApiError::Unauthorized(err.user_message())
-            }
+            MfaError::InvalidCode | MfaError::CodeExpired => crate::routes::ApiError::Unauthorized,
             MfaError::RateLimitExceeded => {
                 crate::routes::ApiError::TooManyRequests(err.user_message())
             }
@@ -116,9 +114,7 @@ impl From<MfaError> for crate::routes::ApiError {
             }
             MfaError::SmsServiceUnavailable
             | MfaError::WhatsappServiceUnavailable
-            | MfaError::EmailServiceUnavailable => {
-                crate::routes::ApiError::ServiceUnavailable(err.user_message())
-            }
+            | MfaError::EmailServiceUnavailable => crate::routes::ApiError::Internal,
             _ => crate::routes::ApiError::Internal,
         }
     }

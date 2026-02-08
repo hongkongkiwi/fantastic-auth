@@ -496,14 +496,14 @@ impl SmsService {
     }
 
     /// Generate a cryptographically secure random OTP code
-    /// 
+    ///
     /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
     /// random digit generation. SMS OTP codes are sensitive credentials that must be
     /// unpredictable to prevent unauthorized access.
     fn generate_code(&self) -> String {
         use rand::Rng;
         use rand_core::OsRng;
-        
+
         // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
         let mut rng = OsRng;
         let code: String = (0..self.config.code_length)
@@ -695,7 +695,10 @@ impl SmsService {
         params: &[String],
     ) -> Result<(), SmsError> {
         let normalized_phone = Self::validate_phone_number(phone)?;
-        let provider = self.whatsapp_provider.as_ref().ok_or(SmsError::NotConfigured)?;
+        let provider = self
+            .whatsapp_provider
+            .as_ref()
+            .ok_or(SmsError::NotConfigured)?;
         provider
             .send_template(&normalized_phone, template_name, params)
             .await

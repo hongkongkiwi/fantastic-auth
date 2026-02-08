@@ -236,7 +236,7 @@ impl OrganizationRepository {
                 user_id::text as user_id, role::text as role, status::text as status,
                 created_at, updated_at 
              FROM organization_members 
-             WHERE organization_id = $1::uuid AND user_id = $2::uuid"#
+             WHERE organization_id = $1::uuid AND user_id = $2::uuid"#,
         )
         .bind(org_id)
         .bind(user_id)
@@ -261,7 +261,7 @@ impl OrganizationRepository {
                WHERE organization_id = $3::uuid AND user_id = $4::uuid
                RETURNING id::text as id, organization_id::text as organization_id,
                         user_id::text as user_id, role::text as role, status::text as status,
-                        created_at, updated_at"#
+                        created_at, updated_at"#,
         )
         .bind(role)
         .bind(chrono::Utc::now())
@@ -300,7 +300,7 @@ impl OrganizationRepository {
                 created_at, updated_at 
              FROM organization_members 
              WHERE organization_id = $1::uuid
-             ORDER BY created_at DESC"#
+             ORDER BY created_at DESC"#,
         )
         .bind(org_id)
         .fetch_all(&mut *conn)
@@ -555,7 +555,7 @@ impl OrganizationRepository {
                        role::text as role, invited_by::text as invited_by, token,
                        expires_at, accepted_at, created_at
                FROM organization_invitations
-               WHERE tenant_id = $1::uuid AND token = $2"#
+               WHERE tenant_id = $1::uuid AND token = $2"#,
         )
         .bind(tenant_id)
         .bind(token)
@@ -584,7 +584,7 @@ impl OrganizationRepository {
                WHERE tenant_id = $1::uuid
                  AND token = $2
                  AND accepted_at IS NULL
-                 AND expires_at > NOW()"#
+                 AND expires_at > NOW()"#,
         )
         .bind(tenant_id)
         .bind(token)
@@ -614,13 +614,18 @@ impl OrganizationRepository {
                     invited_by = EXCLUDED.invited_by,
                     invited_at = EXCLUDED.invited_at,
                     joined_at = EXCLUDED.joined_at,
-                    updated_at = EXCLUDED.updated_at"#
+                    updated_at = EXCLUDED.updated_at"#,
         )
         .bind(uuid::Uuid::new_v4().to_string())
         .bind(tenant_id)
         .bind(&invitation.organization_id)
         .bind(user_id)
-        .bind(invitation.role.parse::<OrganizationRole>().unwrap_or(OrganizationRole::Member))
+        .bind(
+            invitation
+                .role
+                .parse::<OrganizationRole>()
+                .unwrap_or(OrganizationRole::Member),
+        )
         .bind(MembershipStatus::Active)
         .bind(&invitation.invited_by)
         .bind(invitation.created_at)
@@ -636,7 +641,7 @@ impl OrganizationRepository {
                WHERE tenant_id = $2::uuid AND id = $3::uuid
                RETURNING id::text as id, organization_id::text as organization_id, email,
                         role::text as role, invited_by::text as invited_by, token,
-                        expires_at, accepted_at, created_at"#
+                        expires_at, accepted_at, created_at"#,
         )
         .bind(now)
         .bind(tenant_id)

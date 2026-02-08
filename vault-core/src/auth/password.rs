@@ -285,7 +285,7 @@ pub fn calculate_strength(password: &str) -> PasswordStrength {
 }
 
 /// Generate a strong password
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
 /// password generation. This ensures passwords are unpredictable and resistant to
 /// brute-force attacks. Character selection uses uniform distribution to avoid bias.

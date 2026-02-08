@@ -37,12 +37,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio::time::interval;
-use vault_core::plugin::types::{
-    ApiRequest, ApiResponse, AuthContext, AuthResult, HookType, HttpMethod,
-    Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata,
-    RegisterContext, Route, PluginHealth as HealthStatus,
-};
 use vault_core::models::user::User;
+use vault_core::plugin::types::{
+    ApiRequest, ApiResponse, AuthContext, AuthResult, HookType, HttpMethod, Plugin,
+    PluginCapability, PluginConfig, PluginError, PluginHealth, PluginHealth as HealthStatus,
+    PluginMetadata, RegisterContext, Route,
+};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -262,8 +262,8 @@ impl WebhookPlugin {
 
     /// Generate webhook signature
     fn generate_signature(&self, secret: &str, payload: &[u8]) -> String {
-        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-            .expect("HMAC can take key of any size");
+        let mut mac =
+            HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
         mac.update(payload);
         let result = mac.finalize();
         let bytes = result.into_bytes();
@@ -283,14 +283,15 @@ impl WebhookPlugin {
         event: &WebhookEvent,
     ) -> Result<DeliveryAttempt, PluginError> {
         let start = Instant::now();
-        
+
         let payload = self.build_payload(event, webhook);
         let signature = self.generate_signature(&webhook.secret, &payload);
 
         // Build request
-        let client = self.http_client.as_ref().ok_or_else(|| {
-            PluginError::new("NOT_INITIALIZED", "HTTP client not initialized")
-        })?;
+        let client = self
+            .http_client
+            .as_ref()
+            .ok_or_else(|| PluginError::new("NOT_INITIALIZED", "HTTP client not initialized"))?;
 
         let mut request = client
             .post(&webhook.url)
@@ -372,7 +373,10 @@ impl WebhookPlugin {
                 .map_err(|_| PluginError::new("QUEUE_ERROR", "Failed to queue event"))?;
             Ok(())
         } else {
-            Err(PluginError::new("NOT_INITIALIZED", "Delivery queue not initialized"))
+            Err(PluginError::new(
+                "NOT_INITIALIZED",
+                "Delivery queue not initialized",
+            ))
         }
     }
 
@@ -424,15 +428,15 @@ impl Plugin for WebhookPlugin {
         let worker_count = self.config.worker_count;
         let stats = self.stats.clone();
         let config = self.config.clone();
-        
+
         tokio::spawn(async move {
             while let Some(event) = rx.recv().await {
                 stats.increment_received();
                 stats.active_deliveries.fetch_add(1, Ordering::Relaxed);
-                
+
                 // Process event
                 // In a full implementation, this would deliver to each subscribed webhook
-                
+
                 stats.active_deliveries.fetch_sub(1, Ordering::Relaxed);
             }
         });
@@ -500,16 +504,14 @@ impl Plugin for WebhookPlugin {
 
     fn routes(&self) -> Vec<Route> {
         vec![
-            Route::new(HttpMethod::Get, "/stats", "get_stats")
-                .with_permission("admin:plugins"),
+            Route::new(HttpMethod::Get, "/stats", "get_stats").with_permission("admin:plugins"),
             Route::new(HttpMethod::Get, "/webhooks", "list_webhooks")
                 .with_permission("admin:plugins"),
             Route::new(HttpMethod::Post, "/webhooks", "create_webhook")
                 .with_permission("admin:plugins"),
             Route::new(HttpMethod::Get, "/deliveries", "list_deliveries")
                 .with_permission("admin:plugins"),
-            Route::new(HttpMethod::Post, "/test", "test_webhook")
-                .with_permission("admin:plugins"),
+            Route::new(HttpMethod::Post, "/test", "test_webhook").with_permission("admin:plugins"),
         ]
     }
 
@@ -519,24 +521,27 @@ impl Plugin for WebhookPlugin {
         request: ApiRequest,
     ) -> Result<ApiResponse, PluginError> {
         match route {
-            "get_stats" => {
-                Ok(ApiResponse {
-                    status: 200,
-                    body: self.get_stats(),
-                    headers: HashMap::new(),
-                })
-            }
+            "get_stats" => Ok(ApiResponse {
+                status: 200,
+                body: self.get_stats(),
+                headers: HashMap::new(),
+            }),
             "list_webhooks" => {
-                let webhooks: Vec<_> = self.config.webhooks.iter().map(|w| {
-                    serde_json::json!({
-                        "name": w.name,
-                        "url": w.url,
-                        "events": w.events,
-                        "enabled": w.enabled,
-                        "retry_policy": w.retry_policy,
-                        "timeout_secs": w.timeout_secs,
+                let webhooks: Vec<_> = self
+                    .config
+                    .webhooks
+                    .iter()
+                    .map(|w| {
+                        serde_json::json!({
+                            "name": w.name,
+                            "url": w.url,
+                            "events": w.events,
+                            "enabled": w.enabled,
+                            "retry_policy": w.retry_policy,
+                            "timeout_secs": w.timeout_secs,
+                        })
                     })
-                }).collect();
+                    .collect();
 
                 Ok(ApiResponse {
                     status: 200,
@@ -554,16 +559,14 @@ impl Plugin for WebhookPlugin {
                     headers: HashMap::new(),
                 })
             }
-            "list_deliveries" => {
-                Ok(ApiResponse {
-                    status: 200,
-                    body: serde_json::json!({
-                        "deliveries": [],
-                        "message": "Not implemented in example"
-                    }),
-                    headers: HashMap::new(),
-                })
-            }
+            "list_deliveries" => Ok(ApiResponse {
+                status: 200,
+                body: serde_json::json!({
+                    "deliveries": [],
+                    "message": "Not implemented in example"
+                }),
+                headers: HashMap::new(),
+            }),
             "test_webhook" => {
                 // Send test event
                 let test_event = WebhookEvent {
@@ -626,7 +629,7 @@ mod tests {
     #[tokio::test]
     async fn test_webhook_plugin_initialization() {
         let mut plugin = WebhookPlugin::new();
-        
+
         let config = PluginConfig {
             name: "webhook-plugin".to_string(),
             enabled: true,
@@ -664,7 +667,7 @@ mod tests {
 
         let sig1 = plugin.generate_signature(secret, payload);
         let sig2 = plugin.generate_signature(secret, payload);
-        
+
         // Signature should be deterministic
         assert_eq!(sig1, sig2);
         assert!(sig1.starts_with("sha256="));

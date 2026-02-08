@@ -134,7 +134,11 @@ impl OidcRepository {
         Ok(clients)
     }
 
-    pub async fn get_client(&self, tenant_id: &str, client_id: &str) -> Result<Option<OauthClient>> {
+    pub async fn get_client(
+        &self,
+        tenant_id: &str,
+        client_id: &str,
+    ) -> Result<Option<OauthClient>> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let client = sqlx::query_as::<_, OauthClient>(
             r#"
@@ -189,13 +193,11 @@ impl OidcRepository {
 
     pub async fn delete_client(&self, tenant_id: &str, client_id: &str) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        sqlx::query(
-            r#"DELETE FROM oauth_clients WHERE tenant_id = $1::uuid AND client_id = $2"#,
-        )
-        .bind(tenant_id)
-        .bind(client_id)
-        .execute(&mut *conn)
-        .await?;
+        sqlx::query(r#"DELETE FROM oauth_clients WHERE tenant_id = $1::uuid AND client_id = $2"#)
+            .bind(tenant_id)
+            .bind(client_id)
+            .execute(&mut *conn)
+            .await?;
 
         Ok(())
     }
@@ -316,7 +318,11 @@ impl OidcRepository {
         Ok(record)
     }
 
-    pub async fn revoke_token_by_refresh(&self, tenant_id: &str, refresh_token: &str) -> Result<bool> {
+    pub async fn revoke_token_by_refresh(
+        &self,
+        tenant_id: &str,
+        refresh_token: &str,
+    ) -> Result<bool> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let tokens = sqlx::query_as::<_, OauthToken>(
             r#"

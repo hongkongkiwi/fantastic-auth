@@ -546,7 +546,10 @@ impl ThreatDetector {
     }
 
     /// Detect distributed brute force
-    async fn detect_distributed_brute_force(&self, events: &[AuthEvent]) -> AiResult<Option<Attack>> {
+    async fn detect_distributed_brute_force(
+        &self,
+        events: &[AuthEvent],
+    ) -> AiResult<Option<Attack>> {
         let failed_events: Vec<_> = events.iter().filter(|e| !e.success).collect();
 
         if failed_events.len() < 50 {
@@ -567,14 +570,16 @@ impl ThreatDetector {
 
         // Distributed brute force: many IPs, few targets, high failure rate
         if unique_ips.len() >= 5 && unique_targets.len() <= 10 {
-            let success_rate = events.iter().filter(|e| e.success).count() as f64 / events.len() as f64;
+            let success_rate =
+                events.iter().filter(|e| e.success).count() as f64 / events.len() as f64;
 
             let mut attack = Attack::new(
                 AttackType::DistributedBruteForce,
                 AttackSeverity::High,
                 0.85,
                 AttackDetails {
-                    pattern: "Multiple IPs targeting few accounts with high failure rate".to_string(),
+                    pattern: "Multiple IPs targeting few accounts with high failure rate"
+                        .to_string(),
                     avg_request_rate: events.len() as f64 / 5.0, // per minute
                     geo_distribution: vec![],
                     user_agents: vec![],
@@ -609,10 +614,7 @@ impl ThreatDetector {
     /// Detect credential stuffing
     async fn detect_credential_stuffing(&self, events: &[AuthEvent]) -> AiResult<Option<Attack>> {
         // Credential stuffing: many accounts, distributed IPs, often with same password patterns
-        let unique_accounts: HashSet<_> = events
-            .iter()
-            .filter_map(|e| e.email.clone())
-            .collect();
+        let unique_accounts: HashSet<_> = events.iter().filter_map(|e| e.email.clone()).collect();
 
         if unique_accounts.len() < 20 {
             return Ok(None);
@@ -635,7 +637,8 @@ impl ThreatDetector {
                     AttackSeverity::Critical,
                     0.9,
                     AttackDetails {
-                        pattern: "Automated login attempts with many different credentials".to_string(),
+                        pattern: "Automated login attempts with many different credentials"
+                            .to_string(),
                         avg_request_rate: events.len() as f64 / 5.0,
                         geo_distribution: vec![],
                         user_agents: vec![],
@@ -671,10 +674,7 @@ impl ThreatDetector {
     /// Detect account enumeration
     async fn detect_account_enumeration(&self, events: &[AuthEvent]) -> AiResult<Option<Attack>> {
         // Account enumeration: systematic checking of usernames, typically all failing
-        let unique_accounts: HashSet<_> = events
-            .iter()
-            .filter_map(|e| e.email.clone())
-            .collect();
+        let unique_accounts: HashSet<_> = events.iter().filter_map(|e| e.email.clone()).collect();
 
         let failed_count = events.iter().filter(|e| !e.success).count();
         let failure_rate = failed_count as f64 / events.len().max(1) as f64;
@@ -752,10 +752,7 @@ impl ThreatDetector {
                     pattern: "Automated bot traffic detected".to_string(),
                     avg_request_rate: events.len() as f64 / 5.0,
                     geo_distribution: vec![],
-                    user_agents: events
-                        .iter()
-                        .filter_map(|e| e.user_agent.clone())
-                        .collect(),
+                    user_agents: events.iter().filter_map(|e| e.user_agent.clone()).collect(),
                     time_distribution: TimeDistribution {
                         peak_hour: Utc::now().hour() as u8,
                         is_distributed: true,
@@ -841,7 +838,9 @@ impl BruteForceDetector {
         let mut attempts = self.attempts.write().await;
         let now = Utc::now();
 
-        let entry = attempts.entry(identifier.to_string()).or_insert_with(Vec::new);
+        let entry = attempts
+            .entry(identifier.to_string())
+            .or_insert_with(Vec::new);
         entry.push(now);
 
         // Clean old attempts
@@ -861,7 +860,10 @@ impl BruteForceDetector {
     /// Get current attempt count
     pub async fn get_attempt_count(&self, identifier: &str) -> u32 {
         let attempts = self.attempts.read().await;
-        attempts.get(identifier).map(|v| v.len() as u32).unwrap_or(0)
+        attempts
+            .get(identifier)
+            .map(|v| v.len() as u32)
+            .unwrap_or(0)
     }
 }
 

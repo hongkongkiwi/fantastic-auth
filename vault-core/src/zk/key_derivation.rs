@@ -21,9 +21,7 @@
 //! - Memory cost should be at least 64MB
 
 use crate::zk::ZkError;
-use argon2::{
-    Algorithm, Argon2, Params, Version,
-};
+use argon2::{Algorithm, Argon2, Params, Version};
 use rand::RngCore;
 use rsa::{
     pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey, EncodeRsaPublicKey},
@@ -174,14 +172,14 @@ impl MasterKey {
 }
 
 /// Generate a cryptographically secure random salt
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for generating salts.
 /// Salts must be unpredictable to prevent precomputation attacks (rainbow tables).
 /// This is critical for the security of the key derivation function.
 pub fn generate_salt() -> Vec<u8> {
     use rand::RngCore;
     use rand_core::OsRng;
-    
+
     let mut salt = vec![0u8; SALT_LENGTH];
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     OsRng.fill_bytes(&mut salt);
@@ -233,7 +231,7 @@ pub fn derive_master_key_from_password(
 }
 
 /// Generate RSA key pair deterministically from seed
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for RSA key generation.
 /// RSA keys are used for encryption and must be generated with cryptographically
 /// secure randomness to prevent private key recovery attacks.
@@ -336,10 +334,7 @@ mod tests {
         let master_key2 = derive_master_key_from_password(password, &salt, None).unwrap();
 
         // Same password + salt should produce same keys
-        assert_eq!(
-            master_key1.encryption_key,
-            master_key2.encryption_key
-        );
+        assert_eq!(master_key1.encryption_key, master_key2.encryption_key);
         assert_eq!(
             master_key1.authentication_key,
             master_key2.authentication_key
@@ -348,10 +343,7 @@ mod tests {
         // Different salt should produce different keys
         let salt2 = generate_salt();
         let master_key3 = derive_master_key_from_password(password, &salt2, None).unwrap();
-        assert_ne!(
-            master_key1.encryption_key,
-            master_key3.encryption_key
-        );
+        assert_ne!(master_key1.encryption_key, master_key3.encryption_key);
     }
 
     #[test]
@@ -385,13 +377,9 @@ mod tests {
 
         let master_key = derive_master_key_from_password(password, &salt, None).unwrap();
 
-        let is_valid = MasterKeyDerivation::verify(
-            password,
-            &salt,
-            &master_key.authentication_key,
-            None,
-        )
-        .unwrap();
+        let is_valid =
+            MasterKeyDerivation::verify(password, &salt, &master_key.authentication_key, None)
+                .unwrap();
         assert!(is_valid);
 
         let is_invalid = MasterKeyDerivation::verify(

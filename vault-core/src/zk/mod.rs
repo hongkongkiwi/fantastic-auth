@@ -157,7 +157,10 @@ impl ZkKeyBundle {
 
 /// Initialize the zero-knowledge module
 pub fn init() {
-    tracing::info!("Zero-knowledge module initialized (protocol v{})", ZK_PROTOCOL_VERSION);
+    tracing::info!(
+        "Zero-knowledge module initialized (protocol v{})",
+        ZK_PROTOCOL_VERSION
+    );
 }
 
 #[cfg(test)]

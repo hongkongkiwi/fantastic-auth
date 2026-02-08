@@ -24,6 +24,62 @@ pub mod whatsapp;
 pub use common::MfaVerificationHandler;
 pub use errors::{MfaError, MfaResult};
 
+use crate::state::AppState;
+
+/// Sync user MFA methods to user record
+/// This updates the user's mfa_methods field based on enabled MFA methods
+pub async fn sync_user_mfa_methods(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+) -> Result<(), crate::mfa::errors::MfaError> {
+    let methods = state
+        .db
+        .mfa()
+        .get_enabled_methods(tenant_id, user_id)
+        .await
+        .map_err(crate::mfa::errors::MfaError::Database)?;
+
+    let mut method_names: Vec<String> = methods
+        .iter()
+        .filter_map(|m| {
+            match m.method_type {
+                vault_core::db::mfa::MfaMethodType::Totp => Some("totp".to_string()),
+                vault_core::db::mfa::MfaMethodType::Email => Some("email".to_string()),
+                vault_core::db::mfa::MfaMethodType::Sms => Some("sms".to_string()),
+                vault_core::db::mfa::MfaMethodType::Webauthn => Some("webauthn".to_string()),
+                vault_core::db::mfa::MfaMethodType::Whatsapp => Some("whatsapp".to_string()),
+            }
+        })
+        .collect();
+
+    let backup_codes = state
+        .db
+        .mfa()
+        .get_backup_codes(tenant_id, user_id)
+        .await
+        .map_err(crate::mfa::errors::MfaError::Database)?;
+
+    if !backup_codes.is_empty() {
+        method_names.push("backup_codes".to_string());
+    }
+
+    method_names.sort();
+    method_names.dedup();
+
+    state
+        .db
+        .users()
+        .set_mfa_methods(tenant_id, user_id, &method_names)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update user MFA methods: {}", e);
+            crate::mfa::errors::MfaError::Internal("Failed to sync MFA methods".to_string())
+        })?;
+
+    Ok(())
+}
+
 use axum::{
     extract::{ConnectInfo, State},
     http::StatusCode,

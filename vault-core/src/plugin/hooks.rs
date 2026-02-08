@@ -88,11 +88,7 @@ impl HookExecutor {
         let hook_ctx = HookContext::new(HookType::BeforeAuth, &ctx.tenant_id)
             .with_timeout(self.default_timeout);
 
-        let result = timeout(
-            hook_ctx.timeout,
-            self.registry.before_auth(ctx),
-        )
-        .await;
+        let result = timeout(hook_ctx.timeout, self.registry.before_auth(ctx)).await;
 
         match result {
             Ok(Ok(action)) => {
@@ -126,12 +122,7 @@ impl HookExecutor {
             .with_timeout(self.default_timeout)
             .with_continue_on_error(true);
 
-        match timeout(
-            hook_ctx.timeout,
-            self.registry.after_auth(ctx, result),
-        )
-        .await
-        {
+        match timeout(hook_ctx.timeout, self.registry.after_auth(ctx, result)).await {
             Ok(Ok(())) => {
                 debug!("after_auth hooks completed");
                 Ok(())
@@ -160,18 +151,16 @@ impl HookExecutor {
 
     /// Execute before_register hooks
     #[instrument(skip(self, ctx), fields(tenant_id = %ctx.tenant_id, email = %ctx.email))]
-    pub async fn before_register(&self, ctx: &RegisterContext) -> Result<RegisterAction, HookError> {
+    pub async fn before_register(
+        &self,
+        ctx: &RegisterContext,
+    ) -> Result<RegisterAction, HookError> {
         debug!("Executing before_register hooks");
 
         let hook_ctx = HookContext::new(HookType::BeforeRegister, &ctx.tenant_id)
             .with_timeout(self.default_timeout);
 
-        match timeout(
-            hook_ctx.timeout,
-            self.registry.before_register(ctx),
-        )
-        .await
-        {
+        match timeout(hook_ctx.timeout, self.registry.before_register(ctx)).await {
             Ok(Ok(action)) => {
                 debug!("before_register hooks completed successfully");
                 Ok(action)
@@ -197,12 +186,7 @@ impl HookExecutor {
             .with_timeout(self.default_timeout)
             .with_continue_on_error(true);
 
-        match timeout(
-            hook_ctx.timeout,
-            self.registry.after_register(ctx, user),
-        )
-        .await
-        {
+        match timeout(hook_ctx.timeout, self.registry.after_register(ctx, user)).await {
             Ok(Ok(())) => Ok(()),
             Ok(Err(e)) => {
                 if hook_ctx.continue_on_error {

@@ -30,9 +30,9 @@ impl Default for LoaderConfig {
         Self {
             plugin_dir: PathBuf::from("./plugins"),
             native_extensions: vec![
-                "so".to_string(),     // Linux
-                "dll".to_string(),    // Windows
-                "dylib".to_string(),  // macOS
+                "so".to_string(),    // Linux
+                "dll".to_string(),   // Windows
+                "dylib".to_string(), // macOS
             ],
             wasm_extension: "wasm".to_string(),
             auto_load: true,
@@ -195,10 +195,7 @@ impl PluginLoader {
 
     /// Scan a single plugin file
     fn scan_plugin_file(&self, path: &Path) -> Result<Option<DiscoveredPlugin>, PluginError> {
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         // Check if it's a supported extension
         let is_native = self.config.native_extensions.iter().any(|e| e == ext);
@@ -234,12 +231,8 @@ impl PluginLoader {
 
     /// Load manifest from file
     fn load_manifest(&self, path: &Path) -> Result<PluginManifest, PluginError> {
-        let content = std::fs::read_to_string(path).map_err(|e| {
-            PluginError::new(
-                "IO_ERROR",
-                format!("Failed to read manifest: {}", e),
-            )
-        })?;
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| PluginError::new("IO_ERROR", format!("Failed to read manifest: {}", e)))?;
 
         if path.extension().map(|e| e == "yaml").unwrap_or(false) {
             serde_yaml::from_str(&content).map_err(|e| {
@@ -275,7 +268,11 @@ impl PluginLoader {
         }
 
         // Try generic names
-        for name in &["plugin", "lib", &dir.file_name().unwrap_or_default().to_string_lossy()] {
+        for name in &[
+            "plugin",
+            "lib",
+            &dir.file_name().unwrap_or_default().to_string_lossy(),
+        ] {
             for ext in &self.config.native_extensions {
                 let entry = dir.join(format!("{}.{}", name, ext));
                 if entry.exists() {
@@ -314,10 +311,7 @@ impl PluginLoader {
         plugin: &DiscoveredPlugin,
         config: Option<PluginConfig>,
     ) -> Result<(), PluginError> {
-        info!(
-            "Loading plugin: {} ({:?})",
-            plugin.name, plugin.plugin_type
-        );
+        info!("Loading plugin: {} ({:?})", plugin.name, plugin.plugin_type);
 
         // Check file size
         let metadata = std::fs::metadata(&plugin.entry_point).map_err(|e| {
@@ -354,18 +348,12 @@ impl PluginLoader {
         match plugin.plugin_type {
             PluginType::Native => {
                 registry
-                    .register_native(
-                        plugin.entry_point.to_str().unwrap_or(""),
-                        plugin_config,
-                    )
+                    .register_native(plugin.entry_point.to_str().unwrap_or(""), plugin_config)
                     .await
             }
             PluginType::Wasm => {
                 registry
-                    .register_wasm(
-                        plugin.entry_point.to_str().unwrap_or(""),
-                        plugin_config,
-                    )
+                    .register_wasm(plugin.entry_point.to_str().unwrap_or(""), plugin_config)
                     .await
             }
             PluginType::Builtin => Err(PluginError::new(
@@ -507,7 +495,11 @@ impl PluginsConfig {
             )
         })?;
 
-        if path.extension().map(|e| e == "yaml" || e == "yml").unwrap_or(false) {
+        if path
+            .extension()
+            .map(|e| e == "yaml" || e == "yml")
+            .unwrap_or(false)
+        {
             serde_yaml::from_str(&content).map_err(|e| {
                 PluginError::new(
                     "CONFIG_PARSE_ERROR",
@@ -532,9 +524,10 @@ impl PluginsConfig {
             let config = PluginConfig {
                 name: entry.name.clone(),
                 enabled: entry.enabled.unwrap_or(true),
-                config: entry.config.clone().unwrap_or_else(|| {
-                    serde_json::Value::Object(serde_json::Map::new())
-                }),
+                config: entry
+                    .config
+                    .clone()
+                    .unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::new())),
                 priority: entry.priority.unwrap_or(0),
                 timeout_ms: None,
             };
@@ -556,8 +549,13 @@ pub async fn load_plugins_from_config(
         .and_then(|s| s.directory.clone())
         .unwrap_or_else(|| "./plugins".to_string());
 
-    let loader_config = LoaderConfig::new(&plugin_dir)
-        .with_auto_load(config.settings.as_ref().and_then(|s| s.auto_load).unwrap_or(true));
+    let loader_config = LoaderConfig::new(&plugin_dir).with_auto_load(
+        config
+            .settings
+            .as_ref()
+            .and_then(|s| s.auto_load)
+            .unwrap_or(true),
+    );
 
     let loader = PluginLoader::new(loader_config);
     let configs = config.to_config_map();

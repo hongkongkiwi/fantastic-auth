@@ -145,10 +145,7 @@ impl ModelManager {
     }
 
     /// Get a model
-    pub async fn get_model(
-        &self,
-        model_type: ModelType,
-    ) -> AiResult<Box<dyn RiskPredictionModel>> {
+    pub async fn get_model(&self, model_type: ModelType) -> AiResult<Box<dyn RiskPredictionModel>> {
         let models = self.models.read().await;
         models
             .get(&model_type)
@@ -219,11 +216,7 @@ impl ModelManager {
         let mean = values.iter().sum::<f64>() / values.len() as f64;
 
         // Calculate variance
-        let variance = values
-            .iter()
-            .map(|v| (v - mean).powi(2))
-            .sum::<f64>()
-            / values.len() as f64;
+        let variance = values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / values.len() as f64;
 
         // Lower variance = higher confidence
         let confidence = 1.0 - variance.min(1.0);
@@ -334,14 +327,14 @@ impl LogisticRegressionModel {
         Self {
             // Default weights for basic risk factors
             weights: vec![
-                0.15,  // failed attempts
-                0.20,  // anonymous IP
-                0.10,  // new device
-                0.15,  // impossible travel
-                0.10,  // night time
-                0.15,  // no MFA
-                0.10,  // hosting provider
-                0.05,  // other factors
+                0.15, // failed attempts
+                0.20, // anonymous IP
+                0.10, // new device
+                0.15, // impossible travel
+                0.10, // night time
+                0.15, // no MFA
+                0.10, // hosting provider
+                0.05, // other factors
             ],
             bias: -2.0,
             version: "1.0.0".to_string(),
@@ -521,7 +514,11 @@ impl IsolationForestModel {
         }
 
         // Average path length across all trees
-        let avg_path: f64 = self.trees.iter().map(|t| t.path_length(features)).sum::<f64>()
+        let avg_path: f64 = self
+            .trees
+            .iter()
+            .map(|t| t.path_length(features))
+            .sum::<f64>()
             / self.trees.len() as f64;
 
         // Normalize to 0-1 anomaly score
@@ -652,8 +649,11 @@ mod tests {
     #[test]
     fn test_logistic_regression() {
         let model = LogisticRegressionModel::new();
-        let features = FeatureVector::new(vec![0.5, 0.3, 0.8], vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-        
+        let features = FeatureVector::new(
+            vec![0.5, 0.3, 0.8],
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        );
+
         let score = model.predict(&features).unwrap();
         assert!(score >= 0.0 && score <= 1.0);
     }
@@ -661,8 +661,11 @@ mod tests {
     #[test]
     fn test_isolation_forest() {
         let model = IsolationForestModel::new(10, 256);
-        let features = FeatureVector::new(vec![0.9, 0.9, 0.9], vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-        
+        let features = FeatureVector::new(
+            vec![0.9, 0.9, 0.9],
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        );
+
         let score = model.anomaly_score(&features);
         // High values should have higher anomaly score
         assert!(score > 0.0);
@@ -671,13 +674,13 @@ mod tests {
     #[test]
     fn test_lstm_detector() {
         let detector = LstmAnomalyDetector::new(5, 64);
-        
+
         let seq = vec![
             FeatureVector::new(vec![0.1, 0.1, 0.1], vec![]),
             FeatureVector::new(vec![0.1, 0.1, 0.1], vec![]),
             FeatureVector::new(vec![0.9, 0.9, 0.9], vec![]), // Sudden change
         ];
-        
+
         let anomaly = detector.detect(&seq);
         assert!(anomaly > 0.0);
     }
@@ -687,9 +690,12 @@ mod tests {
         let model = RandomForestModel::new(10, 5);
         let features = FeatureVector::new(
             vec![0.8, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            vec!["failed_last_hour".to_string(), "is_anonymous_ip".to_string()],
+            vec![
+                "failed_last_hour".to_string(),
+                "is_anonymous_ip".to_string(),
+            ],
         );
-        
+
         let score = model.predict(&features).unwrap();
         assert!(score > 0.5); // Should be elevated risk
     }

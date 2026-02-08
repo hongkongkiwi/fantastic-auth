@@ -69,8 +69,8 @@ pub use loader::{
 pub use registry::PluginRegistry;
 pub use types::{
     ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookStats, HookType,
-    HttpMethod, Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth,
-    PluginMetadata, PluginResult, PluginStatus, PluginType, RegisterAction, RegisterContext, Route,
+    HttpMethod, Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata,
+    PluginResult, PluginStatus, PluginType, RegisterAction, RegisterContext, Route,
 };
 pub use wasm::{WasmPlugin, WasmPluginBuilder, WasmPluginConfig, WasmResourceLimits};
 
@@ -108,7 +108,10 @@ impl PluginManager {
     }
 
     /// Initialize with configuration
-    pub async fn initialize(&mut self, config: &PluginsConfig) -> std::result::Result<LoadResult, PluginError> {
+    pub async fn initialize(
+        &mut self,
+        config: &PluginsConfig,
+    ) -> std::result::Result<LoadResult, PluginError> {
         // Set up loader if plugin directory configured
         if let Some(ref settings) = config.settings {
             if let Some(ref dir) = settings.directory {
@@ -122,9 +125,10 @@ impl PluginManager {
 
     /// Load and auto-discover plugins from directory
     pub async fn auto_load(&self) -> std::result::Result<LoadResult, PluginError> {
-        let loader = self.loader.as_ref().ok_or_else(|| {
-            PluginError::new("NO_LOADER", "Plugin loader not configured")
-        })?;
+        let loader = self
+            .loader
+            .as_ref()
+            .ok_or_else(|| PluginError::new("NO_LOADER", "Plugin loader not configured"))?;
 
         let configs = std::collections::HashMap::new();
         loader.load_all(&self.registry, &configs).await
@@ -185,12 +189,7 @@ mod tests {
 
         // Register a test plugin
         let plugin = TestPlugin {
-            metadata: PluginMetadata::new(
-                "test",
-                "1.0.0",
-                "Test",
-                "Test plugin",
-            ),
+            metadata: PluginMetadata::new("test", "1.0.0", "Test", "Test plugin"),
         };
 
         manager

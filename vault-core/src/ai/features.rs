@@ -164,7 +164,11 @@ impl FeatureExtractor {
         names.push("is_anonymous_ip".to_string());
 
         // Hosting provider
-        values.push(if context.is_hosting_provider { 1.0 } else { 0.0 });
+        values.push(if context.is_hosting_provider {
+            1.0
+        } else {
+            0.0
+        });
         names.push("is_hosting_provider".to_string());
 
         Ok(FeatureVector::new(values, names))
@@ -203,7 +207,11 @@ impl FeatureExtractor {
         names.push("is_anonymous_ip".to_string());
 
         // Hosting provider
-        values.push(if context.is_hosting_provider { 1.0 } else { 0.0 });
+        values.push(if context.is_hosting_provider {
+            1.0
+        } else {
+            0.0
+        });
         names.push("is_hosting_provider".to_string());
 
         // MFA used
@@ -259,8 +267,7 @@ impl TimeFeatures {
         let dt = context.timestamp;
         let hour = dt.hour() as u8;
         let day_of_week = dt.weekday().num_days_from_monday() as u8;
-        let is_weekend =
-            day_of_week == 5 || day_of_week == 6; // Sat=5, Sun=6 in chrono
+        let is_weekend = day_of_week == 5 || day_of_week == 6; // Sat=5, Sun=6 in chrono
         let is_night = hour >= 23 || hour < 5;
         let is_business_hours = !is_weekend && (hour >= 9 && hour < 17);
 
@@ -370,8 +377,12 @@ impl GeoFeatures {
         vec![
             self.latitude.map(|l| (l + 90.0) / 180.0).unwrap_or(0.5),
             self.longitude.map(|l| (l + 180.0) / 360.0).unwrap_or(0.5),
-            self.distance_from_last.map(|d| (d / 20000.0).min(1.0)).unwrap_or(0.0),
-            self.time_since_last_hours.map(|h| (h / 720.0).min(1.0)).unwrap_or(1.0),
+            self.distance_from_last
+                .map(|d| (d / 20000.0).min(1.0))
+                .unwrap_or(0.0),
+            self.time_since_last_hours
+                .map(|h| (h / 720.0).min(1.0))
+                .unwrap_or(1.0),
             if self.is_impossible_travel { 1.0 } else { 0.0 },
             self.country_risk,
         ]
@@ -505,7 +516,7 @@ impl VelocityFeatures {
             failed_last_hour: context.failed_attempts,
             failed_last_5min: context.failed_attempts.min(10),
             success_last_hour: context.successful_attempts,
-            unique_ips_last_hour: 1, // Would be calculated from DB
+            unique_ips_last_hour: 1,     // Would be calculated from DB
             unique_devices_last_hour: 1, // Would be calculated from DB
         }
     }

@@ -11,7 +11,10 @@ pub mod templates;
 pub mod templates_i18n;
 
 pub use templates::EmailTemplate;
-pub use templates_i18n::{EmailLanguage, I18nEmailTemplate, EmailContext, I18nVerificationEmail, I18nPasswordResetEmail, render_i18n_template};
+pub use templates_i18n::{
+    render_i18n_template, EmailContext, EmailLanguage, I18nEmailTemplate, I18nPasswordResetEmail,
+    I18nVerificationEmail,
+};
 
 /// Email service trait for sending transactional emails
 #[async_trait]

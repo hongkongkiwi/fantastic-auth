@@ -1,7 +1,8 @@
 //! Client MFA Routes
 
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, FromRef, FromRequestParts, State},
+    http::{request::Parts, StatusCode},
     middleware,
     routing::{delete, get, post},
     Extension, Json, Router,
@@ -12,7 +13,8 @@ use std::net::SocketAddr;
 use vault_core::email::EmailRequest;
 
 use crate::auth::SensitiveOperation;
-use crate::middleware::require_step_up_for_operation;
+use crate::middleware::StepUpUserExt;
+use crate::mfa::sync_user_mfa_methods;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
@@ -34,7 +36,7 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/whatsapp/send", post(send_whatsapp_code))
         .route("/me/mfa/whatsapp/verify-code", post(verify_whatsapp_code))
         // Apply rate limiting to verification endpoints
-        .route_layer(middleware::from_fn(mfa_verification_rate_limit));
+        .route_layer(middleware::from_extractor::<MfaVerificationRateLimit>());
 
     // Routes requiring elevated step-up (setup/enable MFA)
     let elevated_routes = Router::new()
@@ -49,14 +51,14 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/sms/verify", post(verify_sms_setup))
         .route("/me/mfa/whatsapp/setup", post(setup_whatsapp))
         .route("/me/mfa/whatsapp/verify", post(verify_whatsapp_setup))
-        .route_layer(middleware::from_fn(require_step_up_enable_mfa));
+        .route_layer(middleware::from_extractor::<RequireStepUpEnableMfa>());
 
     // Routes requiring high assurance step-up (disable MFA)
     let high_assurance_routes = Router::new()
         .route("/me/mfa", delete(disable_mfa))
         .route("/me/mfa/sms", delete(disable_sms_mfa))
         .route("/me/mfa/whatsapp", delete(disable_whatsapp_mfa))
-        .route_layer(middleware::from_fn(require_step_up_disable_mfa));
+        .route_layer(middleware::from_extractor::<RequireStepUpDisableMfa>());
 
     // Combine all routes
     Router::new()
@@ -65,70 +67,101 @@ pub fn routes() -> Router<AppState> {
         .merge(high_assurance_routes)
 }
 
-/// Middleware for enable MFA step-up
-async fn require_step_up_enable_mfa(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    require_step_up_for_operation(State(state), request, next, SensitiveOperation::EnableMfa).await
-}
+struct RequireStepUpEnableMfa;
+struct RequireStepUpDisableMfa;
+struct MfaVerificationRateLimit;
 
-/// Middleware for disable MFA step-up
-async fn require_step_up_disable_mfa(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    require_step_up_for_operation(State(state), request, next, SensitiveOperation::DisableMfa).await
-}
+async fn enforce_step_up(parts: &Parts, state: &AppState, operation: SensitiveOperation) -> Result<(), StatusCode> {
+    let user = parts
+        .extensions
+        .get::<CurrentUser>()
+        .ok_or(StatusCode::UNAUTHORIZED)?;
 
-/// Rate limiting middleware for MFA verification endpoints
-/// 
-/// SECURITY: Enforces strict rate limiting on MFA verification endpoints to prevent brute force attacks.
-/// - 5 attempts per 5 minutes per IP address for verification endpoints
-/// - Applies to all code verification endpoints (TOTP, SMS, Email, WhatsApp, Backup codes)
-async fn mfa_verification_rate_limit(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    // Only apply rate limiting to POST requests (verification attempts)
-    if request.method() != axum::http::Method::POST {
-        return Ok(next.run(request).await);
+    let requirement = state.step_up_policy.get_requirement(&operation);
+
+    if requirement.level == vault_core::crypto::StepUpLevel::Standard {
+        return Ok(());
     }
-    
-    // Create rate limit key based on IP address
-    let ip = request
-        .extensions()
+    if !user.has_step_up(&requirement.level) || user.is_step_up_expired() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(())
+}
+
+fn extract_client_ip(parts: &Parts) -> String {
+    parts
+        .extensions
         .get::<ConnectInfo<SocketAddr>>()
         .map(|info| info.0.ip().to_string())
         .or_else(|| {
-            request
-                .headers()
+            parts
+                .headers
                 .get("x-forwarded-for")
                 .and_then(|v| v.to_str().ok())
                 .and_then(|v| v.split(',').next())
                 .map(|v| v.trim().to_string())
         })
-        .unwrap_or_else(|| "unknown".to_string());
+        .unwrap_or_else(|| "unknown".to_string())
+}
 
-    let key = format!("mfa_verify:{}", ip);
-    
-    // Check rate limit: 5 attempts per 5 minutes (300 seconds)
-    // This is stricter than general rate limiting due to security sensitivity
-    const MAX_ATTEMPTS: u32 = 5;
-    const WINDOW_SECS: u64 = 300; // 5 minutes
-    
-    if !state.rate_limiter.is_allowed(&key, MAX_ATTEMPTS, WINDOW_SECS).await {
-        tracing::warn!(
-            "MFA verification rate limit exceeded for IP: {}",
-            ip
-        );
-        return Err(axum::http::StatusCode::TOO_MANY_REQUESTS);
+impl<S> FromRequestParts<S> for RequireStepUpEnableMfa
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app_state = AppState::from_ref(state);
+        enforce_step_up(parts, &app_state, SensitiveOperation::EnableMfa).await?;
+        Ok(Self)
     }
-    
-    Ok(next.run(request).await)
+}
+
+impl<S> FromRequestParts<S> for RequireStepUpDisableMfa
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app_state = AppState::from_ref(state);
+        enforce_step_up(parts, &app_state, SensitiveOperation::DisableMfa).await?;
+        Ok(Self)
+    }
+}
+
+impl<S> FromRequestParts<S> for MfaVerificationRateLimit
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        if parts.method != axum::http::Method::POST {
+            return Ok(Self);
+        }
+
+        let app_state = AppState::from_ref(state);
+        let ip = extract_client_ip(parts);
+        let key = format!("mfa_verify:{}", ip);
+        const MAX_ATTEMPTS: u32 = 5;
+        const WINDOW_SECS: u64 = 300;
+
+        if !app_state
+            .rate_limiter
+            .is_allowed(&key, MAX_ATTEMPTS, WINDOW_SECS)
+            .await
+        {
+            tracing::warn!("MFA verification rate limit exceeded for IP: {}", ip);
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+
+        Ok(Self)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -1680,65 +1713,6 @@ async fn verify_email_otp(
 }
 
 // Helper functions
-
-async fn sync_user_mfa_methods(
-    state: &AppState,
-    tenant_id: &str,
-    user_id: &str,
-) -> Result<(), ApiError> {
-    let methods = state
-        .db
-        .mfa()
-        .get_enabled_methods(tenant_id, user_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to load MFA methods: {}", e);
-            ApiError::Internal
-        })?;
-
-    let mut method_names: Vec<String> = methods
-        .iter()
-        .filter_map(|m| {
-            // Only methods verified by core auth flow
-            match m.method_type {
-                vault_core::db::mfa::MfaMethodType::Totp => Some("totp".to_string()),
-                vault_core::db::mfa::MfaMethodType::Email => Some("email".to_string()),
-                vault_core::db::mfa::MfaMethodType::Sms => Some("sms".to_string()),
-                vault_core::db::mfa::MfaMethodType::Webauthn => Some("webauthn".to_string()),
-                _ => None,
-            }
-        })
-        .collect();
-
-    let backup_codes = state
-        .db
-        .mfa()
-        .get_backup_codes(tenant_id, user_id)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to load backup codes: {}", e);
-            ApiError::Internal
-        })?;
-
-    if !backup_codes.is_empty() {
-        method_names.push("backup_codes".to_string());
-    }
-
-    method_names.sort();
-    method_names.dedup();
-
-    state
-        .db
-        .users()
-        .set_mfa_methods(tenant_id, user_id, &method_names)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to update user MFA methods: {}", e);
-            ApiError::Internal
-        })?;
-
-    Ok(())
-}
 
 async fn update_backup_codes_config(
     state: &AppState,

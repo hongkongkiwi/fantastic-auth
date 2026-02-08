@@ -2,34 +2,34 @@
 //!
 //! Provides repository implementations for database access with tenant isolation.
 
+pub mod actions;
+pub mod applications;
 pub mod biometric;
+pub mod log_streams;
 pub mod mfa;
+pub mod oidc;
 pub mod organizations;
 pub mod projects;
 pub mod sessions;
-pub mod users;
 pub mod tenant_admins;
-pub mod oidc;
-pub mod log_streams;
-pub mod actions;
-pub mod applications;
+pub mod users;
 
 use sqlx::{postgres::PgPoolOptions, PgConnection, PgPool};
 use std::future::Future;
 use std::sync::Arc;
 use tokio::task_local;
 
+pub use actions::ActionsRepository;
+pub use applications::ApplicationRepository;
 pub use biometric::BiometricRepository;
+pub use log_streams::LogStreamsRepository;
 pub use mfa::MfaRepository;
+pub use oidc::OidcRepository;
 pub use organizations::OrganizationRepository;
 pub use projects::ProjectRepository;
 pub use sessions::SessionRepository;
-pub use users::UserRepository;
 pub use tenant_admins::TenantAdminRepository;
-pub use oidc::OidcRepository;
-pub use log_streams::LogStreamsRepository;
-pub use actions::ActionsRepository;
-pub use applications::ApplicationRepository;
+pub use users::UserRepository;
 
 #[derive(Clone, Debug, Default)]
 pub struct RequestContext {

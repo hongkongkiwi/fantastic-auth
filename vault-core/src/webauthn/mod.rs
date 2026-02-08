@@ -741,14 +741,14 @@ pub struct AuthenticationResult {
 }
 
 /// Generate random challenge
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for generating WebAuthn challenges.
 /// WebAuthn challenges must be unpredictable to prevent replay attacks and ensure
 /// the authenticator response is fresh for each authentication ceremony.
 fn generate_challenge() -> Result<Vec<u8>> {
     use rand::RngCore;
     use rand_core::OsRng;
-    
+
     let mut challenge = vec![0u8; 32];
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     OsRng.fill_bytes(&mut challenge);

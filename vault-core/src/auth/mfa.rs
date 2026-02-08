@@ -200,7 +200,7 @@ impl TotpConfig {
 }
 
 /// Generate backup codes
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
 /// backup code generation. Backup codes are equivalent to passwords for account
 /// recovery, so they must be generated with the same security guarantees.

@@ -43,8 +43,8 @@ pub use anomaly_detection::{
     Anomaly, AnomalyDetector, AnomalyLevel, AnomalyType, UserBehaviorProfile,
 };
 pub use behavioral::{
-    BehavioralBiometrics, BehavioralData, BehavioralPattern, BehavioralScore,
-    KeystrokeDynamics, MouseDynamics, TouchDynamics,
+    BehavioralBiometrics, BehavioralData, BehavioralPattern, BehavioralScore, KeystrokeDynamics,
+    MouseDynamics, TouchDynamics,
 };
 pub use error::{AiError, AiResult};
 pub use features::{
@@ -56,13 +56,13 @@ pub use ml_models::{
     RandomForestModel, RiskPredictionModel,
 };
 pub use risk_engine::{
-    Action, ActionType, AdaptiveRiskEngine, MlRiskScorer, RealTimeRiskEngine,
-    RiskDecision, RiskFactor, RiskLevel, RiskRecommendation, RiskScore, RiskScoreEntry,
+    Action, ActionType, AdaptiveRiskEngine, MlRiskScorer, RealTimeRiskEngine, RiskDecision,
+    RiskFactor, RiskLevel, RiskRecommendation, RiskScore, RiskScoreEntry,
 };
 pub use threat_detection::{
-    Attack, AttackPattern, AttackSignature, AttackSeverity, AttackType, BruteForceDetector,
-    CredentialStuffingDetector, SessionHijackingDetector, ThreatDetector,
-    ThreatIntelligence, TimeWindow,
+    Attack, AttackPattern, AttackSeverity, AttackSignature, AttackType, BruteForceDetector,
+    CredentialStuffingDetector, SessionHijackingDetector, ThreatDetector, ThreatIntelligence,
+    TimeWindow,
 };
 
 use std::sync::Arc;
@@ -132,12 +132,7 @@ impl AiSecurityEngine {
         let model_manager = Arc::new(ModelManager::new().await?);
 
         let risk_engine = Arc::new(
-            RealTimeRiskEngine::new(
-                config.clone(),
-                db.clone(),
-                Arc::clone(&model_manager),
-            )
-            .await?,
+            RealTimeRiskEngine::new(config.clone(), db.clone(), Arc::clone(&model_manager)).await?,
         );
 
         let anomaly_detector = Arc::new(
@@ -158,13 +153,8 @@ impl AiSecurityEngine {
             .await?,
         );
 
-        let behavioral_biometrics = Arc::new(
-            BehavioralBiometrics::new(
-                Arc::clone(&model_manager),
-                db.clone(),
-            )
-            .await?,
-        );
+        let behavioral_biometrics =
+            Arc::new(BehavioralBiometrics::new(Arc::clone(&model_manager), db.clone()).await?);
 
         Ok(Self {
             risk_engine,
@@ -193,9 +183,7 @@ impl AiSecurityEngine {
 
         // Check for anomalies if user is known
         let anomalies = if let Some(uid) = user_id {
-            self.anomaly_detector
-                .detect_anomalies(uid, context)
-                .await?
+            self.anomaly_detector.detect_anomalies(uid, context).await?
         } else {
             vec![]
         };
@@ -229,11 +217,7 @@ impl AiSecurityEngine {
     }
 
     /// Record behavioral data for future analysis
-    pub async fn record_behavior(
-        &self,
-        user_id: &str,
-        behavior: &BehavioralData,
-    ) -> AiResult<()> {
+    pub async fn record_behavior(&self, user_id: &str, behavior: &BehavioralData) -> AiResult<()> {
         if self.config.behavioral_biometrics_enabled {
             self.behavioral_biometrics.record(user_id, behavior).await?;
         }
@@ -250,7 +234,8 @@ impl AiSecurityEngine {
         let risk_history = self.risk_engine.get_risk_history(user_id, 30).await?;
 
         let avg_risk = if !risk_history.is_empty() {
-            risk_history.iter().map(|r| r.score as u32).sum::<u32>() as f64 / risk_history.len() as f64
+            risk_history.iter().map(|r| r.score as u32).sum::<u32>() as f64
+                / risk_history.len() as f64
         } else {
             0.0
         };
@@ -325,8 +310,8 @@ impl AiSecurityEngine {
         let behavioral_risk = behavioral_score.map(|s| s.risk_contribution()).unwrap_or(0);
 
         // Calculate final score
-        let final_score = (risk.score as u16 + anomaly_risk as u16 + behavioral_risk as u16)
-            .min(100) as u8;
+        let final_score =
+            (risk.score as u16 + anomaly_risk as u16 + behavioral_risk as u16).min(100) as u8;
 
         // Determine action
         let action = if final_score >= self.config.block_threshold {

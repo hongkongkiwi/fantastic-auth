@@ -2,7 +2,9 @@
 
 use crate::db::set_connection_context;
 use crate::error::Result;
-use crate::models::project::{Project, ProjectGrant, ProjectRole, ProjectRoleAssignment, ProjectStatus};
+use crate::models::project::{
+    Project, ProjectGrant, ProjectRole, ProjectRoleAssignment, ProjectStatus,
+};
 use sqlx::{FromRow, PgPool};
 use std::sync::Arc;
 
@@ -336,7 +338,10 @@ impl ProjectRepository {
         Ok(())
     }
 
-    pub async fn assign_role(&self, assignment: &ProjectRoleAssignment) -> Result<ProjectRoleAssignment> {
+    pub async fn assign_role(
+        &self,
+        assignment: &ProjectRoleAssignment,
+    ) -> Result<ProjectRoleAssignment> {
         let mut conn = self.tenant_conn(&assignment.tenant_id).await?;
         let row = sqlx::query_as::<_, ProjectRoleAssignmentRow>(
             r#"INSERT INTO project_role_assignments (id, tenant_id, project_id, role_id, user_id, assigned_at, assigned_by)
@@ -377,11 +382,13 @@ impl ProjectRepository {
 
     pub async fn remove_assignment(&self, tenant_id: &str, assignment_id: &str) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        sqlx::query("DELETE FROM project_role_assignments WHERE tenant_id = $1::uuid AND id = $2::uuid")
-            .bind(tenant_id)
-            .bind(assignment_id)
-            .execute(&mut *conn)
-            .await?;
+        sqlx::query(
+            "DELETE FROM project_role_assignments WHERE tenant_id = $1::uuid AND id = $2::uuid",
+        )
+        .bind(tenant_id)
+        .bind(assignment_id)
+        .execute(&mut *conn)
+        .await?;
         Ok(())
     }
 
@@ -404,7 +411,11 @@ impl ProjectRepository {
         Ok(row.into())
     }
 
-    pub async fn list_grants(&self, tenant_id: &str, project_id: &str) -> Result<Vec<ProjectGrant>> {
+    pub async fn list_grants(
+        &self,
+        tenant_id: &str,
+        project_id: &str,
+    ) -> Result<Vec<ProjectGrant>> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let rows = sqlx::query_as::<_, ProjectGrantRow>(
             r#"SELECT id::text, tenant_id::text, project_id::text, granted_organization_id::text, default_role_id::text, created_at

@@ -3,8 +3,8 @@
 //! Manages plugin lifecycle, registration, and hook execution.
 
 use super::types::{
-    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookStats,
-    HookType, Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata,
+    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookStats, HookType,
+    Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata,
     PluginStatus, PluginType, RegisterAction, RegisterContext, Route,
 };
 use crate::models::user::User;
@@ -208,11 +208,7 @@ impl PluginRegistry {
 
     /// Register a WASM plugin
     #[instrument(skip(self), fields(plugin_path = %path))]
-    pub async fn register_wasm(
-        &self,
-        path: &str,
-        config: PluginConfig,
-    ) -> Result<(), PluginError> {
+    pub async fn register_wasm(&self, path: &str, config: PluginConfig) -> Result<(), PluginError> {
         info!("Loading WASM plugin from: {}", path);
 
         // WASM plugin loading would use wasmtime here
@@ -231,9 +227,7 @@ impl PluginRegistry {
         let instance = self
             .plugins
             .remove(name)
-            .ok_or_else(|| {
-                PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", name))
-            })?
+            .ok_or_else(|| PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", name)))?
             .1;
 
         // Shutdown plugin
@@ -262,9 +256,7 @@ impl PluginRegistry {
 
     /// Get plugin metadata
     pub fn get_metadata(&self, name: &str) -> Option<PluginMetadata> {
-        self.plugins
-            .get(name)
-            .map(|p| p.plugin.metadata().clone())
+        self.plugins.get(name).map(|p| p.plugin.metadata().clone())
     }
 
     /// Get all registered plugins' metadata
@@ -312,9 +304,7 @@ impl PluginRegistry {
         let instance = self
             .plugins
             .get(name)
-            .ok_or_else(|| {
-                PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", name))
-            })?;
+            .ok_or_else(|| PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", name)))?;
 
         // Note: We can't directly modify config since DashMap uses immutable references
         // In a real implementation, we'd use interior mutability
@@ -370,7 +360,11 @@ impl PluginRegistry {
 
     /// Execute after_auth hook on all plugins that implement it
     #[instrument(skip(self, ctx, result), fields(tenant_id = %ctx.tenant_id, success = result.success))]
-    pub async fn after_auth(&self, ctx: &AuthContext, result: &AuthResult) -> Result<(), PluginError> {
+    pub async fn after_auth(
+        &self,
+        ctx: &AuthContext,
+        result: &AuthResult,
+    ) -> Result<(), PluginError> {
         let plugin_names = self
             .hooks
             .get(&HookType::AfterAuth)
@@ -410,7 +404,10 @@ impl PluginRegistry {
 
     /// Execute before_register hook on all plugins that implement it
     #[instrument(skip(self, ctx), fields(tenant_id = %ctx.tenant_id, email = %ctx.email))]
-    pub async fn before_register(&self, ctx: &RegisterContext) -> Result<RegisterAction, PluginError> {
+    pub async fn before_register(
+        &self,
+        ctx: &RegisterContext,
+    ) -> Result<RegisterAction, PluginError> {
         let plugin_names = self
             .hooks
             .get(&HookType::BeforeRegister)
@@ -455,7 +452,11 @@ impl PluginRegistry {
 
     /// Execute after_register hook on all plugins that implement it
     #[instrument(skip(self, ctx, user), fields(tenant_id = %ctx.tenant_id, user_id = %user.id))]
-    pub async fn after_register(&self, ctx: &RegisterContext, user: &User) -> Result<(), PluginError> {
+    pub async fn after_register(
+        &self,
+        ctx: &RegisterContext,
+        user: &User,
+    ) -> Result<(), PluginError> {
         let plugin_names = self
             .hooks
             .get(&HookType::AfterRegister)
@@ -518,12 +519,9 @@ impl PluginRegistry {
         route: &str,
         request: ApiRequest,
     ) -> Result<ApiResponse, PluginError> {
-        let instance = self
-            .plugins
-            .get(plugin_name)
-            .ok_or_else(|| {
-                PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", plugin_name))
-            })?;
+        let instance = self.plugins.get(plugin_name).ok_or_else(|| {
+            PluginError::new("NOT_FOUND", format!("Plugin '{}' not found", plugin_name))
+        })?;
 
         if !instance.config.enabled {
             return Err(PluginError::new(
@@ -603,13 +601,8 @@ mod tests {
         let registry = PluginRegistry::new();
 
         let plugin = TestPlugin {
-            metadata: PluginMetadata::new(
-                "test-plugin",
-                "1.0.0",
-                "Test Author",
-                "A test plugin",
-            )
-            .with_hook(HookType::BeforeAuth),
+            metadata: PluginMetadata::new("test-plugin", "1.0.0", "Test Author", "A test plugin")
+                .with_hook(HookType::BeforeAuth),
         };
 
         registry

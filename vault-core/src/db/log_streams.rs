@@ -157,13 +157,11 @@ impl LogStreamsRepository {
 
     pub async fn delete_stream(&self, tenant_id: &str, stream_id: &str) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        sqlx::query(
-            r#"DELETE FROM log_streams WHERE tenant_id = $1::uuid AND id = $2::uuid"#,
-        )
-        .bind(tenant_id)
-        .bind(stream_id)
-        .execute(&mut *conn)
-        .await?;
+        sqlx::query(r#"DELETE FROM log_streams WHERE tenant_id = $1::uuid AND id = $2::uuid"#)
+            .bind(tenant_id)
+            .bind(stream_id)
+            .execute(&mut *conn)
+            .await?;
 
         Ok(())
     }
@@ -219,11 +217,7 @@ impl LogStreamsRepository {
         Ok(deliveries)
     }
 
-    pub async fn mark_delivery_delivered(
-        &self,
-        tenant_id: &str,
-        delivery_id: &str,
-    ) -> Result<()> {
+    pub async fn mark_delivery_delivered(&self, tenant_id: &str, delivery_id: &str) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"

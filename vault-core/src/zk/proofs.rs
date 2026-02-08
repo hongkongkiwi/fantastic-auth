@@ -91,14 +91,14 @@ pub fn generate_password_commitment(password: &str, salt: &[u8]) -> [u8; COMMITM
 }
 
 /// Generate a random challenge
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for generating challenges.
 /// Challenges must be unpredictable to prevent replay attacks and ensure the
 /// zero-knowledge property of the proof system.
 pub fn generate_challenge() -> [u8; CHALLENGE_SIZE] {
     use rand::RngCore;
     use rand_core::OsRng;
-    
+
     let mut challenge = [0u8; CHALLENGE_SIZE];
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     OsRng.fill_bytes(&mut challenge);
@@ -115,7 +115,7 @@ impl ZkPasswordProver {
     /// 1. Prover generates random blinding factor r
     /// 2. Prover computes blinded_commitment = Hash(r || challenge)
     /// 3. Response = Hash(r || password || challenge)
- /// 4. Server verifies: Hash(response || challenge) == blinded_commitment
+    /// 4. Server verifies: Hash(response || challenge) == blinded_commitment
     pub fn prove(
         password: &str,
         salt: &[u8],
@@ -416,14 +416,8 @@ mod tests {
 
         // Step 3: Server verifies
         let commitment = ZkPasswordProver::commit(password, &salt);
-        let result = ZkAuthentication::server_verify(
-            user_id,
-            &proof,
-            &commitment,
-            &salt,
-            &store,
-        )
-        .unwrap();
+        let result =
+            ZkAuthentication::server_verify(user_id, &proof, &commitment, &salt, &store).unwrap();
 
         assert!(result);
     }

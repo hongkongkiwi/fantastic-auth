@@ -99,7 +99,7 @@ impl SmsMfaHandler {
             })?;
 
         // Sync user MFA status
-        crate::routes::client::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
+        crate::mfa::sync_user_mfa_methods(state, tenant_id, user_id)
             .await
             .map_err(|e| {
                 tracing::error!("Failed to sync MFA methods: {}", e);

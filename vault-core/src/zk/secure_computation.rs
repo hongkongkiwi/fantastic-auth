@@ -240,9 +240,7 @@ impl ZkRangeProof {
     /// Generate a proof that value is in [min, max]
     pub fn prove_range(value: i64, min: i64, max: i64) -> Result<RangeProof, ZkError> {
         if value < min || value > max {
-            return Err(ZkError::Proof(
-                "Value outside claimed range".to_string(),
-            ));
+            return Err(ZkError::Proof("Value outside claimed range".to_string()));
         }
 
         // In production, use Bulletproofs or similar
@@ -285,7 +283,10 @@ pub struct RangeProof {
 }
 
 /// Convenience function for age verification
-pub fn verify_age_eligibility(encrypted_age: &HomomorphicCiphertext, threshold: i64) -> Result<bool, ZkError> {
+pub fn verify_age_eligibility(
+    encrypted_age: &HomomorphicCiphertext,
+    threshold: i64,
+) -> Result<bool, ZkError> {
     SecureComputation::verify_age_eligibility(encrypted_age, threshold)
 }
 

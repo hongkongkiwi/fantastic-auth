@@ -99,7 +99,7 @@ pub struct HybridVerifyingKey {
 
 impl HybridSigningKey {
     /// Generate a new hybrid key pair
-    /// 
+    ///
     /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
     /// random number generation. Never use thread_rng() for key generation as it
     /// may not provide sufficient entropy for cryptographic purposes.
@@ -316,30 +316,30 @@ impl VaultPasswordHasher {
 }
 
 /// Generate a cryptographically secure random string
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
 /// random number generation. Uses base64 encoding to avoid modulo bias that would
 /// occur with charset-based encoding.
-/// 
+///
 /// Note: The output string length will be longer than the requested byte length
 /// due to base64 encoding overhead (4/3x). For a specific output length, adjust
 /// the input length accordingly (output_len = ceil(length * 4/3)).
 pub fn generate_secure_random(length: usize) -> String {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    
+
     // Generate random bytes using cryptographically secure RNG
     let mut bytes = vec![0u8; length];
     OsRng.fill_bytes(&mut bytes);
-    
+
     // Use URL-safe base64 encoding to avoid modulo bias
     // This provides uniform distribution across the character set
     URL_SAFE_NO_PAD.encode(&bytes)
 }
 
 /// Generate a cryptographically secure random byte array
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
-/// random number generation. Suitable for key material, nonces, and other 
+/// random number generation. Suitable for key material, nonces, and other
 /// cryptographic purposes.
 pub fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; length];

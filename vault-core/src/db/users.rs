@@ -872,7 +872,12 @@ impl UserRepository {
     }
 
     /// Update pending phone number (for SMS MFA setup)
-    pub async fn update_pending_phone(&self, tenant_id: &str, user_id: &str, phone: &str) -> Result<()> {
+    pub async fn update_pending_phone(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        phone: &str,
+    ) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"
@@ -884,7 +889,7 @@ impl UserRepository {
             ),
             updated_at = $2
             WHERE tenant_id = $3::uuid AND id = $4::uuid
-            "#
+            "#,
         )
         .bind(serde_json::json!(phone))
         .bind(chrono::Utc::now())
@@ -892,17 +897,17 @@ impl UserRepository {
         .bind(user_id)
         .execute(&mut *conn)
         .await?;
-        
+
         Ok(())
     }
 
     /// Update phone number and verification status
     pub async fn update_phone_number(
-        &self, 
-        tenant_id: &str, 
-        user_id: &str, 
+        &self,
+        tenant_id: &str,
+        user_id: &str,
         phone: &str,
-        verified: bool
+        verified: bool,
     ) -> Result<()> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
@@ -919,7 +924,7 @@ impl UserRepository {
             ),
             updated_at = $3
             WHERE tenant_id = $4::uuid AND id = $5::uuid
-            "#
+            "#,
         )
         .bind(serde_json::json!(phone))
         .bind(serde_json::json!(verified))
@@ -928,7 +933,7 @@ impl UserRepository {
         .bind(user_id)
         .execute(&mut *conn)
         .await?;
-        
+
         Ok(())
     }
 
@@ -936,13 +941,13 @@ impl UserRepository {
     pub async fn get_phone_number(&self, tenant_id: &str, user_id: &str) -> Result<Option<String>> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let profile: Option<serde_json::Value> = sqlx::query_scalar(
-            "SELECT profile FROM users WHERE tenant_id = $1::uuid AND id = $2::uuid"
+            "SELECT profile FROM users WHERE tenant_id = $1::uuid AND id = $2::uuid",
         )
         .bind(tenant_id)
         .bind(user_id)
         .fetch_optional(&mut *conn)
         .await?;
-        
+
         Ok(profile
             .and_then(|p| p.get("phone_number").cloned())
             .and_then(|p| p.as_str().map(|s| s.to_string())))
@@ -957,10 +962,10 @@ impl UserRepository {
         wallet_address: &str,
     ) -> Result<Option<User>> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        
+
         // Normalize address to lowercase
         let normalized_address = wallet_address.to_lowercase();
-        
+
         let row = sqlx::query_as::<_, UserWithPasswordRow>(
             "SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
                     status::text as status, password_hash,
@@ -990,10 +995,10 @@ impl UserRepository {
     ) -> Result<User> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let now = chrono::Utc::now();
-        
+
         // Normalize address to lowercase
         let normalized_address = wallet_address.to_lowercase();
-        
+
         let row = sqlx::query_as::<_, UserWithPasswordRow>(
             r#"UPDATE users 
                SET wallet_address = $1,
@@ -1023,7 +1028,7 @@ impl UserRepository {
     /// Unlink wallet from user
     pub async fn unlink_wallet(&self, tenant_id: &str, user_id: &str) -> Result<User> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        
+
         let row = sqlx::query_as::<_, UserWithPasswordRow>(
             r#"UPDATE users 
                SET wallet_address = NULL,
@@ -1054,10 +1059,10 @@ impl UserRepository {
         exclude_user_id: Option<&str>,
     ) -> Result<bool> {
         let mut conn = self.tenant_conn(tenant_id).await?;
-        
+
         // Normalize address to lowercase
         let normalized_address = wallet_address.to_lowercase();
-        
+
         let query = match exclude_user_id {
             Some(_) => {
                 "SELECT COUNT(*) FROM users 
@@ -1073,7 +1078,7 @@ impl UserRepository {
                    AND deleted_at IS NULL"
             }
         };
-        
+
         let count: i64 = if let Some(exclude_id) = exclude_user_id {
             sqlx::query_scalar(query)
                 .bind(tenant_id)
@@ -1103,14 +1108,13 @@ impl UserRepository {
         let id = uuid::Uuid::new_v4().to_string();
         let now = chrono::Utc::now();
         let mut conn = self.tenant_conn(tenant_id).await?;
-        
+
         // Normalize address to lowercase
         let normalized_address = wallet_address.to_lowercase();
-        
+
         // Generate a placeholder email if none provided
-        let user_email = email.unwrap_or_else(|| {
-            format!("{}@wallet.local", &normalized_address[..20])
-        });
+        let user_email =
+            email.unwrap_or_else(|| format!("{}@wallet.local", &normalized_address[..20]));
 
         let row = sqlx::query_as::<_, UserWithPasswordRow>(
             r#"WITH _ AS (

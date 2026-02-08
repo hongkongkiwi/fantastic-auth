@@ -515,7 +515,10 @@ impl AnomalyDetector {
                     AnomalyType::Velocity,
                     AnomalyLevel::Medium,
                     0.5 * self.sensitivity,
-                    format!("High velocity: {} recent logins", context.successful_attempts),
+                    format!(
+                        "High velocity: {} recent logins",
+                        context.successful_attempts
+                    ),
                 )
                 .with_suggested_action("Monitor for account sharing"),
             ));
@@ -558,7 +561,10 @@ impl AnomalyDetector {
                     AnomalyType::ImpossibleTravel,
                     AnomalyLevel::Critical,
                     0.95,
-                    format!("Impossible travel: {:.0} km in {:.1} hours", distance, hours),
+                    format!(
+                        "Impossible travel: {:.0} km in {:.1} hours",
+                        distance, hours
+                    ),
                 )
                 .with_details(serde_json::json!({
                     "distance_km": distance,
@@ -603,7 +609,10 @@ impl AnomalyDetector {
 
             // Update hour pattern
             let current_hour = context.timestamp.hour() as u8;
-            if let Some(existing) = profile.common_hours.iter_mut().find(|h| h.hour == current_hour)
+            if let Some(existing) = profile
+                .common_hours
+                .iter_mut()
+                .find(|h| h.hour == current_hour)
             {
                 existing.frequency += 1;
             } else {

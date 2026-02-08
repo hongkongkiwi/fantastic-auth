@@ -41,11 +41,7 @@ use crate::models::user::UserProfile;
 use crate::zk::key_derivation::MasterKey;
 use crate::zk::ZkError;
 use rand::RngCore;
-use rsa::{
-    pkcs8::DecodePrivateKey,
-    sha2::Sha256,
-    Oaep, RsaPrivateKey, RsaPublicKey,
-};
+use rsa::{pkcs8::DecodePrivateKey, sha2::Sha256, Oaep, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 
 /// AES-256-GCM nonce size (12 bytes = 96 bits)
@@ -81,11 +77,7 @@ pub struct EncryptedUserData {
 
 impl EncryptedUserData {
     /// Create new encrypted user data
-    pub fn new(
-        ciphertext: Vec<u8>,
-        nonce: [u8; NONCE_SIZE],
-        encrypted_dek: WrappedDek,
-    ) -> Self {
+    pub fn new(ciphertext: Vec<u8>, nonce: [u8; NONCE_SIZE], encrypted_dek: WrappedDek) -> Self {
         Self {
             version: super::ZK_PROTOCOL_VERSION,
             ciphertext,
@@ -113,7 +105,10 @@ pub struct AesGcmEncryption;
 
 impl AesGcmEncryption {
     /// Encrypt plaintext using AES-256-GCM
-    pub fn encrypt(key: &DataEncryptionKey, plaintext: &[u8]) -> Result<(Vec<u8>, [u8; NONCE_SIZE]), ZkError> {
+    pub fn encrypt(
+        key: &DataEncryptionKey,
+        plaintext: &[u8],
+    ) -> Result<(Vec<u8>, [u8; NONCE_SIZE]), ZkError> {
         use ring::aead::{
             Aad, BoundKey, Nonce, NonceSequence, SealingKey, UnboundKey, AES_256_GCM,
         };
@@ -174,21 +169,23 @@ impl AesGcmEncryption {
 
         let plaintext = opening_key
             .open_in_place(Aad::empty(), &mut in_out)
-            .map_err(|_| ZkError::Encryption("Decryption failed - invalid key or corrupted data".to_string()))?;
+            .map_err(|_| {
+                ZkError::Encryption("Decryption failed - invalid key or corrupted data".to_string())
+            })?;
 
         Ok(plaintext.to_vec())
     }
 }
 
 /// Generate a random Data Encryption Key
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for generating DEKs.
 /// Data Encryption Keys are used to encrypt sensitive data and must be
 /// cryptographically secure to maintain data confidentiality.
 pub fn generate_dek() -> DataEncryptionKey {
     use rand::RngCore;
     use rand_core::OsRng;
-    
+
     let mut dek = [0u8; 32];
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     OsRng.fill_bytes(&mut dek);
@@ -196,13 +193,13 @@ pub fn generate_dek() -> DataEncryptionKey {
 }
 
 /// Wrap DEK with RSA public key using OAEP-SHA256
-/// 
+///
 /// SECURITY: Uses OsRng (operating system's CSPRNG) for RSA-OAEP encryption.
 /// OAEP requires random padding for semantic security - using a predictable
 /// RNG would compromise the encryption's security.
 pub fn wrap_dek(dek: &DataEncryptionKey, public_key: &RsaPublicKey) -> Result<WrappedDek, ZkError> {
     use rand::RngCore;
-    
+
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     let mut rng = rand_core::OsRng;
     let padding = Oaep::new::<Sha256>();
@@ -215,7 +212,10 @@ pub fn wrap_dek(dek: &DataEncryptionKey, public_key: &RsaPublicKey) -> Result<Wr
 }
 
 /// Unwrap DEK with RSA private key using OAEP-SHA256
-pub fn unwrap_dek(wrapped_dek: &WrappedDek, private_key: &RsaPrivateKey) -> Result<DataEncryptionKey, ZkError> {
+pub fn unwrap_dek(
+    wrapped_dek: &WrappedDek,
+    private_key: &RsaPrivateKey,
+) -> Result<DataEncryptionKey, ZkError> {
     let padding = Oaep::new::<Sha256>();
 
     let plaintext = private_key
@@ -261,7 +261,8 @@ pub fn decrypt_user_data(
     let dek = unwrap_dek(&encrypted_data.encrypted_dek, &master_key.rsa_private_key)?;
 
     // Decrypt data
-    let plaintext = AesGcmEncryption::decrypt(&dek, &encrypted_data.ciphertext, &encrypted_data.nonce)?;
+    let plaintext =
+        AesGcmEncryption::decrypt(&dek, &encrypted_data.ciphertext, &encrypted_data.nonce)?;
 
     // Deserialize
     serde_json::from_slice(&plaintext)
@@ -473,11 +474,8 @@ mod tests {
         .unwrap();
 
         // Decrypt private key
-        let decrypted = decrypt_private_key_from_storage(
-            &encrypted,
-            &master_key.encryption_key,
-        )
-        .unwrap();
+        let decrypted =
+            decrypt_private_key_from_storage(&encrypted, &master_key.encryption_key).unwrap();
 
         // Verify it's the same key
         let original_der = master_key.rsa_private_key_to_der().unwrap();

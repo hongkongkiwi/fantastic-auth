@@ -204,15 +204,18 @@ impl WhatsAppProvider {
             )
         })?;
 
-        let api_version = std::env::var("WHATSAPP_API_VERSION").unwrap_or_else(|_| "v18.0".to_string());
+        let api_version =
+            std::env::var("WHATSAPP_API_VERSION").unwrap_or_else(|_| "v18.0".to_string());
 
-        let template_name = std::env::var("WHATSAPP_TEMPLATE_NAME").unwrap_or_else(|_| "vault_otp_en".to_string());
+        let template_name =
+            std::env::var("WHATSAPP_TEMPLATE_NAME").unwrap_or_else(|_| "vault_otp_en".to_string());
 
         let fallback_to_sms = std::env::var("WHATSAPP_FALLBACK_TO_SMS")
             .map(|v| v.to_lowercase() == "true")
             .unwrap_or(true);
 
-        let language_code = std::env::var("WHATSAPP_LANGUAGE_CODE").unwrap_or_else(|_| "en".to_string());
+        let language_code =
+            std::env::var("WHATSAPP_LANGUAGE_CODE").unwrap_or_else(|_| "en".to_string());
 
         let config = WhatsAppConfig {
             phone_number_id,
@@ -273,7 +276,10 @@ impl WhatsAppProvider {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.config.access_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.access_token),
+            )
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -307,10 +313,7 @@ impl WhatsAppProvider {
 
             if let Ok(error_response) = serde_json::from_str::<WhatsAppErrorResponse>(&error_text) {
                 let err = &error_response.error;
-                let msg = format!(
-                    "WhatsApp API error ({}): {}",
-                    err.code, err.message
-                );
+                let msg = format!("WhatsApp API error ({}): {}", err.code, err.message);
 
                 // Map specific error codes
                 match err.code {
@@ -330,7 +333,8 @@ impl WhatsAppProvider {
                     }
                     200 => {
                         return Err(SmsError::Configuration(
-                            "WhatsApp permission denied - check access token permissions".to_string(),
+                            "WhatsApp permission denied - check access token permissions"
+                                .to_string(),
                         ))
                     }
                     80007 => {
@@ -370,7 +374,11 @@ impl WhatsAppProvider {
             ));
         }
 
-        let digits_only: String = phone.chars().skip(1).filter(|c| c.is_ascii_digit()).collect();
+        let digits_only: String = phone
+            .chars()
+            .skip(1)
+            .filter(|c| c.is_ascii_digit())
+            .collect();
 
         if digits_only.len() < 7 || digits_only.len() > 15 {
             return Err(SmsError::InvalidPhoneNumber(
@@ -435,7 +443,10 @@ impl WhatsAppProvider {
         let response = self
             .http_client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.config.access_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", self.config.access_token),
+            )
             .header("Content-Type", "application/json")
             .json(&body)
             .send()
@@ -462,10 +473,7 @@ impl WhatsAppProvider {
             let error_text = response.text().await.unwrap_or_default();
             if let Ok(error_response) = serde_json::from_str::<WhatsAppErrorResponse>(&error_text) {
                 let err = &error_response.error;
-                let msg = format!(
-                    "WhatsApp API error ({}): {}",
-                    err.code, err.message
-                );
+                let msg = format!("WhatsApp API error ({}): {}", err.code, err.message);
                 return Err(SmsError::ProviderError(msg));
             }
             Err(SmsError::ProviderError(format!(
@@ -501,7 +509,8 @@ impl SmsProvider for WhatsAppProvider {
         template_name: &str,
         params: &[String],
     ) -> Result<(), SmsError> {
-        self.send_template_message(to, template_name, params).await?;
+        self.send_template_message(to, template_name, params)
+            .await?;
         Ok(())
     }
 
@@ -626,7 +635,10 @@ mod tests {
     #[test]
     fn test_extract_code_from_message() {
         let message = "Your verification code is: 123456. This code will expire in 10 minutes.";
-        assert_eq!(extract_code_from_message(message), Some("123456".to_string()));
+        assert_eq!(
+            extract_code_from_message(message),
+            Some("123456".to_string())
+        );
 
         let message_no_code = "Hello, this is a test message.";
         assert_eq!(extract_code_from_message(message_no_code), None);

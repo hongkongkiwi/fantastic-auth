@@ -54,7 +54,10 @@ impl RiskLevel {
 
     /// Check if this level requires MFA
     pub fn requires_mfa(&self) -> bool {
-        matches!(self, RiskLevel::Medium | RiskLevel::High | RiskLevel::Critical)
+        matches!(
+            self,
+            RiskLevel::Medium | RiskLevel::High | RiskLevel::Critical
+        )
     }
 
     /// Check if this level should be blocked
@@ -275,7 +278,9 @@ impl RealTimeRiskEngine {
         let features = FeatureExtractor::extract(context)?;
 
         // Calculate rule-based score
-        let rule_score = self.calculate_rule_based_score(context, &mut factors).await?;
+        let rule_score = self
+            .calculate_rule_based_score(context, &mut factors)
+            .await?;
 
         // Calculate ML-enhanced score if enabled
         let (ml_score, ml_confidence) = if self.config.ml_risk_enabled {
@@ -388,7 +393,10 @@ impl RealTimeRiskEngine {
                             RiskFactor::new(
                                 "impossible_travel",
                                 contribution,
-                                format!("Impossible travel: {:.0} km in {:.1} hours", distance, hours),
+                                format!(
+                                    "Impossible travel: {:.0} km in {:.1} hours",
+                                    distance, hours
+                                ),
                             )
                             .with_metadata(serde_json::json!({
                                 "distance_km": distance,
@@ -404,7 +412,10 @@ impl RealTimeRiskEngine {
                             RiskFactor::new(
                                 "suspicious_travel",
                                 contribution,
-                                format!("Suspicious travel: {:.0} km in {:.1} hours", distance, hours),
+                                format!(
+                                    "Suspicious travel: {:.0} km in {:.1} hours",
+                                    distance, hours
+                                ),
                             )
                             .with_metadata(serde_json::json!({
                                 "distance_km": distance,
@@ -492,7 +503,11 @@ impl RealTimeRiskEngine {
     }
 
     /// Get risk history for a user
-    pub async fn get_risk_history(&self, user_id: &str, days: i64) -> AiResult<Vec<RiskScoreEntry>> {
+    pub async fn get_risk_history(
+        &self,
+        user_id: &str,
+        days: i64,
+    ) -> AiResult<Vec<RiskScoreEntry>> {
         let cache = self.score_cache.read().await;
         let cutoff = Utc::now() - Duration::days(days);
 
@@ -565,14 +580,19 @@ impl MlRiskScorer {
     }
 
     /// Provide feedback for learning
-    pub async fn provide_feedback(&self, features: &FeatureVector, was_threat: bool) -> AiResult<()> {
+    pub async fn provide_feedback(
+        &self,
+        features: &FeatureVector,
+        was_threat: bool,
+    ) -> AiResult<()> {
         // Update prediction history with actual outcome
         let mut history = self.prediction_history.write().await;
 
         // Find matching prediction
-        if let Some(pred) = history.iter_mut().find(|p| {
-            p.features.values == features.values && p.actual_outcome.is_none()
-        }) {
+        if let Some(pred) = history
+            .iter_mut()
+            .find(|p| p.features.values == features.values && p.actual_outcome.is_none())
+        {
             pred.actual_outcome = Some(was_threat);
         }
 
@@ -660,9 +680,7 @@ mod tests {
 
     #[test]
     fn test_risk_score_creation() {
-        let factors = vec![
-            RiskFactor::new("test", 30, "Test factor"),
-        ];
+        let factors = vec![RiskFactor::new("test", 30, "Test factor")];
         let score = RiskScore::new(45, factors);
 
         assert_eq!(score.score, 45);

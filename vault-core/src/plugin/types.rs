@@ -199,10 +199,7 @@ pub struct AuthContext {
 
 impl AuthContext {
     /// Create new authentication context
-    pub fn new(
-        tenant_id: impl Into<String>,
-        email: impl Into<String>,
-    ) -> Self {
+    pub fn new(tenant_id: impl Into<String>, email: impl Into<String>) -> Self {
         Self {
             tenant_id: tenant_id.into(),
             email: email.into(),
@@ -295,10 +292,7 @@ pub struct RegisterContext {
 
 impl RegisterContext {
     /// Create new registration context
-    pub fn new(
-        tenant_id: impl Into<String>,
-        email: impl Into<String>,
-    ) -> Self {
+    pub fn new(tenant_id: impl Into<String>, email: impl Into<String>) -> Self {
         Self {
             tenant_id: tenant_id.into(),
             email: email.into(),
@@ -319,9 +313,14 @@ pub enum AuthAction {
     /// Deny the operation with optional reason
     Deny { reason: String },
     /// Require additional verification
-    RequireVerification { method: String, challenge: serde_json::Value },
+    RequireVerification {
+        method: String,
+        challenge: serde_json::Value,
+    },
     /// Modify the context (e.g., add roles, attributes)
-    Modify { changes: HashMap<String, serde_json::Value> },
+    Modify {
+        changes: HashMap<String, serde_json::Value>,
+    },
     /// Redirect to custom flow
     Redirect { url: String },
 }
@@ -337,7 +336,9 @@ pub enum RegisterAction {
     /// Require additional verification
     RequireVerification { method: String },
     /// Modify registration data
-    Modify { changes: HashMap<String, serde_json::Value> },
+    Modify {
+        changes: HashMap<String, serde_json::Value>,
+    },
 }
 
 /// Plugin error type

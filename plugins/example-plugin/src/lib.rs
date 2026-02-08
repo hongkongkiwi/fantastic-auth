@@ -7,12 +7,12 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vault_core::plugin::types::{
-    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult,
-    HookType, Plugin, PluginCapability, PluginConfig, PluginError, PluginMetadata,
-    RegisterAction, RegisterContext, Route, PluginHealth,
-};
 use vault_core::models::user::User;
+use vault_core::plugin::types::{
+    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookType, Plugin,
+    PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata, RegisterAction,
+    RegisterContext, Route,
+};
 
 /// Example plugin configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -144,10 +144,7 @@ impl Plugin for ExamplePlugin {
 
         // Add custom metadata
         let mut changes = HashMap::new();
-        changes.insert(
-            "example_tracked".to_string(),
-            serde_json::json!(true),
-        );
+        changes.insert("example_tracked".to_string(), serde_json::json!(true));
 
         if self.config.add_headers {
             // In a real plugin, you might add custom headers here
@@ -180,10 +177,7 @@ impl Plugin for ExamplePlugin {
         Ok(())
     }
 
-    async fn before_register(
-        &self,
-        ctx: &RegisterContext,
-    ) -> Result<RegisterAction, PluginError> {
+    async fn before_register(&self, ctx: &RegisterContext) -> Result<RegisterAction, PluginError> {
         tracing::debug!(
             "ExamplePlugin before_register hook called for {}",
             ctx.email
@@ -208,11 +202,7 @@ impl Plugin for ExamplePlugin {
         Ok(RegisterAction::Allow)
     }
 
-    async fn after_register(
-        &self,
-        ctx: &RegisterContext,
-        user: &User,
-    ) -> Result<(), PluginError> {
+    async fn after_register(&self, ctx: &RegisterContext, user: &User) -> Result<(), PluginError> {
         tracing::info!(
             "[ExamplePlugin] New user registered: {} ({}) in tenant {}",
             user.id,

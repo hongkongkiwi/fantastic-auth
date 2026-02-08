@@ -51,7 +51,11 @@ impl ActionsRepository {
         Ok(conn)
     }
 
-    pub async fn list_actions(&self, tenant_id: &str, trigger: Option<&str>) -> Result<Vec<Action>> {
+    pub async fn list_actions(
+        &self,
+        tenant_id: &str,
+        trigger: Option<&str>,
+    ) -> Result<Vec<Action>> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let actions = sqlx::query_as::<_, Action>(
             r#"

@@ -5,9 +5,9 @@
 //! controlled access to system resources.
 
 use super::types::{
-    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HttpMethod,
+    ApiContext, ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookType, HttpMethod,
     Plugin, PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata,
-    RegisterAction, RegisterContext, Route, HookType,
+    RegisterAction, RegisterContext, Route,
 };
 use crate::models::user::User;
 use async_trait::async_trait;
@@ -129,11 +129,7 @@ impl WasmPlugin {
     }
 
     /// Call a WASM function
-    async fn call_function(
-        &self,
-        _function: &str,
-        _input: &[u8],
-    ) -> Result<Vec<u8>, PluginError> {
+    async fn call_function(&self, _function: &str, _input: &[u8]) -> Result<Vec<u8>, PluginError> {
         // In a real implementation:
         // 1. Serialize input to WASM memory
         // 2. Call the function with fuel limits
@@ -190,7 +186,10 @@ impl Plugin for WasmPlugin {
 
         // Serialize context
         let input = serde_json::to_vec(ctx).map_err(|e| {
-            PluginError::new("SERIALIZATION_ERROR", format!("Failed to serialize context: {}", e))
+            PluginError::new(
+                "SERIALIZATION_ERROR",
+                format!("Failed to serialize context: {}", e),
+            )
         })?;
 
         // Call WASM function
@@ -198,7 +197,10 @@ impl Plugin for WasmPlugin {
 
         // Deserialize result
         let action: AuthAction = serde_json::from_slice(&output).map_err(|e| {
-            PluginError::new("DESERIALIZATION_ERROR", format!("Failed to deserialize result: {}", e))
+            PluginError::new(
+                "DESERIALIZATION_ERROR",
+                format!("Failed to deserialize result: {}", e),
+            )
         })?;
 
         Ok(action)
@@ -235,7 +237,10 @@ impl Plugin for WasmPlugin {
 
         let output = self.call_function("before_register", &input).await?;
         let action: RegisterAction = serde_json::from_slice(&output).map_err(|e| {
-            PluginError::new("DESERIALIZATION_ERROR", format!("Failed to deserialize: {}", e))
+            PluginError::new(
+                "DESERIALIZATION_ERROR",
+                format!("Failed to deserialize: {}", e),
+            )
         })?;
 
         Ok(action)
@@ -281,7 +286,10 @@ impl Plugin for WasmPlugin {
 
         let output = self.call_function("handle_request", &input).await?;
         let response: ApiResponse = serde_json::from_slice(&output).map_err(|e| {
-            PluginError::new("DESERIALIZATION_ERROR", format!("Failed to deserialize: {}", e))
+            PluginError::new(
+                "DESERIALIZATION_ERROR",
+                format!("Failed to deserialize: {}", e),
+            )
         })?;
 
         Ok(response)
@@ -354,12 +362,7 @@ impl WasmPluginBuilder {
     /// Build the WASM plugin
     pub fn build(self) -> Result<WasmPlugin, PluginError> {
         let metadata = self.metadata.unwrap_or_else(|| {
-            PluginMetadata::new(
-                "unknown-wasm",
-                "0.0.0",
-                "Unknown",
-                "WASM Plugin",
-            )
+            PluginMetadata::new("unknown-wasm", "0.0.0", "Unknown", "WASM Plugin")
         });
 
         Ok(WasmPlugin::new(self.module_bytes, metadata))
@@ -384,11 +387,11 @@ pub struct WasmResourceLimits {
 impl Default for WasmResourceLimits {
     fn default() -> Self {
         Self {
-            max_memory: 64 * 1024 * 1024,      // 64MB
-            max_execution_time_ms: 5000,       // 5 seconds
-            max_fuel: 10_000_000_000,          // 10 billion units
+            max_memory: 64 * 1024 * 1024, // 64MB
+            max_execution_time_ms: 5000,  // 5 seconds
+            max_fuel: 10_000_000_000,     // 10 billion units
             max_table_size: 10_000,
-            max_memory_pages: 1024,            // 64MB
+            max_memory_pages: 1024, // 64MB
         }
     }
 }
@@ -443,7 +446,10 @@ pub enum HostFunction {
     /// Make HTTP request
     HttpRequest { request: HttpRequest },
     /// Access database (read-only)
-    DatabaseQuery { query: String, params: Vec<serde_json::Value> },
+    DatabaseQuery {
+        query: String,
+        params: Vec<serde_json::Value>,
+    },
     /// Get current tenant
     GetCurrentTenant,
     /// Get current user

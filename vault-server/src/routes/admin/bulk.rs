@@ -509,15 +509,15 @@ async fn download_error_report(
     }
 
     // Get error report path
-    let error_path = row.error_report_path.ok_or_else(|| ApiError::NotFound)?;
+    let error_path_str = row.error_report_path.ok_or_else(|| ApiError::NotFound)?;
 
     // SECURITY: Validate file path before reading
-    let path_str = error_path.to_string_lossy();
+    let error_path = std::path::PathBuf::from(&error_path_str);
     if let Some(filename) = error_path.file_name().and_then(|n| n.to_str()) {
         if !validate_file_path(filename) {
             tracing::warn!(
                 job_id = %job_id,
-                path = %path_str,
+                path = %error_path_str,
                 "SECURITY: Invalid error report path"
             );
             return Err(ApiError::BadRequest("Invalid file path".to_string()));
@@ -746,15 +746,15 @@ async fn download_export_file(
     }
 
     // Get result file path
-    let result_path = row.result_file_path.ok_or_else(|| ApiError::NotFound)?;
+    let result_path_str = row.result_file_path.ok_or_else(|| ApiError::NotFound)?;
 
     // SECURITY: Validate file path before reading
-    let path_str = result_path.to_string_lossy();
+    let result_path = std::path::PathBuf::from(&result_path_str);
     if let Some(filename) = result_path.file_name().and_then(|n| n.to_str()) {
         if !validate_file_path(filename) {
             tracing::warn!(
                 job_id = %job_id,
-                path = %path_str,
+                path = %result_path_str,
                 "SECURITY: Invalid result file path"
             );
             return Err(ApiError::BadRequest("Invalid file path".to_string()));

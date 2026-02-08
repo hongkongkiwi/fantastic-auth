@@ -36,12 +36,12 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vault_core::plugin::types::{
-    ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookType,
-    HttpMethod, Plugin, PluginCapability, PluginConfig, PluginError, PluginMetadata,
-    RegisterAction, RegisterContext, Route, PluginHealth,
-};
 use vault_core::models::user::User;
+use vault_core::plugin::types::{
+    ApiRequest, ApiResponse, AuthAction, AuthContext, AuthResult, HookType, HttpMethod, Plugin,
+    PluginCapability, PluginConfig, PluginError, PluginHealth, PluginMetadata, RegisterAction,
+    RegisterContext, Route,
+};
 
 /// LDAP server configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -172,8 +172,7 @@ pub struct LdapPlugin {
     stats: std::sync::Mutex<LdapStats>,
 }
 
-#[derive(Debug, Default)]
-#[derive(Clone)]
+#[derive(Debug, Default, Clone)]
 struct LdapStats {
     auth_attempts: u64,
     successful_auths: u64,
@@ -205,7 +204,11 @@ impl LdapPlugin {
     }
 
     /// Authenticate user against LDAP
-    async fn authenticate_ldap(&self, username: &str, password: &str) -> Result<LdapUserAttributes, PluginError> {
+    async fn authenticate_ldap(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<LdapUserAttributes, PluginError> {
         // In a real implementation, this would:
         // 1. Connect to LDAP server
         // 2. Bind with service account
@@ -215,7 +218,7 @@ impl LdapPlugin {
 
         // For now, return a stub
         tracing::info!("LDAP auth attempt for user: {}", username);
-        
+
         Err(PluginError::new(
             "LDAP_NOT_CONFIGURED",
             "LDAP authentication not yet implemented - requires ldap3 crate integration",
@@ -225,19 +228,18 @@ impl LdapPlugin {
     /// Map LDAP groups to Vault roles
     fn map_groups_to_roles(&self, groups: &[String]) -> Vec<String> {
         let mut roles = Vec::new();
-        
+
         for mapping in &self.config.group_mappings {
             // Check if user is in this LDAP group
             let is_member = groups.iter().any(|g| {
-                g.eq_ignore_ascii_case(&mapping.ldap_group) ||
-                g.contains(&mapping.ldap_group)
+                g.eq_ignore_ascii_case(&mapping.ldap_group) || g.contains(&mapping.ldap_group)
             });
-            
+
             if is_member {
                 roles.push(mapping.vault_role.clone());
             }
         }
-        
+
         roles
     }
 
@@ -247,14 +249,11 @@ impl LdapPlugin {
         if let Some(ref name) = ldap_attrs.display_name {
             user.profile.name = Some(name.clone());
         }
-        
+
         // Map groups to roles in metadata
         let roles = self.map_groups_to_roles(&ldap_attrs.groups);
         if let Some(metadata) = user.metadata.as_object_mut() {
-            metadata.insert(
-                "ldap_roles".to_string(),
-                serde_json::json!(roles),
-            );
+            metadata.insert("ldap_roles".to_string(), serde_json::json!(roles));
             metadata.insert(
                 "ldap_groups".to_string(),
                 serde_json::json!(&ldap_attrs.groups),
@@ -264,7 +263,7 @@ impl LdapPlugin {
                 serde_json::json!(chrono::Utc::now().to_rfc3339()),
             );
         }
-        
+
         tracing::info!("Synced LDAP attributes for user {}", user.id);
     }
 
@@ -365,12 +364,9 @@ impl Plugin for LdapPlugin {
 
     fn routes(&self) -> Vec<Route> {
         vec![
-            Route::new(HttpMethod::Get, "/status", "get_status")
-                .with_permission("admin:plugins"),
-            Route::new(HttpMethod::Post, "/sync", "trigger_sync")
-                .with_permission("admin:plugins"),
-            Route::new(HttpMethod::Get, "/config", "get_config")
-                .with_permission("admin:plugins"),
+            Route::new(HttpMethod::Get, "/status", "get_status").with_permission("admin:plugins"),
+            Route::new(HttpMethod::Post, "/sync", "trigger_sync").with_permission("admin:plugins"),
+            Route::new(HttpMethod::Get, "/config", "get_config").with_permission("admin:plugins"),
         ]
     }
 
@@ -412,19 +408,24 @@ impl Plugin for LdapPlugin {
             }
             "get_config" => {
                 // Return sanitized config (no passwords)
-                let sanitized_servers: Vec<_> = self.config.servers.iter().map(|s| {
-                    serde_json::json!({
-                        "host": s.host,
-                        "port": s.port,
-                        "use_ssl": s.use_ssl,
-                        "base_dn": s.base_dn,
-                        "user_filter": s.user_filter,
-                        "username_attribute": s.username_attribute,
-                        "email_attribute": s.email_attribute,
-                        "name_attribute": s.name_attribute,
-                        "timeout_secs": s.timeout_secs,
+                let sanitized_servers: Vec<_> = self
+                    .config
+                    .servers
+                    .iter()
+                    .map(|s| {
+                        serde_json::json!({
+                            "host": s.host,
+                            "port": s.port,
+                            "use_ssl": s.use_ssl,
+                            "base_dn": s.base_dn,
+                            "user_filter": s.user_filter,
+                            "username_attribute": s.username_attribute,
+                            "email_attribute": s.email_attribute,
+                            "name_attribute": s.name_attribute,
+                            "timeout_secs": s.timeout_secs,
+                        })
                     })
-                }).collect();
+                    .collect();
 
                 Ok(ApiResponse {
                     status: 200,
@@ -474,13 +475,15 @@ mod tests {
 
         assert_eq!(metadata.name, "ldap-plugin");
         assert!(metadata.hooks.contains(&HookType::BeforeAuth));
-        assert!(metadata.capabilities.contains(&PluginCapability::AuthProvider));
+        assert!(metadata
+            .capabilities
+            .contains(&PluginCapability::AuthProvider));
     }
 
     #[tokio::test]
     async fn test_ldap_plugin_initialization() {
         let mut plugin = LdapPlugin::new();
-        
+
         // Valid config
         let config = PluginConfig {
             name: "ldap-plugin".to_string(),
@@ -506,7 +509,7 @@ mod tests {
     #[tokio::test]
     async fn test_ldap_plugin_empty_servers() {
         let mut plugin = LdapPlugin::new();
-        
+
         let config = PluginConfig {
             name: "ldap-plugin".to_string(),
             enabled: true,
@@ -524,7 +527,7 @@ mod tests {
     #[test]
     fn test_group_mapping() {
         let mut plugin = LdapPlugin::new();
-        
+
         // Set up test config
         plugin.config.group_mappings = vec![
             GroupMapping {
@@ -541,7 +544,7 @@ mod tests {
 
         let groups = vec!["cn=admins,ou=groups,dc=example,dc=com".to_string()];
         let roles = plugin.map_groups_to_roles(&groups);
-        
+
         assert!(roles.contains(&"admin".to_string()));
         assert!(!roles.contains(&"user".to_string()));
     }

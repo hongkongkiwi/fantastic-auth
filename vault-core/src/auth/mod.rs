@@ -22,8 +22,8 @@ use crate::error::{Result, VaultError};
 use crate::models::session::Session;
 use crate::models::user::{User, UserStatus};
 use crate::sms::SmsService;
-use chrono::{DateTime, Duration, Utc};
 use async_trait::async_trait;
+use chrono::{DateTime, Duration, Utc};
 use std::sync::Arc;
 
 pub mod biometric;
@@ -44,9 +44,8 @@ pub trait SmsServiceResolver: Send + Sync {
 }
 
 pub use biometric::{
-    BiometricChallenge, BiometricError, BiometricKey, BiometricType,
-    ChallengeStore, BiometricKeyStore, BiometricAuthSuccess, RegisterBiometricKeyRequest,
-    verify_ecdsa_signature,
+    verify_ecdsa_signature, BiometricAuthSuccess, BiometricChallenge, BiometricError, BiometricKey,
+    BiometricKeyStore, BiometricType, ChallengeStore, RegisterBiometricKeyRequest,
 };
 
 use token_store::{InMemoryTokenStore, StoredTokenData, StoredTokenType, TokenStore};
@@ -407,7 +406,7 @@ impl AuthService {
             location: None,
             mfa_verified: !mfa_required,
             expires_at: session.expires_at,
-            bind_to_ip: false,  // Can be configured based on user/org settings
+            bind_to_ip: false, // Can be configured based on user/org settings
             bind_to_device: false,
         };
 
@@ -645,7 +644,7 @@ impl AuthService {
             location: None,
             mfa_verified: false,
             expires_at: session.expires_at,
-            bind_to_ip: false,  // Can be configured based on user/org settings
+            bind_to_ip: false, // Can be configured based on user/org settings
             bind_to_device: false,
         };
 
@@ -1059,18 +1058,27 @@ impl AuthService {
                             .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
                             .map(|dt| dt.with_timezone(&chrono::Utc));
                         let attempts = email_config.get("attempts").and_then(|v| v.as_u64());
-                        let max_attempts = email_config.get("max_attempts").and_then(|v| v.as_u64());
+                        let max_attempts =
+                            email_config.get("max_attempts").and_then(|v| v.as_u64());
 
                         if let Some(expires) = expires_at {
                             if chrono::Utc::now() > expires {
-                                self.db.users().clear_email_otp(&tenant_id, &user.id).await.ok();
+                                self.db
+                                    .users()
+                                    .clear_email_otp(&tenant_id, &user.id)
+                                    .await
+                                    .ok();
                                 continue;
                             }
                         }
 
                         if let (Some(attempts), Some(max)) = (attempts, max_attempts) {
                             if attempts >= max {
-                                self.db.users().clear_email_otp(&tenant_id, &user.id).await.ok();
+                                self.db
+                                    .users()
+                                    .clear_email_otp(&tenant_id, &user.id)
+                                    .await
+                                    .ok();
                                 continue;
                             }
                         }
@@ -1264,7 +1272,7 @@ pub struct TokenPair {
 }
 
 /// Biometric authentication service
-/// 
+///
 /// Handles registration and authentication using device biometrics
 /// such as Face ID, Touch ID, and fingerprint.
 pub struct BiometricAuthService {
@@ -1285,7 +1293,7 @@ impl BiometricAuthService {
     }
 
     /// Register a new biometric key for a user
-    /// 
+    ///
     /// # Arguments
     /// * `user_id` - The user ID
     /// * `tenant_id` - The tenant ID
@@ -1344,7 +1352,7 @@ impl BiometricAuthService {
     }
 
     /// Generate a challenge for biometric authentication
-    /// 
+    ///
     /// This should be called before the client attempts to authenticate,
     /// to get a challenge that the client will sign with their private key.
     pub async fn generate_challenge(
@@ -1362,7 +1370,9 @@ impl BiometricAuthService {
         let challenge = biometric::BiometricChallenge::with_expiry(5);
 
         // Store the challenge
-        self.challenge_store.store_challenge(&key_id, &challenge).await?;
+        self.challenge_store
+            .store_challenge(&key_id, &challenge)
+            .await?;
 
         tracing::debug!("Generated challenge for biometric key {}", key_id);
 
@@ -1370,7 +1380,7 @@ impl BiometricAuthService {
     }
 
     /// Authenticate with a biometric key
-    /// 
+    ///
     /// # Arguments
     /// * `key_id` - The key ID
     /// * `signature` - ECDSA signature of the challenge
@@ -1471,7 +1481,9 @@ impl BiometricAuthService {
     }
 
     /// Clean up expired challenges
-    pub async fn cleanup_expired_challenges(&self) -> std::result::Result<u64, biometric::BiometricError> {
+    pub async fn cleanup_expired_challenges(
+        &self,
+    ) -> std::result::Result<u64, biometric::BiometricError> {
         self.challenge_store.cleanup_expired().await
     }
 }

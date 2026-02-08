@@ -79,10 +79,18 @@ pub trait I18nEmailTemplate: Serialize {
     fn subject(&self, lang: EmailLanguage) -> String;
 
     /// Render HTML version for the given language
-    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_html(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError>;
 
     /// Render plain text version for the given language
-    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError>;
+    fn render_text(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError>;
 }
 
 /// Email template context with language
@@ -95,12 +103,20 @@ pub struct EmailContext {
 
 impl EmailContext {
     pub fn new(language: EmailLanguage, base_url: String, app_name: String) -> Self {
-        Self { language, base_url, app_name }
+        Self {
+            language,
+            base_url,
+            app_name,
+        }
     }
 
     pub fn with_language(lang_code: &str, base_url: String, app_name: String) -> Self {
         let language = EmailLanguage::from_code(lang_code).unwrap_or_default();
-        Self { language, base_url, app_name }
+        Self {
+            language,
+            base_url,
+            app_name,
+        }
     }
 }
 
@@ -129,7 +145,11 @@ impl I18nEmailTemplate for I18nVerificationEmail {
         }
     }
 
-    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_html(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         let rtl_attr = if lang.is_rtl() { "dir=\"rtl\"" } else { "" };
         let align = if lang.is_rtl() { "right" } else { "left" };
@@ -165,14 +185,28 @@ impl I18nEmailTemplate for I18nVerificationEmail {
     </table>
 </body>
 </html>"##,
-            lang.code(), rtl_attr, self.subject(lang), lang.direction(), align,
-            greeting, body, expires_text, self.verification_url, button, ignore, self.verification_url
+            lang.code(),
+            rtl_attr,
+            self.subject(lang),
+            lang.direction(),
+            align,
+            greeting,
+            body,
+            expires_text,
+            self.verification_url,
+            button,
+            ignore,
+            self.verification_url
         ))
     }
 
-    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_text(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
-        
+
         Ok(format!(
             r#"{}
 
@@ -185,7 +219,13 @@ impl I18nEmailTemplate for I18nVerificationEmail {
 {}
 
 {}"#,
-            greeting, body, expires_text, button, self.verification_url, ignore, self.verification_url
+            greeting,
+            body,
+            expires_text,
+            button,
+            self.verification_url,
+            ignore,
+            self.verification_url
         ))
     }
 }
@@ -299,7 +339,11 @@ impl I18nEmailTemplate for I18nPasswordResetEmail {
         }
     }
 
-    fn render_html(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_html(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
         let rtl_attr = if lang.is_rtl() { "dir=\"rtl\"" } else { "" };
         let align = if lang.is_rtl() { "right" } else { "left" };
@@ -334,14 +378,27 @@ impl I18nEmailTemplate for I18nPasswordResetEmail {
     </table>
 </body>
 </html>"##,
-            lang.code(), rtl_attr, self.subject(lang), lang.direction(), align,
-            greeting, body, expires_text, self.reset_url, button, ignore
+            lang.code(),
+            rtl_attr,
+            self.subject(lang),
+            lang.direction(),
+            align,
+            greeting,
+            body,
+            expires_text,
+            self.reset_url,
+            button,
+            ignore
         ))
     }
 
-    fn render_text(&self, _engine: &crate::email::TemplateEngine, lang: EmailLanguage) -> Result<String, EmailError> {
+    fn render_text(
+        &self,
+        _engine: &crate::email::TemplateEngine,
+        lang: EmailLanguage,
+    ) -> Result<String, EmailError> {
         let (greeting, body, button, ignore, expires_text) = self.get_translations(lang);
-        
+
         Ok(format!(
             r#"{}
 
@@ -452,7 +509,7 @@ pub fn render_i18n_template<T: I18nEmailTemplate>(
         "Vault".to_string(),
         None,
     );
-    
+
     let html = template.render_html(&engine, lang)?;
     let text = template.render_text(&engine, lang)?;
     let subject = template.subject(lang);
@@ -471,7 +528,10 @@ mod tests {
     #[test]
     fn test_email_language_parsing() {
         assert_eq!(EmailLanguage::from_code("en"), Some(EmailLanguage::English));
-        assert_eq!(EmailLanguage::from_code("es-MX"), Some(EmailLanguage::Spanish));
+        assert_eq!(
+            EmailLanguage::from_code("es-MX"),
+            Some(EmailLanguage::Spanish)
+        );
         assert_eq!(EmailLanguage::from_code("ar"), Some(EmailLanguage::Arabic));
         assert_eq!(EmailLanguage::from_code("invalid"), None);
     }
@@ -492,8 +552,17 @@ mod tests {
             expires_in_hours: 24,
         };
 
-        assert_eq!(email.subject(EmailLanguage::English), "Verify your email address");
-        assert_eq!(email.subject(EmailLanguage::Spanish), "Verifica tu dirección de correo");
-        assert_eq!(email.subject(EmailLanguage::Arabic), "تحقق من عنوان بريدك الإلكتروني");
+        assert_eq!(
+            email.subject(EmailLanguage::English),
+            "Verify your email address"
+        );
+        assert_eq!(
+            email.subject(EmailLanguage::Spanish),
+            "Verifica tu dirección de correo"
+        );
+        assert_eq!(
+            email.subject(EmailLanguage::Arabic),
+            "تحقق من عنوان بريدك الإلكتروني"
+        );
     }
 }

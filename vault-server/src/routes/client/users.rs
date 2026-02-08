@@ -3,7 +3,8 @@
 //! End-user profile management endpoints.
 
 use axum::{
-    extract::{ConnectInfo, State},
+    extract::{ConnectInfo, FromRef, FromRequestParts, State},
+    http::{request::Parts, StatusCode},
     http::HeaderMap,
     middleware,
     routing::{delete, get, patch, post},
@@ -14,7 +15,7 @@ use std::net::SocketAddr;
 
 use crate::audit::{AuditLogger, RequestContext};
 use crate::auth::{AuthProvider, LinkAccountRequest, SensitiveOperation};
-use crate::middleware::require_step_up_for_operation;
+use crate::middleware::StepUpUserExt;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser, SessionLimitStatus};
 use axum::extract::Path;
@@ -47,12 +48,12 @@ pub fn routes() -> Router<AppState> {
     // Routes requiring elevated step-up (change password)
     let elevated_routes = Router::new()
         .route("/me/password", post(change_password))
-        .route_layer(middleware::from_fn(require_step_up_change_password));
+        .route_layer(middleware::from_extractor::<RequireStepUpChangePassword>());
 
     // Routes requiring high assurance step-up (delete account)
     let high_assurance_routes = Router::new()
         .route("/me", delete(delete_current_user))
-        .route_layer(middleware::from_fn(require_step_up_delete_account));
+        .route_layer(middleware::from_extractor::<RequireStepUpDeleteAccount>());
 
     // Combine all routes
     Router::new()
@@ -61,34 +62,53 @@ pub fn routes() -> Router<AppState> {
         .merge(high_assurance_routes)
 }
 
-/// Middleware for change password step-up
-async fn require_step_up_change_password(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    require_step_up_for_operation(
-        State(state),
-        request,
-        next,
-        SensitiveOperation::ChangePassword,
-    )
-    .await
+struct RequireStepUpChangePassword;
+struct RequireStepUpDeleteAccount;
+
+async fn enforce_step_up(parts: &Parts, state: &AppState, operation: SensitiveOperation) -> Result<(), StatusCode> {
+    let user = parts
+        .extensions
+        .get::<CurrentUser>()
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    let requirement = state.step_up_policy.get_requirement(&operation);
+
+    if requirement.level == vault_core::crypto::StepUpLevel::Standard {
+        return Ok(());
+    }
+    if !user.has_step_up(&requirement.level) || user.is_step_up_expired() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    Ok(())
 }
 
-/// Middleware for delete account step-up
-async fn require_step_up_delete_account(
-    State(state): State<AppState>,
-    request: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    require_step_up_for_operation(
-        State(state),
-        request,
-        next,
-        SensitiveOperation::DeleteAccount,
-    )
-    .await
+impl<S> FromRequestParts<S> for RequireStepUpChangePassword
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app_state = AppState::from_ref(state);
+        enforce_step_up(parts, &app_state, SensitiveOperation::ChangePassword).await?;
+        Ok(Self)
+    }
+}
+
+impl<S> FromRequestParts<S> for RequireStepUpDeleteAccount
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let app_state = AppState::from_ref(state);
+        enforce_step_up(parts, &app_state, SensitiveOperation::DeleteAccount).await?;
+        Ok(Self)
+    }
 }
 
 #[derive(Debug, Deserialize)]
