@@ -12,32 +12,26 @@ import { Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card'
 import { HostedLayout } from '../../hosted/HostedLayout'
-import { useHostedConfig, useHostedSearchParams } from '../../hosted/useHostedConfig'
+import { useHostedConfig } from '../../hosted/useHostedConfig'
 import { hostedOAuthCallback } from '../../hosted/api'
 
-export const Route = createFileRoute('/hosted/oauth-callback')({
+export const Route = createFileRoute('/hosted/oauth-callback' as any)({
   component: HostedOAuthCallbackPage,
 })
 
 type CallbackState = 'processing' | 'success' | 'error'
 
 function HostedOAuthCallbackPage() {
-  const searchParams = useHostedSearchParams()
-  
   return (
     <HostedLayout 
       searchParams={new URLSearchParams(window.location.search)}
     >
-      <OAuthCallbackContent searchParams={searchParams} />
+      <OAuthCallbackContent />
     </HostedLayout>
   )
 }
 
-interface OAuthCallbackContentProps {
-  searchParams: ReturnType<typeof useHostedSearchParams>
-}
-
-function OAuthCallbackContent({ searchParams }: OAuthCallbackContentProps) {
+function OAuthCallbackContent() {
   const navigate = useNavigate()
   const { config, tenantId, redirectUrl } = useHostedConfig()
   const prefersReducedMotion = useReducedMotion()

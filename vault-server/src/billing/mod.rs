@@ -9,9 +9,11 @@ use std::sync::Arc;
 
 mod stripe;
 mod types;
+pub mod webhooks;
 
 pub use stripe::*;
 pub use types::*;
+pub use webhooks::*;
 
 /// Billing configuration
 #[derive(Debug, Clone)]
