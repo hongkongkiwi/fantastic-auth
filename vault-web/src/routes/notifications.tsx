@@ -1,51 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Bell, CheckCircle2, AlertCircle, Info, Trash2, Mail } from 'lucide-react'
 import { PageHeader } from '../components/layout/Layout'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { listNotifications, markNotificationsRead, type NotificationResponse } from '../server/internal-api'
+import { toast } from '../components/ui/Toaster'
 
 export const Route = createFileRoute('/notifications')({
   component: NotificationsPage,
 })
 
-interface NotificationItem {
-  id: string
-  title: string
-  description: string
-  createdAt: string
-  type: 'info' | 'warning' | 'success'
-  read: boolean
-}
-
-const notificationsMock: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    title: 'Billing webhook failed',
-    description: 'Stripe webhook endpoint returned 500 for tenant Acme Inc.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
-    type: 'warning',
-    read: false,
-  },
-  {
-    id: 'notif-2',
-    title: 'New admin added',
-    description: 'Jamie Liu was granted Platform Admin role.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    type: 'success',
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    title: 'Weekly usage report ready',
-    description: 'Download the latest usage export for all tenants.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    type: 'info',
-    read: true,
-  },
-]
+type NotificationItem = NotificationResponse
 
 const iconMap = {
   info: Info,
@@ -54,11 +23,28 @@ const iconMap = {
 }
 
 function NotificationsPage() {
-  const [notifications, setNotifications] = useState(notificationsMock)
+  const queryClient = useQueryClient()
+  const listNotificationsFn = useServerFn(listNotifications)
+  const markNotificationsReadFn = useServerFn(markNotificationsRead)
+  const { data: notifications = [], isLoading } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => listNotificationsFn({ data: {} }),
+  })
   const prefersReducedMotion = useReducedMotion()
 
+  const markReadMutation = useMutation({
+    mutationFn: async (ids: string[]) => markNotificationsReadFn({ data: { ids } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      toast.success('Notifications updated')
+    },
+    onError: () => toast.error('Failed to update notifications'),
+  })
+
   const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    const ids = notifications.filter((n) => !n.read).map((n) => n.id)
+    if (ids.length === 0) return
+    markReadMutation.mutate(ids)
   }
 
   return (
@@ -122,7 +108,7 @@ function NotificationsPage() {
         })}
       </div>
 
-      {notifications.length === 0 && (
+      {!isLoading && notifications.length === 0 && (
         <Card className="p-12 text-center">
           <Bell className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-medium">No notifications</h3>

@@ -1,4 +1,7 @@
-//! Admin Settings Routes
+//! Admin Settings Routes (Legacy)
+//!
+//! ⚠️ DEPRECATED: Use `/api/v1/admin/settings/v2/` endpoints instead.
+//! This module is kept for backward compatibility and will be removed in a future version.
 //!
 //! Manage tenant-wide settings and configuration.
 

@@ -399,10 +399,11 @@ impl PluginLoader {
             }
         }
 
+        let total = loaded.len() + failed.len();
         Ok(LoadResult {
             loaded,
             failed,
-            total: loaded.len() + failed.len(),
+            total,
         })
     }
 

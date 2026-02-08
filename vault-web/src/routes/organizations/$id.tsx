@@ -1,5 +1,4 @@
 import { createFileRoute, useParams, Link } from '@tanstack/react-router'
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
@@ -22,31 +21,21 @@ import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { formatDate, formatDateTime } from '../../lib/utils'
+import { useServerFn } from '@tanstack/react-start'
+import {
+  getOrganization,
+  listOrganizationMembers,
+  type OrganizationResponse,
+  type OrganizationMemberResponse,
+} from '../../server/internal-api'
 
 export const Route = createFileRoute('/organizations/$id')({
   component: OrganizationDetailPage,
 })
 
-interface Organization {
-  id: string
-  name: string
-  slug: string
-  member_count: number
-  role: 'owner' | 'admin' | 'member'
-  sso_enabled: boolean
-  created_at: string
-}
+type OrgMember = OrganizationMemberResponse
 
-interface OrgMember {
-  id: string
-  name: string
-  email: string
-  role: string
-  status: 'active' | 'invited' | 'suspended'
-  joinedAt: string
-}
-
-const memberStatusVariant: Record<OrgMember['status'], 'success' | 'warning' | 'destructive'> = {
+const memberStatusVariant: Record<string, 'success' | 'warning' | 'destructive'> = {
   active: 'success',
   invited: 'warning',
   suspended: 'destructive',
@@ -56,33 +45,6 @@ const roles = [
   { name: 'Owner', description: 'Full access to organization settings', permissions: 42 },
   { name: 'Admin', description: 'Manage members and billing', permissions: 28 },
   { name: 'Member', description: 'Standard access to projects', permissions: 12 },
-]
-
-const membersMock: OrgMember[] = [
-  {
-    id: 'mem-1',
-    name: 'Alex Grant',
-    email: 'alex@acme.com',
-    role: 'Owner',
-    status: 'active',
-    joinedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 200).toISOString(),
-  },
-  {
-    id: 'mem-2',
-    name: 'Jamie Liu',
-    email: 'jamie@acme.com',
-    role: 'Admin',
-    status: 'active',
-    joinedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 80).toISOString(),
-  },
-  {
-    id: 'mem-3',
-    name: 'Taylor Reed',
-    email: 'taylor@acme.com',
-    role: 'Member',
-    status: 'invited',
-    joinedAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-  },
 ]
 
 const memberColumns: ColumnDef<OrgMember>[] = [
@@ -119,17 +81,18 @@ const memberColumns: ColumnDef<OrgMember>[] = [
 function OrganizationDetailPage() {
   const { id } = useParams({ from: '/organizations/$id' })
   const prefersReducedMotion = useReducedMotion()
+  const getOrganizationFn = useServerFn(getOrganization)
+  const listOrganizationMembersFn = useServerFn(listOrganizationMembers)
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['organizations'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/admin/organizations')
-      if (!res.ok) throw new Error('Failed to load organizations')
-      return res.json() as Promise<Organization[]>
-    },
+  const { data: organization, isLoading } = useQuery({
+    queryKey: ['organization', id],
+    queryFn: () => getOrganizationFn({ data: { orgId: id } }),
   })
 
-  const organization = useMemo(() => data?.find((org) => org.id === id), [data, id])
+  const { data: members, isLoading: isMembersLoading } = useQuery({
+    queryKey: ['organization-members', id],
+    queryFn: () => listOrganizationMembersFn({ data: { orgId: id } }),
+  })
 
   if (isLoading) {
     return (
@@ -192,22 +155,22 @@ function OrganizationDetailPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-semibold">{organization.name}</h2>
-                    {organization.sso_enabled && (
-                      <Badge variant="success">SSO Enabled</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Created {formatDateTime(organization.created_at)}
-                  </p>
-                </div>
-              </div>
-              <Badge variant="secondary">{organization.role}</Badge>
-            </div>
+          {organization.ssoEnabled && (
+            <Badge variant="success">SSO Enabled</Badge>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Created {formatDateTime(organization.createdAt)}
+        </p>
+      </div>
+    </div>
+    <Badge variant="secondary">{organization.role}</Badge>
+  </div>
 
-            <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+  <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Members</p>
-                <p className="text-2xl font-semibold">{organization.member_count}</p>
+        <p className="text-2xl font-semibold">{organization.memberCount}</p>
               </div>
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Default Role</p>
@@ -215,9 +178,9 @@ function OrganizationDetailPage() {
               </div>
               <div className="space-y-2">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">SSO</p>
-                <Badge variant={organization.sso_enabled ? 'success' : 'secondary'}>
-                  {organization.sso_enabled ? 'Enabled' : 'Not configured'}
-                </Badge>
+      <Badge variant={organization.ssoEnabled ? 'success' : 'secondary'}>
+        {organization.ssoEnabled ? 'Enabled' : 'Not configured'}
+      </Badge>
               </div>
             </div>
           </Card>
@@ -287,7 +250,8 @@ function OrganizationDetailPage() {
               </div>
               <DataTable
                 columns={memberColumns}
-                data={membersMock}
+                data={members || []}
+                isLoading={isMembersLoading}
                 searchable={false}
                 pagination
                 pageSize={5}

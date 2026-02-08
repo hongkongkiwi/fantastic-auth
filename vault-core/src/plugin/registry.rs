@@ -244,14 +244,14 @@ impl PluginRegistry {
         // Remove from hooks
         let metadata = instance.plugin.metadata();
         for hook in &metadata.hooks {
-            if let mut plugins = self.hooks.get_mut(hook) {
+            if let Some(mut plugins) = self.hooks.get_mut(hook) {
                 plugins.retain(|p| p != name);
             }
         }
 
         // Remove from capabilities
         for cap in &metadata.capabilities {
-            if let mut plugins = self.capabilities.get_mut(cap) {
+            if let Some(mut plugins) = self.capabilities.get_mut(cap) {
                 plugins.retain(|p| p != name);
             }
         }

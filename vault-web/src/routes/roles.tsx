@@ -12,20 +12,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/Dialog'
 import { Input } from '../components/ui/Input'
 import { Checkbox } from '../components/ui/Checkbox'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { createRole, listRoles, updateRole, type RoleResponse } from '../server/internal-api'
+import { toast } from '../components/ui/Toaster'
 
 export const Route = createFileRoute('/roles')({
   component: RolesPage,
 })
 
-interface Role {
-  id: string
-  name: string
-  description: string
-  scope: 'platform' | 'tenant' | 'org'
-  permissions: number
-  members: number
-  status: 'active' | 'disabled'
-}
+type Role = RoleResponse
 
 const roleData: Role[] = [
   {
@@ -33,7 +29,7 @@ const roleData: Role[] = [
     name: 'Platform Admin',
     description: 'Full access to platform settings and data',
     scope: 'platform',
-    permissions: 48,
+    permissions: ['users.read', 'users.write', 'billing.write'],
     members: 4,
     status: 'active',
   },
@@ -42,7 +38,7 @@ const roleData: Role[] = [
     name: 'Tenant Manager',
     description: 'Manage tenants, subscriptions, and usage',
     scope: 'tenant',
-    permissions: 28,
+    permissions: ['tenants.read', 'tenants.write'],
     members: 12,
     status: 'active',
   },
@@ -51,7 +47,7 @@ const roleData: Role[] = [
     name: 'Support Agent',
     description: 'Read-only access to users and audit logs',
     scope: 'platform',
-    permissions: 12,
+    permissions: ['users.read', 'audit.read'],
     members: 9,
     status: 'disabled',
   },
@@ -69,13 +65,56 @@ const availablePermissions = [
 ]
 
 function RolesPage() {
-  const [roles, setRoles] = useState<Role[]>(roleData)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<Role | null>(null)
   const [roleName, setRoleName] = useState('')
   const [roleDescription, setRoleDescription] = useState('')
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const prefersReducedMotion = useReducedMotion()
+  const queryClient = useQueryClient()
+  const listRolesFn = useServerFn(listRoles)
+  const createRoleFn = useServerFn(createRole)
+  const updateRoleFn = useServerFn(updateRole)
+
+  const { data: rolesData, isLoading } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => listRolesFn({ data: {} }),
+  })
+  const roles = rolesData && rolesData.length > 0 ? rolesData : roleData
+
+  const createMutation = useMutation({
+    mutationFn: async () =>
+      createRoleFn({
+        data: {
+          name: roleName,
+          description: roleDescription,
+          scope: 'platform',
+          permissions: selectedPermissions,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      toast.success('Role created')
+    },
+    onError: () => toast.error('Failed to create role'),
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async () =>
+      updateRoleFn({
+        data: {
+          roleId: editingRole?.id || '',
+          name: roleName,
+          description: roleDescription,
+          permissions: selectedPermissions,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['roles'] })
+      toast.success('Role updated')
+    },
+    onError: () => toast.error('Failed to update role'),
+  })
 
   const openCreate = () => {
     setEditingRole(null)
@@ -89,7 +128,7 @@ function RolesPage() {
     setEditingRole(role)
     setRoleName(role.name)
     setRoleDescription(role.description)
-    setSelectedPermissions([])
+    setSelectedPermissions(role.permissions || [])
     setIsEditOpen(true)
   }
 
@@ -102,26 +141,9 @@ function RolesPage() {
   const saveRole = () => {
     if (!roleName.trim()) return
     if (editingRole) {
-      setRoles((prev) =>
-        prev.map((role) =>
-          role.id === editingRole.id
-            ? { ...role, name: roleName, description: roleDescription, permissions: selectedPermissions.length || role.permissions }
-            : role
-        )
-      )
+      updateMutation.mutate()
     } else {
-      setRoles((prev) => [
-        {
-          id: `role-${Date.now()}`,
-          name: roleName,
-          description: roleDescription,
-          scope: 'platform',
-          permissions: selectedPermissions.length || 0,
-          members: 0,
-          status: 'active',
-        },
-        ...prev,
-      ])
+      createMutation.mutate()
     }
     setIsEditOpen(false)
   }
@@ -148,7 +170,7 @@ function RolesPage() {
       cell: ({ getValue }) => (
         <div className="flex items-center gap-2">
           <Lock className="h-4 w-4 text-muted-foreground" />
-          <span>{getValue() as number}</span>
+          <span>{(getValue() as string[])?.length ?? 0}</span>
         </div>
       ),
     },
@@ -229,6 +251,7 @@ function RolesPage() {
         <DataTable
           columns={columns}
           data={roles}
+          isLoading={isLoading}
           searchable
           searchPlaceholder="Search roles…"
           pagination

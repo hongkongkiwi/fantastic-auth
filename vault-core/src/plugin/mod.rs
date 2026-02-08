@@ -101,7 +101,7 @@ impl PluginManager {
     }
 
     /// Create with plugin directory
-    pub fn with_plugin_dir(plugin_dir: impl AsRef<std::path::Path>) -> Self {
+    pub fn with_plugin_dir(plugin_dir: impl Into<PathBuf>) -> Self {
         let mut manager = Self::new();
         manager.loader = Some(PluginLoader::new(LoaderConfig::new(plugin_dir)));
         manager

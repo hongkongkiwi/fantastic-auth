@@ -532,7 +532,7 @@ pub struct ApiResponse {
 
 impl ApiResponse {
     /// Create success response
-    pub fn ok(body: impl Serialize) -> Result<Self, serde_json::Error> {
+    pub fn ok(body: impl Serialize) -> std::result::Result<Self, serde_json::Error> {
         Ok(Self {
             status: 200,
             body: serde_json::to_value(body)?,
@@ -541,7 +541,7 @@ impl ApiResponse {
     }
 
     /// Create created response
-    pub fn created(body: impl Serialize) -> Result<Self, serde_json::Error> {
+    pub fn created(body: impl Serialize) -> std::result::Result<Self, serde_json::Error> {
         Ok(Self {
             status: 201,
             body: serde_json::to_value(body)?,

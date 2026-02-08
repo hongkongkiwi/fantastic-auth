@@ -14,21 +14,13 @@ import {
   ConfirmDialog,
 } from '@/components/ui/Dialog'
 import { Key, Plus, Copy, Eye, EyeOff, Trash2, Clock, Shield } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { createApiKey, deleteApiKey, listApiKeys, type ApiKeyResponse, type CreateApiKeyResponse } from '@/server/internal-api'
+import { toast } from '@/components/ui/Toaster'
 
-interface ApiKey {
-  id: string
-  name: string
-  prefix: string
-  createdAt: string
-  expiresAt: string | null
-  lastUsedAt: string | null
-  scopes: string[]
-}
-
-interface NewKeyResponse {
-  key: string
-  apiKey: ApiKey
-}
+type ApiKey = ApiKeyResponse
+type NewKeyResponse = CreateApiKeyResponse
 
 const availableScopes = [
   { id: 'read:users', label: 'Read Users', description: 'View user data' },
@@ -40,17 +32,15 @@ const availableScopes = [
 ]
 
 export function ApiKeyManager() {
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([
-    {
-      id: '1',
-      name: 'Production API',
-      prefix: 'pk_fake_removed
-      createdAt: '2024-01-15T10:00:00Z',
-      expiresAt: null,
-      lastUsedAt: '2024-02-08T14:30:00Z',
-      scopes: ['read:users', 'write:users'],
-    },
-  ])
+  const queryClient = useQueryClient()
+  const listApiKeysFn = useServerFn(listApiKeys)
+  const createApiKeyFn = useServerFn(createApiKey)
+  const deleteApiKeyFn = useServerFn(deleteApiKey)
+
+  const { data: apiKeys = [], isLoading } = useQuery({
+    queryKey: ['api-keys'],
+    queryFn: () => listApiKeysFn({ data: {} }),
+  })
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isRevokeOpen, setIsRevokeOpen] = useState(false)
   const [selectedKey, setSelectedKey] = useState<ApiKey | null>(null)
@@ -65,43 +55,45 @@ export function ApiKeyManager() {
 
   const sortedKeys = useMemo(() => {
     return [...apiKeys].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
     )
   }, [apiKeys])
 
+  const createMutation = useMutation({
+    mutationFn: async () =>
+      createApiKeyFn({
+        data: {
+          name: newKeyName,
+          scopes: selectedScopes,
+          expiresInDays: newKeyExpiry === 'never' ? undefined : Number(newKeyExpiry),
+        },
+      }),
+    onSuccess: (data) => {
+      setNewKey(data)
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      toast.success('API key created')
+    },
+    onError: () => toast.error('Failed to create API key'),
+    onSettled: () => setIsCreating(false),
+  })
+
   const handleCreate = async () => {
     setIsCreating(true)
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      
-      const newApiKey: ApiKey = {
-        id: Math.random().toString(36).substring(7),
-        name: newKeyName,
-        prefix: `pk_fake_removed
-        createdAt: new Date().toISOString(),
-        expiresAt: newKeyExpiry === 'never' ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        lastUsedAt: null,
-        scopes: selectedScopes,
-      }
-
-      setNewKey({
-        key: `pk_fake_removed
-        apiKey: newApiKey,
-      })
-      setApiKeys([newApiKey, ...apiKeys])
-    } finally {
-      setIsCreating(false)
-    }
+    createMutation.mutate()
   }
+
+  const revokeMutation = useMutation({
+    mutationFn: async (keyId: string) => deleteApiKeyFn({ data: { keyId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-keys'] })
+      toast.success('API key revoked')
+    },
+    onError: () => toast.error('Failed to revoke API key'),
+  })
 
   const handleRevoke = async () => {
     if (!selectedKey) return
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    
-    setApiKeys(apiKeys.filter((k) => k.id !== selectedKey.id))
+    await revokeMutation.mutateAsync(selectedKey.id)
     setIsRevokeOpen(false)
     setSelectedKey(null)
   }
@@ -150,6 +142,11 @@ export function ApiKeyManager() {
       </div>
 
       <div className="space-y-4">
+        {isLoading && (
+          <Card>
+            <CardContent className="p-6 text-sm text-muted-foreground">Loading API keys…</CardContent>
+          </Card>
+        )}
         {sortedKeys.map((key) => (
           <motion.div
             key={key.id}
