@@ -375,22 +375,21 @@ pub async fn import_from_auth0(
             email_verified: bool,
         }
 
-        let email = user["email"].as_str().unwrap_or("");
+        let email = user.get("email").and_then(|e| e.as_str()).unwrap_or("");
         if email.is_empty() {
             pb.inc(1);
             continue;
         }
 
-        let name = user["name"]
-            .as_str()
-            .or_else(|| user["nickname"].as_str())
-            .or_else(|| user["given_name"].as_str())
+        let name = user.get("name").and_then(|n| n.as_str())
+            .or_else(|| user.get("nickname").and_then(|n| n.as_str()))
+            .or_else(|| user.get("given_name").and_then(|g| g.as_str()))
             .unwrap_or(email);
 
         let body = CreateUserRequest {
             email: email.to_string(),
             name: name.to_string(),
-            email_verified: user["email_verified"].as_bool().unwrap_or(false),
+            email_verified: user.get("email_verified").and_then(|e| e.as_bool()).unwrap_or(false),
         };
 
         match vault_client.post::<serde_json::Value, _>("/admin/users", &body).await {
