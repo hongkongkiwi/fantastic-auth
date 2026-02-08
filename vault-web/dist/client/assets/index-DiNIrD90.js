@@ -1,1 +1,0 @@
-import{c as n}from"./main-BdAAzOp_.js";const c=[["path",{d:"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3",key:"wmoenq"}],["path",{d:"M12 9v4",key:"juzpu7"}],["path",{d:"M12 17h.01",key:"p32p05"}]],r=n("triangle-alert",c);function p(a,[t,e]){return Math.min(e,Math.max(t,a))}export{r as T,p as c};
