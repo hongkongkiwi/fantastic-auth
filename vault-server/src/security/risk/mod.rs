@@ -761,19 +761,19 @@ impl RiskAnalytics {
     }
 }
 
-// Database rows for queries
+// Database rows for queries - public for use in admin routes
 #[derive(sqlx::FromRow)]
-struct RiskAssessmentRow {
-    id: String,
-    tenant_id: String,
-    user_id: Option<String>,
-    score: i16,
-    action: String,
-    factors: serde_json::Value,
-    ip_address: Option<String>,
-    device_fingerprint: Option<String>,
-    timestamp: DateTime<Utc>,
-    metadata: Option<serde_json::Value>,
+pub struct RiskAssessmentRow {
+    pub id: String,
+    pub tenant_id: String,
+    pub user_id: Option<String>,
+    pub score: i16,
+    pub action: String,
+    pub factors: serde_json::Value,
+    pub ip_address: Option<String>,
+    pub device_fingerprint: Option<String>,
+    pub timestamp: DateTime<Utc>,
+    pub metadata: Option<serde_json::Value>,
 }
 
 impl From<RiskAssessmentRow> for RiskAssessment {
@@ -798,13 +798,13 @@ impl From<RiskAssessmentRow> for RiskAssessment {
 }
 
 #[derive(sqlx::FromRow)]
-struct RiskAnalyticsRow {
-    total_assessments: i64,
-    avg_score: Option<f64>,
-    blocked_count: i64,
-    challenged_count: i64,
-    step_up_count: i64,
-    allowed_count: i64,
+pub struct RiskAnalyticsRow {
+    pub total_assessments: i64,
+    pub avg_score: Option<f64>,
+    pub blocked_count: i64,
+    pub challenged_count: i64,
+    pub step_up_count: i64,
+    pub allowed_count: i64,
 }
 
 // Default functions

@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ThemeProvider } from '../../hooks/useTheme'
-import { AuthProvider } from '../../hooks/useAuth'
-import { useState } from 'react'
 
-// Mock the router hooks used by AuthProvider
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => () => {},
   useLocation: () => ({ pathname: '/', search: '' }),
 }))
 
-// Mock the server functions
+vi.mock('@tanstack/react-start', () => ({
+  useServerFn: (fn: unknown) => fn,
+}))
+
 vi.mock('../../server/internal-api', () => ({
   login: vi.fn(),
   getCurrentUser: vi.fn(),
@@ -21,6 +17,12 @@ vi.mock('../../server/internal-api', () => ({
   getUiSessionStatus: vi.fn(),
 }))
 
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ThemeProvider } from '../../hooks/useTheme'
+import { AuthProvider } from '../../hooks/useAuth'
+import { useState } from 'react'
 import { login } from '../../server/internal-api'
 
 const createWrapper = () => {

@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  BarChart3,
   Activity,
   Users,
   Zap,

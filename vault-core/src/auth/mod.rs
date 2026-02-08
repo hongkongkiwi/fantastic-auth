@@ -24,11 +24,17 @@ use crate::models::user::{User, UserStatus};
 use chrono::{DateTime, Duration, Utc};
 use std::sync::Arc;
 
+pub mod biometric;
 pub mod email;
 pub mod mfa;
 pub mod oauth;
 pub mod password;
 pub mod token_store;
+
+pub use biometric::{
+    BiometricAuthService, BiometricChallenge, BiometricError, BiometricKey, BiometricType,
+    ChallengeStore, BiometricKeyStore,
+};
 
 use token_store::{InMemoryTokenStore, StoredTokenData, StoredTokenType, TokenStore};
 
@@ -889,15 +895,17 @@ impl AuthService {
                                 VaultError::authentication("Invalid TOTP configuration")
                             })?;
 
-                        if let Some(key) = &self.data_encryption_key {
+                        let secret = if let Some(key) = &self.data_encryption_key {
                             let decrypted = crate::crypto::decrypt_from_base64(key, secret)
                                 .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?;
-                            secret = std::str::from_utf8(&decrypted)
-                                .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?;
-                        }
+                            String::from_utf8(decrypted)
+                                .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?
+                        } else {
+                            secret.to_string()
+                        };
 
                         let config = TotpConfig {
-                            secret: secret.to_string(),
+                            secret,
                             issuer: "Vault".to_string(),
                             account_name: user.email.clone(),
                             algorithm: totp_config
@@ -1077,4 +1085,217 @@ pub struct TokenPair {
     pub refresh_token: String,
     /// Expires in (seconds)
     pub expires_in: i64,
+}
+
+/// Biometric authentication service
+/// 
+/// Handles registration and authentication using device biometrics
+/// such as Face ID, Touch ID, and fingerprint.
+pub struct BiometricAuthService {
+    key_store: Box<dyn biometric::BiometricKeyStore>,
+    challenge_store: Box<dyn biometric::ChallengeStore>,
+}
+
+impl BiometricAuthService {
+    /// Create a new biometric authentication service
+    pub fn new(
+        key_store: Box<dyn biometric::BiometricKeyStore>,
+        challenge_store: Box<dyn biometric::ChallengeStore>,
+    ) -> Self {
+        Self {
+            key_store,
+            challenge_store,
+        }
+    }
+
+    /// Register a new biometric key for a user
+    /// 
+    /// # Arguments
+    /// * `user_id` - The user ID
+    /// * `tenant_id` - The tenant ID
+    /// * `public_key` - The ECDSA P-256 public key (raw format)
+    /// * `key_id` - Unique identifier for the key (client-generated)
+    /// * `device_name` - Human-readable device name
+    /// * `biometric_type` - Type of biometric (FaceId, TouchId, etc.)
+    pub async fn register_key(
+        &self,
+        user_id: impl Into<String>,
+        tenant_id: impl Into<String>,
+        public_key: Vec<u8>,
+        key_id: impl Into<String>,
+        device_name: impl Into<String>,
+        biometric_type: biometric::BiometricType,
+    ) -> Result<biometric::BiometricKey, biometric::BiometricError> {
+        let user_id = user_id.into();
+        let tenant_id = tenant_id.into();
+        let key_id = key_id.into();
+        let device_name = device_name.into();
+
+        // Validate public key format (should be a valid ECDSA P-256 key)
+        if let Err(_) = p256::ecdsa::VerifyingKey::from_sec1_bytes(&public_key) {
+            return Err(biometric::BiometricError::InvalidPublicKey);
+        }
+
+        // Check if key already exists
+        if let Some(_) = self.key_store.get_key_by_key_id(&key_id).await? {
+            return Err(biometric::BiometricError::KeyAlreadyExists);
+        }
+
+        // Create the biometric key record
+        let key = biometric::BiometricKey {
+            id: uuid::Uuid::new_v4().to_string(),
+            user_id,
+            tenant_id,
+            public_key,
+            key_id: key_id.clone(),
+            device_name,
+            biometric_type,
+            created_at: Utc::now(),
+            last_used_at: None,
+        };
+
+        // Store the key
+        self.key_store.store_key(&key).await?;
+
+        tracing::info!(
+            "Registered biometric key {} for user {} (type: {:?})",
+            key_id,
+            key.user_id,
+            biometric_type
+        );
+
+        Ok(key)
+    }
+
+    /// Generate a challenge for biometric authentication
+    /// 
+    /// This should be called before the client attempts to authenticate,
+    /// to get a challenge that the client will sign with their private key.
+    pub async fn generate_challenge(
+        &self,
+        key_id: impl Into<String>,
+    ) -> Result<biometric::BiometricChallenge, biometric::BiometricError> {
+        let key_id = key_id.into();
+
+        // Verify the key exists
+        if self.key_store.get_key_by_key_id(&key_id).await?.is_none() {
+            return Err(biometric::BiometricError::KeyNotFound);
+        }
+
+        // Generate challenge with 5-minute expiry
+        let challenge = biometric::BiometricChallenge::with_expiry(5);
+
+        // Store the challenge
+        self.challenge_store.store_challenge(&key_id, &challenge).await?;
+
+        tracing::debug!("Generated challenge for biometric key {}", key_id);
+
+        Ok(challenge)
+    }
+
+    /// Authenticate with a biometric key
+    /// 
+    /// # Arguments
+    /// * `key_id` - The key ID
+    /// * `signature` - ECDSA signature of the challenge
+    /// * `challenge` - The challenge that was signed
+    pub async fn authenticate(
+        &self,
+        key_id: impl Into<String>,
+        signature: Vec<u8>,
+        challenge: impl Into<String>,
+    ) -> Result<biometric::BiometricAuthSuccess, biometric::BiometricError> {
+        let key_id = key_id.into();
+        let challenge_str = challenge.into();
+
+        // Get the stored challenge
+        let stored_challenge = self
+            .challenge_store
+            .get_challenge(&key_id)
+            .await?
+            .ok_or(biometric::BiometricError::ChallengeNotFound)?;
+
+        // Verify the challenge hasn't expired
+        if stored_challenge.is_expired() {
+            return Err(biometric::BiometricError::ChallengeExpired);
+        }
+
+        // Verify the challenge matches
+        if !stored_challenge.verify(&challenge_str) {
+            return Err(biometric::BiometricError::InvalidChallenge);
+        }
+
+        // Get the biometric key
+        let key = self
+            .key_store
+            .get_key_by_key_id(&key_id)
+            .await?
+            .ok_or(biometric::BiometricError::KeyNotFound)?;
+
+        // Verify the signature
+        let valid = biometric::verify_ecdsa_signature(
+            &key.public_key,
+            challenge_str.as_bytes(),
+            &signature,
+        )?;
+
+        if !valid {
+            tracing::warn!("Invalid biometric signature for key {}", key_id);
+            return Err(biometric::BiometricError::InvalidSignature);
+        }
+
+        // Update last used timestamp
+        self.key_store.update_last_used(&key_id).await?;
+
+        tracing::info!(
+            "Successful biometric authentication for user {} with key {} (type: {:?})",
+            key.user_id,
+            key_id,
+            key.biometric_type
+        );
+
+        Ok(biometric::BiometricAuthSuccess {
+            user_id: key.user_id,
+            tenant_id: key.tenant_id,
+            key_id: key.key_id,
+            biometric_type: key.biometric_type,
+        })
+    }
+
+    /// List all registered biometric keys for a user
+    pub async fn list_keys(
+        &self,
+        user_id: impl Into<String>,
+        tenant_id: impl Into<String>,
+    ) -> Result<Vec<biometric::BiometricKey>, biometric::BiometricError> {
+        let user_id = user_id.into();
+        let tenant_id = tenant_id.into();
+
+        self.key_store.get_keys_for_user(&user_id, &tenant_id).await
+    }
+
+    /// Revoke a biometric key
+    pub async fn revoke_key(
+        &self,
+        key_id: impl Into<String>,
+    ) -> Result<(), biometric::BiometricError> {
+        let key_id = key_id.into();
+
+        // Verify the key exists
+        if self.key_store.get_key_by_key_id(&key_id).await?.is_none() {
+            return Err(biometric::BiometricError::KeyNotFound);
+        }
+
+        // Delete the key
+        self.key_store.delete_key(&key_id).await?;
+
+        tracing::info!("Revoked biometric key {}", key_id);
+
+        Ok(())
+    }
+
+    /// Clean up expired challenges
+    pub async fn cleanup_expired_challenges(&self) -> Result<u64, biometric::BiometricError> {
+        self.challenge_store.cleanup_expired().await
+    }
 }

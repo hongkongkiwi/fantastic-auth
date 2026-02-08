@@ -23,6 +23,7 @@ pub mod domains;
 pub mod i18n;
 pub mod organizations;
 pub mod password_policy;
+pub mod risk;
 pub mod roles;
 pub mod scim;
 pub mod security;
@@ -61,5 +62,6 @@ pub fn routes() -> Router<AppState> {
         .merge(bulk::routes())
         .merge(analytics::routes())
         .merge(consent::routes())
+        .nest("/risk", risk::routes())
         .nest("/i18n", i18n::routes())
 }

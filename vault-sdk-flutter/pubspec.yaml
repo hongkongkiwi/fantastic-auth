@@ -1,0 +1,55 @@
+name: vault_sdk
+description: Flutter SDK for Vault - Secure user management and authentication
+version: 0.1.0
+homepage: https://github.com/yourorg/vault/tree/main/vault-sdk-flutter
+repository: https://github.com/yourorg/vault
+documentation: https://docs.vault.dev/flutter-sdk
+issue_tracker: https://github.com/yourorg/vault/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  local_auth: ^2.1.8
+  url_launcher: ^6.1.14
+  crypto: ^3.0.3
+  json_annotation: ^4.8.1
+  meta: ^1.9.1
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.vault.sdk
+        pluginClass: VaultSdkPlugin
+      ios:
+        pluginClass: VaultSdkPlugin
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.6
+  json_serializable: ^6.7.1
+  mockito: ^5.4.2
+  http_mock_adapter: ^0.6.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        default_package: vault_sdk
+      ios:
+        default_package: vault_sdk
+
+topics:
+  - authentication
+  - auth
+  - security
+  - oauth
+  - user-management

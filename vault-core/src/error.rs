@@ -53,6 +53,10 @@ pub enum VaultError {
     #[error("External service error ({service}): {message}")]
     ExternalService { service: String, message: String },
 
+    /// Plugin errors
+    #[error("Plugin error: {0}")]
+    Plugin(crate::plugin::PluginError),
+
     /// Internal errors
     #[error("Internal error: {0}")]
     Internal(String),
@@ -122,6 +126,7 @@ impl VaultError {
             VaultError::Conflict(_) => 409,
             VaultError::RateLimit { .. } => 429,
             VaultError::ExternalService { .. } => 502,
+            VaultError::Plugin(_) => 500,
             VaultError::Internal(_) => 500,
         }
     }
@@ -159,6 +164,7 @@ impl From<&VaultError> for ErrorResponse {
             VaultError::RateLimit { .. } => "RATE_LIMIT_EXCEEDED",
             VaultError::ExternalService { .. } => "EXTERNAL_SERVICE_ERROR",
             VaultError::Base64(_) => "BASE64_ERROR",
+            VaultError::Plugin(_) => "PLUGIN_ERROR",
             VaultError::Internal(_) => "INTERNAL_ERROR",
         };
 

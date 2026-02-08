@@ -99,6 +99,10 @@ export function DataTable<TData, TValue>({
   const deferredSearch = React.useDeferredValue(searchValue)
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState<Record<string, boolean>>({})
+  const [paginationState, setPaginationState] = React.useState({
+    pageIndex: 0,
+    pageSize,
+  })
   const prefersReducedMotion = useReducedMotion()
 
   const table = useReactTable({
@@ -121,12 +125,17 @@ export function DataTable<TData, TValue>({
       globalFilter,
       columnVisibility,
       rowSelection,
-      pagination: {
-        pageSize,
-        pageIndex: 0,
-      },
+      pagination: paginationState,
     },
+    onPaginationChange: setPaginationState,
   })
+
+  React.useEffect(() => {
+    setPaginationState((prev) => ({
+      pageIndex: 0,
+      pageSize,
+    }))
+  }, [pageSize])
 
   React.useEffect(() => {
     setGlobalFilter(deferredSearch)
