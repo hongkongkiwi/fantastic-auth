@@ -8,6 +8,7 @@ use tracing::info;
 mod analytics;
 mod audit_prune;
 mod audit_rotation;
+mod data_encryption_migration;
 mod log_streams;
 pub mod webhook_worker;
 pub mod webhooks;
@@ -52,4 +53,19 @@ pub fn start(config: &Config, _db: &Database, state: &AppState) {
     // Start log streaming worker
     log_streams::start(state.clone());
     info!("Log streaming worker started");
+
+    if let Some(ref migration) = config.background_jobs.data_encryption_migration {
+        if migration.enabled {
+            data_encryption_migration::spawn_worker(
+                state.clone(),
+                Duration::from_secs(migration.interval_minutes * 60),
+            );
+            info!(
+                interval_minutes = migration.interval_minutes,
+                "Data encryption migration worker started"
+            );
+        } else {
+            info!("Data encryption migration worker disabled");
+        }
+    }
 }

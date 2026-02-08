@@ -711,6 +711,8 @@ pub struct BackgroundJobsConfig {
     pub audit_log_rotation: Option<AuditLogRotationConfig>,
     #[serde(default)]
     pub audit_log_prune: Option<AuditLogPruneConfig>,
+    #[serde(default)]
+    pub data_encryption_migration: Option<DataEncryptionMigrationConfig>,
 }
 
 /// Audit log rotation configuration
@@ -740,6 +742,24 @@ pub struct AuditLogPruneConfig {
     /// Prune interval in minutes
     #[serde(default = "default_audit_log_prune_interval_minutes")]
     pub interval_minutes: u64,
+}
+
+/// Data encryption migration configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DataEncryptionMigrationConfig {
+    /// Run migration job (default: false when not configured)
+    #[serde(default = "default_data_encryption_migration_enabled")]
+    pub enabled: bool,
+    /// Interval in minutes between runs
+    #[serde(default = "default_data_encryption_migration_interval_minutes")]
+    pub interval_minutes: u64,
+}
+
+fn default_data_encryption_migration_enabled() -> bool {
+    true
+}
+fn default_data_encryption_migration_interval_minutes() -> u64 {
+    60
 }
 
 fn default_audit_log_max_size_mb() -> u64 {
