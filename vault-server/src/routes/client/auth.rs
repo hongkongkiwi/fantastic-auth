@@ -4114,3 +4114,568 @@ async fn convert_anonymous_handler(
         }
     }
 }
+
+// ============ Biometric Authentication Types ============
+
+/// Request to register a biometric key
+#[derive(Debug, Deserialize)]
+struct BiometricRegisterRequest {
+    /// ECDSA P-256 public key (SEC1 format, base64 encoded)
+    #[serde(rename = "publicKey")]
+    public_key: String,
+    /// Unique identifier for the key (client-generated)
+    #[serde(rename = "keyId")]
+    key_id: String,
+    /// Human-readable device name
+    #[serde(rename = "deviceName")]
+    device_name: String,
+    /// Type of biometric (face_id, touch_id, fingerprint, face_unlock, iris)
+    #[serde(rename = "biometricType")]
+    biometric_type: String,
+}
+
+/// Biometric key response
+#[derive(Debug, Serialize)]
+struct BiometricKeyResponse {
+    id: String,
+    #[serde(rename = "keyId")]
+    key_id: String,
+    #[serde(rename = "deviceName")]
+    device_name: String,
+    #[serde(rename = "biometricType")]
+    biometric_type: String,
+    #[serde(rename = "createdAt")]
+    created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "lastUsedAt")]
+    last_used_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl From<vault_core::auth::BiometricKey> for BiometricKeyResponse {
+    fn from(key: vault_core::auth::BiometricKey) -> Self {
+        Self {
+            id: key.id,
+            key_id: key.key_id,
+            device_name: key.device_name,
+            biometric_type: key.biometric_type.as_str().to_string(),
+            created_at: key.created_at,
+            last_used_at: key.last_used_at,
+        }
+    }
+}
+
+/// Challenge response
+#[derive(Debug, Serialize)]
+struct BiometricChallengeResponse {
+    challenge: String,
+    #[serde(rename = "expiresAt")]
+    expires_at: String,
+}
+
+/// Authenticate request
+#[derive(Debug, Deserialize)]
+struct BiometricAuthenticateRequest {
+    /// Key ID to authenticate with
+    #[serde(rename = "keyId")]
+    key_id: String,
+    /// ECDSA signature of the challenge (DER format, base64 encoded)
+    signature: String,
+    /// The challenge that was signed
+    challenge: String,
+}
+
+// ============ Biometric Authentication Handlers ============
+
+/// Register a new biometric key
+///
+/// This endpoint is called after the user has authenticated with password/MFA
+/// and the device has generated a key pair (private key stays in Secure Enclave/Keystore).
+async fn biometric_register_key(
+    State(state): State<AppState>,
+    Extension(user): Extension<CurrentUser>,
+    Json(req): Json<BiometricRegisterRequest>,
+) -> Result<Json<BiometricKeyResponse>, ApiError> {
+    use vault_core::auth::BiometricType;
+
+    // Parse biometric type
+    let biometric_type = match req.biometric_type.as_str() {
+        "face_id" => BiometricType::FaceId,
+        "touch_id" => BiometricType::TouchId,
+        "fingerprint" => BiometricType::Fingerprint,
+        "face_unlock" => BiometricType::FaceUnlock,
+        "iris" => BiometricType::Iris,
+        _ => {
+            return Err(ApiError::Validation(format!(
+                "Invalid biometric type: {}",
+                req.biometric_type
+            )));
+        }
+    };
+
+    // Decode public key from base64
+    let public_key = base64_decode(&req.public_key).map_err(|e| {
+        tracing::warn!("Invalid base64 public key: {}", e);
+        ApiError::Validation("Invalid public key format".to_string())
+    })?;
+
+    // Create biometric service with database repositories
+    let biometric_repo = state.db.biometric();
+    let biometric_service = vault_core::auth::BiometricAuthService::new(
+        Box::new(biometric_repo.clone()),
+        Box::new(biometric_repo),
+    );
+
+    // Register the key
+    match biometric_service
+        .register_key(
+            &user.user_id,
+            &user.tenant_id,
+            public_key,
+            &req.key_id,
+            &req.device_name,
+            biometric_type,
+        )
+        .await
+    {
+        Ok(key) => {
+            tracing::info!(
+                "Biometric key registered for user {}: {} (type: {:?})",
+                user.user_id,
+                req.key_id,
+                biometric_type
+            );
+            Ok(Json(key.into()))
+        }
+        Err(e) => {
+            tracing::warn!("Biometric key registration failed: {}", e);
+            Err(ApiError::from(e))
+        }
+    }
+}
+
+/// Generate a challenge for biometric authentication
+///
+/// This should be called before the client attempts to authenticate,
+/// to get a challenge that the client will sign with their private key.
+async fn biometric_challenge(
+    State(state): State<AppState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<BiometricChallengeResponse>, ApiError> {
+    let key_id = req["keyId"]
+        .as_str()
+        .ok_or_else(|| ApiError::Validation("keyId is required".to_string()))?;
+
+    // Create biometric service with database repositories
+    let biometric_repo = state.db.biometric();
+    let biometric_service = vault_core::auth::BiometricAuthService::new(
+        Box::new(biometric_repo.clone()),
+        Box::new(biometric_repo),
+    );
+
+    // Generate challenge
+    match biometric_service.generate_challenge(key_id).await {
+        Ok(challenge) => Ok(Json(BiometricChallengeResponse {
+            challenge: challenge.challenge,
+            expires_at: challenge.expires_at.to_rfc3339(),
+        })),
+        Err(e) => {
+            tracing::warn!("Biometric challenge generation failed: {}", e);
+            Err(ApiError::from(e))
+        }
+    }
+}
+
+/// Authenticate with a biometric key
+///
+/// The client signs the challenge with the private key stored in the
+/// Secure Enclave (iOS) or Keystore (Android), and sends the signature
+/// to this endpoint for verification.
+async fn biometric_authenticate(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<BiometricAuthenticateRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let tenant_id = extract_tenant_id(&headers);
+    let context = Some(RequestContext::from_request(
+        &headers,
+        Some(&ConnectInfo(addr)),
+    ));
+    let audit = AuditLogger::new(state.db.clone());
+    let ip_str = addr.ip().to_string();
+
+    // Decode signature from base64
+    let signature = base64_decode(&req.signature).map_err(|e| {
+        tracing::warn!("Invalid base64 signature: {}", e);
+        ApiError::Validation("Invalid signature format".to_string())
+    })?;
+
+    // Create biometric service with database repositories
+    let biometric_repo = state.db.biometric();
+    let biometric_service = vault_core::auth::BiometricAuthService::new(
+        Box::new(biometric_repo.clone()),
+        Box::new(biometric_repo),
+    );
+
+    // Authenticate with biometric
+    let auth_result = match biometric_service
+        .authenticate(&req.key_id, signature, &req.challenge)
+        .await
+    {
+        Ok(result) => result,
+        Err(e) => {
+            tracing::warn!("Biometric authentication failed: {}", e);
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::LoginFailed,
+                crate::audit::ResourceType::User,
+                "unknown",
+                None,
+                None,
+                context,
+                false,
+                Some(format!("Biometric auth failed: {}", e)),
+                None,
+            );
+            return Err(ApiError::from(e));
+        }
+    };
+
+    // Get user from database
+    let user = match state
+        .auth_service
+        .get_current_user(&auth_result.tenant_id, &auth_result.user_id)
+        .await
+    {
+        Ok(u) => u,
+        Err(e) => {
+            tracing::error!("User not found after biometric authentication: {}", e);
+            return Err(ApiError::Internal);
+        }
+    };
+
+    // Check if user is active
+    if user.status != vault_core::models::user::UserStatus::Active {
+        tracing::warn!(
+            "Biometric login attempt for inactive account: {}",
+            auth_result.user_id
+        );
+        audit.log(
+            &tenant_id,
+            crate::audit::AuditAction::LoginFailed,
+            crate::audit::ResourceType::User,
+            &user.id,
+            None,
+            None,
+            context.clone(),
+            false,
+            Some("Account not active".to_string()),
+            None,
+        );
+        return Err(ApiError::Forbidden);
+    }
+
+    // Check if user is locked
+    if user.is_locked() {
+        tracing::warn!(
+            "Biometric login attempt for locked account: {}",
+            auth_result.user_id
+        );
+        audit.log(
+            &tenant_id,
+            crate::audit::AuditAction::LoginFailed,
+            crate::audit::ResourceType::User,
+            &user.id,
+            None,
+            None,
+            context.clone(),
+            false,
+            Some("Account locked".to_string()),
+            None,
+        );
+        return Err(ApiError::Forbidden);
+    }
+
+    // Check session limits before creating session
+    match state
+        .check_session_limits(&tenant_id, &user.id, Some(&ip_str))
+        .await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(limit_err)) => {
+            tracing::warn!(
+                "Session limit reached for user {}: {}/{} sessions",
+                user.id,
+                limit_err.current_sessions,
+                limit_err.max_sessions
+            );
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::LoginFailed,
+                crate::audit::ResourceType::User,
+                &user.id,
+                None,
+                None,
+                context.clone(),
+                false,
+                Some("SESSION_LIMIT_REACHED".to_string()),
+                Some(serde_json::json!({
+                    "current_sessions": limit_err.current_sessions,
+                    "max_sessions": limit_err.max_sessions
+                })),
+            );
+            return Err(ApiError::SessionLimitReached(limit_err));
+        }
+        Err(e) => {
+            tracing::error!("Failed to check session limits: {}", e);
+            return Err(ApiError::Internal);
+        }
+    }
+
+    // Create session for the user
+    let session = match state
+        .auth_service
+        .create_session_for_oauth_user(&user, Some(addr.to_string()), None)
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("Failed to create session: {}", e);
+            return Err(ApiError::Internal);
+        }
+    };
+
+    // Store session in database
+    let session_req = vault_core::db::sessions::CreateSessionRequest {
+        tenant_id: tenant_id.clone(),
+        user_id: user.id.clone(),
+        access_token_jti: session.access_token_jti.clone(),
+        refresh_token_hash: session.refresh_token_hash.clone(),
+        token_family: session.token_family.clone(),
+        ip_address: Some(addr.ip()),
+        user_agent: context.as_ref().and_then(|c| c.user_agent.clone()),
+        device_fingerprint: None,
+        device_info: serde_json::json!({
+            "auth_method": "biometric",
+            "biometric_type": auth_result.biometric_type.as_str(),
+            "key_id": auth_result.key_id,
+        }),
+        location: None,
+        mfa_verified: true, // Biometric is considered strong authentication
+        expires_at: session.expires_at,
+    };
+
+    if let Err(e) = state.db.sessions().create(session_req).await {
+        tracing::error!("Failed to store session: {}", e);
+        return Err(ApiError::Internal);
+    }
+
+    // Generate tokens
+    let token_pair = match state.auth_service.generate_tokens(&user, &session.id) {
+        Ok(tp) => tp,
+        Err(e) => {
+            tracing::error!("Failed to generate tokens: {}", e);
+            return Err(ApiError::Internal);
+        }
+    };
+
+    tracing::info!(
+        "Biometric authentication successful for user: {} (type: {:?})",
+        auth_result.user_id,
+        auth_result.biometric_type
+    );
+
+    // Log successful login
+    audit.log(
+        &tenant_id,
+        crate::audit::AuditAction::Login,
+        crate::audit::ResourceType::User,
+        &auth_result.user_id,
+        Some(auth_result.user_id.clone()),
+        Some(session.id.clone()),
+        context.clone(),
+        true,
+        None,
+        Some(serde_json::json!({
+            "auth_method": "biometric",
+            "biometric_type": auth_result.biometric_type.as_str(),
+            "key_id": auth_result.key_id,
+        })),
+    );
+
+    // Trigger webhook events
+    let ip = context.as_ref().and_then(|c| c.ip_address.clone());
+    let ua = context.as_ref().and_then(|c| c.user_agent.clone());
+
+    crate::webhooks::events::trigger_session_created(
+        &state,
+        &tenant_id,
+        &auth_result.user_id,
+        &session.id,
+        &user.email,
+        ip.as_deref(),
+        ua.as_deref(),
+        "biometric",
+    )
+    .await;
+
+    crate::webhooks::events::trigger_user_login(
+        &state,
+        &tenant_id,
+        &auth_result.user_id,
+        &user.email,
+        ip.as_deref(),
+        ua.as_deref(),
+        "biometric",
+        true,
+    )
+    .await;
+
+    // Get session limit status for response
+    let limit_status = state
+        .get_session_limit_status(&tenant_id, &user.id)
+        .await
+        .unwrap_or(SessionLimitStatus {
+            current_sessions: 1,
+            max_sessions: state.config.security.session_limits.max_concurrent_sessions,
+            warning: None,
+        });
+
+    Ok(Json(AuthResponse {
+        access_token: token_pair.access_token,
+        refresh_token: token_pair.refresh_token,
+        user: UserResponse {
+            id: user.id,
+            email: user.email,
+            email_verified: user.email_verified,
+            name: user.profile.name,
+            mfa_enabled: user.mfa_enabled,
+        },
+        mfa_required: false,
+        session_info: Some(SessionInfoResponse {
+            session_id: session.id.clone(),
+            current_sessions: limit_status.current_sessions,
+            max_sessions: limit_status.max_sessions,
+            warning: limit_status.warning,
+        }),
+    }))
+}
+
+/// List biometric keys for the authenticated user
+async fn biometric_list_keys(
+    State(state): State<AppState>,
+    Extension(user): Extension<CurrentUser>,
+) -> Result<Json<Vec<BiometricKeyResponse>>, ApiError> {
+    // Create biometric service with database repositories
+    let biometric_repo = state.db.biometric();
+    let biometric_service = vault_core::auth::BiometricAuthService::new(
+        Box::new(biometric_repo.clone()),
+        Box::new(biometric_repo),
+    );
+
+    match biometric_service
+        .list_keys(&user.user_id, &user.tenant_id)
+        .await
+    {
+        Ok(keys) => {
+            let response: Vec<BiometricKeyResponse> = keys.into_iter().map(Into::into).collect();
+            Ok(Json(response))
+        }
+        Err(e) => {
+            tracing::error!("Failed to list biometric keys: {}", e);
+            Err(ApiError::from(e))
+        }
+    }
+}
+
+/// Revoke a biometric key
+async fn biometric_revoke_key(
+    State(state): State<AppState>,
+    Extension(user): Extension<CurrentUser>,
+    Path(key_id): Path<String>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    let audit = AuditLogger::new(state.db.clone());
+
+    // Create biometric service with database repositories
+    let biometric_repo = state.db.biometric();
+    let biometric_service = vault_core::auth::BiometricAuthService::new(
+        Box::new(biometric_repo.clone()),
+        Box::new(biometric_repo),
+    );
+
+    // First verify the key belongs to this user by listing keys
+    let keys = match biometric_service.list_keys(&user.user_id, &user.tenant_id).await {
+        Ok(k) => k,
+        Err(e) => {
+            tracing::error!("Failed to list biometric keys: {}", e);
+            return Err(ApiError::from(e));
+        }
+    };
+
+    let key_exists = keys.iter().any(|k| k.key_id == key_id);
+    if !key_exists {
+        return Err(ApiError::NotFound);
+    }
+
+    match biometric_service.revoke_key(&key_id).await {
+        Ok(_) => {
+            tracing::info!(
+                "Biometric key revoked: {} for user: {}",
+                key_id,
+                user.user_id
+            );
+
+            audit.log(
+                &user.tenant_id,
+                crate::audit::AuditAction::MfaDisabled,
+                crate::audit::ResourceType::User,
+                &user.user_id,
+                Some(user.user_id.clone()),
+                None,
+                None,
+                true,
+                Some(format!("Biometric key revoked: {}", key_id)),
+                None,
+            );
+
+            Ok(Json(MessageResponse {
+                message: "Biometric key revoked successfully".to_string(),
+            }))
+        }
+        Err(e) => {
+            tracing::error!("Failed to revoke biometric key: {}", e);
+            Err(ApiError::from(e))
+        }
+    }
+}
+
+impl From<vault_core::auth::BiometricError> for ApiError {
+    fn from(err: vault_core::auth::BiometricError) -> Self {
+        use vault_core::auth::BiometricError;
+
+        match err {
+            BiometricError::KeyNotFound => ApiError::NotFound,
+            BiometricError::InvalidPublicKey | BiometricError::InvalidSignature => {
+                ApiError::Validation("Invalid biometric credentials".to_string())
+            }
+            BiometricError::ChallengeExpired => {
+                ApiError::Validation("Challenge expired".to_string())
+            }
+            BiometricError::ChallengeNotFound => ApiError::Validation("Challenge not found".to_string()),
+            BiometricError::InvalidChallenge => {
+                ApiError::Validation("Invalid challenge response".to_string())
+            }
+            BiometricError::KeyAlreadyExists => {
+                ApiError::Conflict("Biometric key already exists".to_string())
+            }
+            BiometricError::RateLimited => ApiError::TooManyRequests("Rate limit exceeded".to_string()),
+            BiometricError::DatabaseError(msg) => {
+                tracing::error!("Biometric database error: {}", msg);
+                ApiError::Internal
+            }
+            BiometricError::Internal(msg) => {
+                tracing::error!("Biometric internal error: {}", msg);
+                ApiError::Internal
+            }
+        }
+    }
+}

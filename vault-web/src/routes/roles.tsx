@@ -9,6 +9,9 @@ import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { DataTable } from '../components/DataTable'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/DropdownMenu'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/Dialog'
+import { Input } from '../components/ui/Input'
+import { Checkbox } from '../components/ui/Checkbox'
 
 export const Route = createFileRoute('/roles')({
   component: RolesPage,
@@ -54,9 +57,74 @@ const roleData: Role[] = [
   },
 ]
 
+const availablePermissions = [
+  { id: 'users.read', label: 'Read Users' },
+  { id: 'users.write', label: 'Write Users' },
+  { id: 'tenants.read', label: 'Read Tenants' },
+  { id: 'tenants.write', label: 'Write Tenants' },
+  { id: 'billing.read', label: 'Read Billing' },
+  { id: 'billing.write', label: 'Manage Billing' },
+  { id: 'audit.read', label: 'Read Audit Logs' },
+  { id: 'system.manage', label: 'Manage System' },
+]
+
 function RolesPage() {
-  const [roles] = useState<Role[]>(roleData)
+  const [roles, setRoles] = useState<Role[]>(roleData)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editingRole, setEditingRole] = useState<Role | null>(null)
+  const [roleName, setRoleName] = useState('')
+  const [roleDescription, setRoleDescription] = useState('')
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([])
   const prefersReducedMotion = useReducedMotion()
+
+  const openCreate = () => {
+    setEditingRole(null)
+    setRoleName('')
+    setRoleDescription('')
+    setSelectedPermissions([])
+    setIsEditOpen(true)
+  }
+
+  const openEdit = (role: Role) => {
+    setEditingRole(role)
+    setRoleName(role.name)
+    setRoleDescription(role.description)
+    setSelectedPermissions([])
+    setIsEditOpen(true)
+  }
+
+  const togglePermission = (permissionId: string) => {
+    setSelectedPermissions((prev) =>
+      prev.includes(permissionId) ? prev.filter((p) => p !== permissionId) : [...prev, permissionId]
+    )
+  }
+
+  const saveRole = () => {
+    if (!roleName.trim()) return
+    if (editingRole) {
+      setRoles((prev) =>
+        prev.map((role) =>
+          role.id === editingRole.id
+            ? { ...role, name: roleName, description: roleDescription, permissions: selectedPermissions.length || role.permissions }
+            : role
+        )
+      )
+    } else {
+      setRoles((prev) => [
+        {
+          id: `role-${Date.now()}`,
+          name: roleName,
+          description: roleDescription,
+          scope: 'platform',
+          permissions: selectedPermissions.length || 0,
+          members: 0,
+          status: 'active',
+        },
+        ...prev,
+      ])
+    }
+    setIsEditOpen(false)
+  }
 
   const columns: ColumnDef<Role>[] = [
     {
@@ -106,7 +174,7 @@ function RolesPage() {
     {
       id: 'actions',
       header: '',
-      cell: () => (
+      cell: ({ row }) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label="Role actions">
@@ -114,7 +182,7 @@ function RolesPage() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>Edit role</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openEdit(row.original)}>Edit role</DropdownMenuItem>
             <DropdownMenuItem>View permissions</DropdownMenuItem>
             <DropdownMenuItem className="text-destructive">Disable role</DropdownMenuItem>
           </DropdownMenuContent>
@@ -130,7 +198,7 @@ function RolesPage() {
         description="Define access control across the platform"
         breadcrumbs={[{ label: 'Roles' }]}
         actions={
-          <Button>
+          <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Create Role
           </Button>
@@ -169,6 +237,49 @@ function RolesPage() {
           exportFileName="roles"
         />
       </Card>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingRole ? 'Edit Role' : 'Create Role'}</DialogTitle>
+            <DialogDescription>
+              Define access level and permissions for this role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role Name</label>
+              <Input value={roleName} onChange={(e) => setRoleName(e.target.value)} placeholder="Role name" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Input value={roleDescription} onChange={(e) => setRoleDescription(e.target.value)} placeholder="Describe this role" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Permissions</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {availablePermissions.map((permission) => (
+                  <label key={permission.id} className="flex items-center gap-2 border rounded-lg px-3 py-2 text-sm">
+                    <Checkbox
+                      checked={selectedPermissions.includes(permission.id)}
+                      onCheckedChange={() => togglePermission(permission.id)}
+                    />
+                    {permission.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveRole}>{editingRole ? 'Save Changes' : 'Create Role'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

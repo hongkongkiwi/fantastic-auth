@@ -1,12 +1,18 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   cn,
   formatDate,
+  formatDateTime,
   formatNumber,
   formatCurrency,
+  formatDistanceToNow,
   formatRelativeTime,
   truncate,
   capitalize,
+  generateId,
+  sleep,
+  debounce,
+  throttle,
 } from './utils'
 
 describe('cn', () => {
@@ -71,6 +77,10 @@ describe('formatRelativeTime', () => {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000)
     expect(formatRelativeTime(fiveMinutesAgo)).toMatch(/5.*minute/i)
   })
+
+  it('returns invalid date for invalid input', () => {
+    expect(formatRelativeTime('not-a-date')).toBe('invalid date')
+  })
 })
 
 describe('truncate', () => {
@@ -87,5 +97,68 @@ describe('capitalize', () => {
   it('capitalizes first letter', () => {
     expect(capitalize('hello')).toBe('Hello')
     expect(capitalize('HELLO')).toBe('Hello')
+  })
+})
+
+describe('formatDateTime', () => {
+  it('includes time in output', () => {
+    const date = new Date('2024-01-15T10:30:00Z')
+    const formatted = formatDateTime(date)
+    expect(formatted).toContain('Jan')
+    expect(formatted).toMatch(/\d{1,2}:\d{2}/)
+  })
+})
+
+describe('formatDistanceToNow', () => {
+  it('delegates to relative time formatting', () => {
+    const past = new Date(Date.now() - 60 * 1000)
+    expect(formatDistanceToNow(past)).toMatch(/minute/i)
+  })
+})
+
+describe('generateId', () => {
+  it('returns a non-empty string', () => {
+    const id = generateId()
+    expect(typeof id).toBe('string')
+    expect(id.length).toBeGreaterThan(0)
+  })
+})
+
+describe('sleep', () => {
+  it('resolves after the given delay', async () => {
+    vi.useFakeTimers()
+    const promise = sleep(100)
+    vi.advanceTimersByTime(100)
+    await expect(promise).resolves.toBeUndefined()
+    vi.useRealTimers()
+  })
+})
+
+describe('debounce', () => {
+  it('delays execution until after wait time', () => {
+    vi.useFakeTimers()
+    const fn = vi.fn()
+    const debounced = debounce(fn, 200)
+    debounced()
+    debounced()
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(200)
+    expect(fn).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+})
+
+describe('throttle', () => {
+  it('executes at most once per interval', () => {
+    vi.useFakeTimers()
+    const fn = vi.fn()
+    const throttled = throttle(fn, 200)
+    throttled()
+    throttled()
+    expect(fn).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(200)
+    throttled()
+    expect(fn).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
   })
 })

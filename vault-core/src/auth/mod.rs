@@ -33,8 +33,9 @@ pub mod password;
 pub mod token_store;
 
 pub use biometric::{
-    BiometricAuthService, BiometricChallenge, BiometricError, BiometricKey, BiometricType,
-    ChallengeStore, BiometricKeyStore,
+    BiometricChallenge, BiometricError, BiometricKey, BiometricType,
+    ChallengeStore, BiometricKeyStore, BiometricAuthSuccess, RegisterBiometricKeyRequest,
+    verify_ecdsa_signature,
 };
 
 use token_store::{InMemoryTokenStore, StoredTokenData, StoredTokenType, TokenStore};

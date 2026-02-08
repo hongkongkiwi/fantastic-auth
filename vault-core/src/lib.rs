@@ -44,6 +44,7 @@ pub mod email;
 pub mod error;
 pub mod hosted;
 pub mod models;
+pub mod plugin;
 pub mod security;
 pub mod sms;
 pub mod webauthn;

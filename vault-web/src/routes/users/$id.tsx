@@ -7,6 +7,7 @@ import {
   Shield,
   Key,
   Activity,
+  Download,
   AlertCircle,
   MoreHorizontal,
   Users,
@@ -142,6 +143,28 @@ function UserDetailPage() {
       return matchesUser && matchesQuery
     })
   }, [auditEvents, auditQuery, userTokens])
+
+  const downloadAuditCsv = () => {
+    if (filteredAuditEvents.length === 0) {
+      toast.error('No audit events to export')
+      return
+    }
+    const headers = ['timestamp', 'action', 'detail', 'source']
+    const rows = filteredAuditEvents.map((event) => [
+      event.timestamp ?? '',
+      event.action ?? '',
+      event.detail ?? '',
+      event.source ?? '',
+    ])
+    const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `user_${user?.id || 'user'}_audit_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const auditColumns: ColumnDef<AuditLogEvent>[] = [
     {
@@ -449,6 +472,14 @@ function UserDetailPage() {
                   >
                     <RefreshCcw className="mr-2 h-4 w-4" />
                     Reset
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadAuditCsv}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
                   </Button>
                 </div>
               </div>

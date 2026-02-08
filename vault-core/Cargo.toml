@@ -68,9 +68,13 @@ regex = "1.10"
 lazy_static.workspace = true
 once_cell.workspace = true
 async-trait.workspace = true
+dashmap.workspace = true
 
 # Cache
 redis.workspace = true
+
+# YAML parsing
+serde_yaml.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
