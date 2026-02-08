@@ -66,7 +66,8 @@ pub async fn list_user_sessions(
 
     match format {
         OutputFormat::Table => {
-            let sessions = response.get("sessions").and_then(|s| s.as_array()).unwrap_or(&vec![]);
+            let empty_vec = vec![];
+            let sessions = response.get("sessions").and_then(|s| s.as_array()).unwrap_or(&empty_vec);
             
             if sessions.is_empty() {
                 println!("No sessions found for user {}", user_id);

@@ -47,11 +47,8 @@ impl From<std::io::Error> for CliError {
     }
 }
 
-impl From<CliError> for anyhow::Error {
-    fn from(err: CliError) -> Self {
-        anyhow::Error::new(err)
-    }
-}
+// Note: anyhow::Error already has a blanket impl for From<E> where E: std::error::Error
+// So we don't need to implement it manually for CliError
 
 /// Result type for CLI operations
 pub type CliResult<T> = Result<T, CliError>;
