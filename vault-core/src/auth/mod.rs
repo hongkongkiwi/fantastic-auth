@@ -383,8 +383,19 @@ impl AuthService {
             .await
             .map_err(|e| VaultError::internal(format!("Failed to create session: {}", e)))?;
 
+        // Load tenant roles for JWT claims
+        let mut roles = self
+            .db
+            .tenant_admins()
+            .get_roles_for_user(&tenant_id, &user.id)
+            .await
+            .unwrap_or_default();
+        if roles.is_empty() {
+            roles.push("user".to_string());
+        }
+
         // Generate tokens
-        let token_pair = self.generate_tokens(&user, &session.id)?;
+        let token_pair = self.generate_tokens_with_roles(&user, &session.id, roles)?;
 
         Ok(AuthResult {
             user,
@@ -443,8 +454,19 @@ impl AuthService {
         // Convert session model
         let session = self.db_session_to_model(session_model);
 
+        // Load tenant roles for JWT claims
+        let mut roles = self
+            .db
+            .tenant_admins()
+            .get_roles_for_user(&tenant_id, &user.id)
+            .await
+            .unwrap_or_default();
+        if roles.is_empty() {
+            roles.push("user".to_string());
+        }
+
         // Generate new token pair
-        let token_pair = self.generate_tokens(&user, &session.id)?;
+        let token_pair = self.generate_tokens_with_roles(&user, &session.id, roles)?;
 
         Ok(AuthResult {
             user,
@@ -783,6 +805,43 @@ impl AuthService {
             access_token,
             refresh_token,
             expires_in: 900, // 15 minutes
+        })
+    }
+
+    /// Generate access and refresh tokens with explicit roles
+    pub fn generate_tokens_with_roles(
+        &self,
+        user: &User,
+        session_id: &str,
+        roles: Vec<String>,
+    ) -> Result<TokenPair> {
+        let access_claims = Claims::new(
+            &user.id,
+            &user.tenant_id,
+            TokenType::Access,
+            &self.jwt_issuer,
+            &self.jwt_audience,
+        )
+        .with_session(session_id)
+        .with_email(&user.email, user.email_verified)
+        .with_roles(roles);
+
+        let refresh_claims = Claims::new(
+            &user.id,
+            &user.tenant_id,
+            TokenType::Refresh,
+            &self.jwt_issuer,
+            &self.jwt_audience,
+        )
+        .with_session(session_id);
+
+        let access_token = HybridJwt::encode(&access_claims, &self.signing_key)?;
+        let refresh_token = HybridJwt::encode(&refresh_claims, &self.signing_key)?;
+
+        Ok(TokenPair {
+            access_token,
+            refresh_token,
+            expires_in: 900,
         })
     }
 

@@ -7,6 +7,10 @@ pub mod mfa;
 pub mod organizations;
 pub mod sessions;
 pub mod users;
+pub mod tenant_admins;
+pub mod oidc;
+pub mod log_streams;
+pub mod actions;
 
 use sqlx::{postgres::PgPoolOptions, PgConnection, PgPool};
 use std::future::Future;
@@ -18,6 +22,10 @@ pub use mfa::MfaRepository;
 pub use organizations::OrganizationRepository;
 pub use sessions::SessionRepository;
 pub use users::UserRepository;
+pub use tenant_admins::TenantAdminRepository;
+pub use oidc::OidcRepository;
+pub use log_streams::LogStreamsRepository;
+pub use actions::ActionsRepository;
 
 #[derive(Clone, Debug, Default)]
 pub struct RequestContext {
@@ -124,6 +132,26 @@ impl DbContext {
     /// MFA repository
     pub fn mfa(&self) -> MfaRepository {
         MfaRepository::new(self.pool.clone())
+    }
+
+    /// Tenant admins repository
+    pub fn tenant_admins(&self) -> TenantAdminRepository {
+        TenantAdminRepository::new(self.pool.clone())
+    }
+
+    /// OIDC repository
+    pub fn oidc(&self) -> OidcRepository {
+        OidcRepository::new(self.pool.clone())
+    }
+
+    /// Log streams repository
+    pub fn log_streams(&self) -> LogStreamsRepository {
+        LogStreamsRepository::new(self.pool.clone())
+    }
+
+    /// Actions repository
+    pub fn actions(&self) -> ActionsRepository {
+        ActionsRepository::new(self.pool.clone())
     }
 
     /// Biometric repository

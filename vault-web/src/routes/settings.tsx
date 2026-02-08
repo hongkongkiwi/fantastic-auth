@@ -112,6 +112,30 @@ const settingsCategories = [
     ],
   },
   {
+    id: 'apiKeys',
+    title: 'API Keys',
+    description: 'Manage programmatic access keys',
+    icon: Key,
+    color: 'slate',
+    href: '/settings/api-keys',
+    settings: [
+      { id: 'apiKeyRotation', label: 'Key Rotation (days)', type: 'slider', value: 90, min: 30, max: 365 },
+      { id: 'apiKeyLimit', label: 'Max Keys per Org', type: 'slider', value: 10, min: 1, max: 50 },
+    ],
+  },
+  {
+    id: 'sso',
+    title: 'SSO & Integrations',
+    description: 'Configure SAML and OAuth providers',
+    icon: Shield,
+    color: 'emerald',
+    href: '/settings/sso',
+    settings: [
+      { id: 'ssoRequired', label: 'Require SSO', type: 'toggle', value: false },
+      { id: 'domainAllowlist', label: 'Domain Allowlist', type: 'input', value: 'example.com' },
+    ],
+  },
+  {
     id: 'security',
     title: 'Security',
     description: 'Advanced security settings',

@@ -97,6 +97,21 @@ async fn list_platform_invoices(
         .list_all_invoices()
         .await
         .map_err(|_| ApiError::Internal)?;
+    let mapped: Vec<serde_json::Value> = invoices
+        .into_iter()
+        .map(|invoice| {
+            serde_json::json!({
+                "id": invoice.id,
+                "tenantId": invoice.tenant_id,
+                "status": invoice.status.to_string(),
+                "amount": (invoice.total_cents as f64) / 100.0,
+                "currency": invoice.currency,
+                "description": "",
+                "createdAt": invoice.created_at.to_rfc3339(),
+                "pdfUrl": invoice.invoice_pdf_url,
+            })
+        })
+        .collect();
 
-    Ok(Json(serde_json::json!({ \"invoices\": invoices })))
+    Ok(Json(serde_json::json!({ "invoices": mapped })))
 }

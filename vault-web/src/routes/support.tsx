@@ -1,5 +1,4 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { HelpCircle, Ticket, AlertTriangle, LifeBuoy, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '../components/layout/Layout'
@@ -7,59 +6,37 @@ import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/Tabs'
+import { useQuery } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
+import { listServiceStatus, listSupportIncidents, listSupportTickets, type ServiceStatusResponse, type SupportIncidentResponse, type SupportTicketResponse } from '../server/internal-api'
 
 export const Route = createFileRoute('/support')({
   component: SupportPage,
 })
 
-const ticketsMock = [
-  {
-    id: 'SUP-1023',
-    subject: 'Login failures for tenant Acme Inc',
-    status: 'open',
-    priority: 'high',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
-  },
-  {
-    id: 'SUP-1019',
-    subject: 'Webhook retry delays',
-    status: 'pending',
-    priority: 'medium',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-  },
-  {
-    id: 'SUP-1012',
-    subject: 'Billing invoice mismatch',
-    status: 'resolved',
-    priority: 'low',
-    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-]
-
-const incidentsMock = [
-  {
-    id: 'INC-3001',
-    title: 'Email delivery delays',
-    status: 'monitoring',
-    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
-  },
-  {
-    id: 'INC-2997',
-    title: 'API latency spike',
-    status: 'resolved',
-    startedAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-  },
-]
-
-const statusMock = [
-  { service: 'API', status: 'operational' },
-  { service: 'Auth', status: 'degraded' },
-  { service: 'Billing', status: 'operational' },
-  { service: 'Webhooks', status: 'operational' },
-]
+const ticketsMock: SupportTicketResponse[] = []
+const incidentsMock: SupportIncidentResponse[] = []
+const statusMock: ServiceStatusResponse[] = []
 
 function SupportPage() {
-  const [tickets] = useState(ticketsMock)
+  const listSupportTicketsFn = useServerFn(listSupportTickets)
+  const listSupportIncidentsFn = useServerFn(listSupportIncidents)
+  const listServiceStatusFn = useServerFn(listServiceStatus)
+
+  const { data: tickets = ticketsMock } = useQuery({
+    queryKey: ['support-tickets'],
+    queryFn: () => listSupportTicketsFn({ data: {} }),
+  })
+
+  const { data: incidents = incidentsMock } = useQuery({
+    queryKey: ['support-incidents'],
+    queryFn: () => listSupportIncidentsFn({ data: {} }),
+  })
+
+  const { data: status = statusMock } = useQuery({
+    queryKey: ['support-status'],
+    queryFn: () => listServiceStatusFn({ data: {} }),
+  })
   const prefersReducedMotion = useReducedMotion()
 
   return (
@@ -118,7 +95,7 @@ function SupportPage() {
 
         <TabsContent value="status" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {statusMock.map((service) => (
+            {status.map((service) => (
               <Card key={service.service} className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -136,7 +113,7 @@ function SupportPage() {
 
         <TabsContent value="incidents" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {incidentsMock.map((incident) => (
+            {incidents.map((incident) => (
               <Card key={incident.id} className="p-6">
                 <div className="flex items-start justify-between">
                   <div>

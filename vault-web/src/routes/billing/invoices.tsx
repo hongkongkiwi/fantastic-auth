@@ -10,34 +10,26 @@ import { DataTable } from '../../components/DataTable'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/DropdownMenu'
 import { formatCurrency } from '../../lib/utils'
 import { toast } from '../../components/ui/Toaster'
+import { useServerFn } from '@tanstack/react-start'
+import { listPlatformInvoices, type InvoiceResponse } from '../../server/internal-api'
 
 export const Route = createFileRoute('/billing/invoices')({
   component: BillingInvoicesPage,
 })
 
-interface Invoice {
-  id: string
-  tenant_id: string
-  status: 'draft' | 'open' | 'paid' | 'uncollectible' | 'void'
-  total_cents: number
-  currency: string
-  created_at: string
-  invoice_pdf_url?: string | null
-  hosted_invoice_url?: string | null
-}
+type Invoice = InvoiceResponse
 
 function BillingInvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const listPlatformInvoicesFn = useServerFn(listPlatformInvoices)
 
   useEffect(() => {
     const fetchInvoices = async () => {
       setIsLoading(true)
       try {
-        const res = await fetch('/api/v1/admin/billing/invoices')
-        if (!res.ok) throw new Error('Failed to load invoices')
-        const payload = await res.json()
-        setInvoices(payload.invoices || [])
+        const result = await listPlatformInvoicesFn({ data: {} })
+        setInvoices((result as { invoices?: Invoice[] }).invoices || [])
       } catch {
         toast.error('Failed to load invoices')
       } finally {
@@ -54,7 +46,7 @@ function BillingInvoicesPage() {
       cell: ({ row }) => (
         <div>
           <p className="font-medium">{row.original.id}</p>
-          <p className="text-sm text-muted-foreground">{row.original.tenant_id}</p>
+          <p className="text-sm text-muted-foreground">{row.original.tenantId}</p>
         </div>
       ),
     },
@@ -73,12 +65,12 @@ function BillingInvoicesPage() {
       },
     },
     {
-      accessorKey: 'total_cents',
+      accessorKey: 'amount',
       header: 'Amount',
-      cell: ({ row }) => formatCurrency((row.original.total_cents || 0) / 100),
+      cell: ({ row }) => formatCurrency(row.original.amount || 0),
     },
     {
-      accessorKey: 'created_at',
+      accessorKey: 'createdAt',
       header: 'Date',
       cell: ({ getValue }) => new Date(getValue() as string).toLocaleDateString(),
     },
@@ -95,7 +87,7 @@ function BillingInvoicesPage() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem
               onClick={() => {
-                const url = row.original.hosted_invoice_url || row.original.invoice_pdf_url
+                const url = row.original.pdfUrl
                 if (url) window.open(url, '_blank', 'noopener,noreferrer')
               }}
             >
@@ -104,7 +96,7 @@ function BillingInvoicesPage() {
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
-                const url = row.original.invoice_pdf_url || row.original.hosted_invoice_url
+                const url = row.original.pdfUrl
                 if (url) window.open(url, '_blank', 'noopener,noreferrer')
               }}
             >
