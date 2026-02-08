@@ -114,8 +114,9 @@ pub fn generate_api_key(tenant_id: &str) -> String {
         tenant_id
     };
 
-    // Generate random alphanumeric string
-    let random: String = rand::thread_rng()
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    // API keys grant programmatic access and must be unpredictable
+    let random: String = rand_core::OsRng
         .sample_iter(&Alphanumeric)
         .take(API_KEY_RANDOM_LENGTH)
         .map(char::from)

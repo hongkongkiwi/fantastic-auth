@@ -1,0 +1,45 @@
+image:
+  repository: ghcr.io/your-org/vault-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+service:
+  type: ClusterIP
+  port: 80
+  metricsPort: 9090
+
+ingress:
+  enabled: true
+  className: nginx
+  host: auth.example.com
+  tls:
+    enabled: false
+    secretName: vault-tls
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1024Mi
+
+env:
+  VAULT_HOST: "0.0.0.0"
+  VAULT_PORT: "3000"
+  VAULT_METRICS_PORT: "9090"
+  VAULT_LOG_LEVEL: "info"
+  VAULT_JWT_ISSUER: "vault"
+  VAULT_JWT_AUDIENCE: "vault-api"
+
+secrets:
+  VAULT_DATABASE_URL: "postgres://vault:vault@postgres:5432/vault"
+  VAULT_REDIS_URL: "redis://redis:6379"
+  VAULT_JWT_SECRET: "replace-me"
+  DATABASE_URL: "postgres://vault:vault@postgres:5432/vault"
+
+migrations:
+  enabled: true
+  backoffLimit: 3

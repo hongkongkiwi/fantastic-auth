@@ -2,15 +2,15 @@
 //!
 //! Comprehensive tenant settings management API.
 
+use crate::routes::ApiError;
+use crate::settings::models::*;
+use crate::state::{AppState, CurrentUser};
 use axum::{
     extract::{Path, Query, State},
     routing::{get, patch},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use crate::routes::ApiError;
-use crate::settings::models::*;
-use crate::state::{AppState, CurrentUser};
 
 /// Settings routes
 pub fn routes() -> Router<AppState> {
@@ -21,15 +21,40 @@ pub fn routes() -> Router<AppState> {
         .route("/", patch(update_all_settings))
         // Individual category routes
         .route("/auth", get(get_auth_settings).patch(update_auth_settings))
-        .route("/security", get(get_security_settings).patch(update_security_settings))
+        .route(
+            "/security",
+            get(get_security_settings).patch(update_security_settings),
+        )
         .route("/org", get(get_org_settings).patch(update_org_settings))
-        .route("/branding", get(get_branding_settings).patch(update_branding_settings))
-        .route("/email", get(get_email_settings).patch(update_email_settings))
-        .route("/oauth", get(get_oauth_settings).patch(update_oauth_settings))
-        .route("/localization", get(get_localization_settings).patch(update_localization_settings))
-        .route("/webhook", get(get_webhook_settings).patch(update_webhook_settings))
-        .route("/privacy", get(get_privacy_settings).patch(update_privacy_settings))
-        .route("/advanced", get(get_advanced_settings).patch(update_advanced_settings))
+        .route(
+            "/branding",
+            get(get_branding_settings).patch(update_branding_settings),
+        )
+        .route(
+            "/email",
+            get(get_email_settings).patch(update_email_settings),
+        )
+        .route("/sms", get(get_sms_settings).patch(update_sms_settings))
+        .route(
+            "/oauth",
+            get(get_oauth_settings).patch(update_oauth_settings),
+        )
+        .route(
+            "/localization",
+            get(get_localization_settings).patch(update_localization_settings),
+        )
+        .route(
+            "/webhook",
+            get(get_webhook_settings).patch(update_webhook_settings),
+        )
+        .route(
+            "/privacy",
+            get(get_privacy_settings).patch(update_privacy_settings),
+        )
+        .route(
+            "/advanced",
+            get(get_advanced_settings).patch(update_advanced_settings),
+        )
         // Settings history
         .route("/history", get(get_settings_history))
         // Public settings (for hosted pages)
@@ -54,8 +79,12 @@ struct HistoryQuery {
     per_page: i64,
 }
 
-fn default_page() -> i64 { 1 }
-fn default_per_page() -> i64 { 20 }
+fn default_page() -> i64 {
+    1
+}
+fn default_per_page() -> i64 {
+    20
+}
 
 // ============================================
 // Get All Settings
@@ -65,7 +94,10 @@ async fn get_all_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsResponse>, ApiError> {
-    let response = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let response = state
+        .settings_service
+        .get_settings_response_redacted(&current_user.tenant_id)
+        .await?;
     Ok(Json(response))
 }
 
@@ -77,8 +109,14 @@ async fn get_auth_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<AuthSettings>>, ApiError> {
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -94,12 +132,15 @@ async fn update_auth_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<AuthSettings>,
 ) -> Result<Json<AuthSettings>, ApiError> {
-    let updated = state.settings_service.update_auth_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_auth_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -112,10 +153,14 @@ async fn get_security_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<SecuritySettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -131,12 +176,15 @@ async fn update_security_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<SecuritySettings>,
 ) -> Result<Json<SecuritySettings>, ApiError> {
-    let updated = state.settings_service.update_security_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_security_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -149,10 +197,14 @@ async fn get_org_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<OrgSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -168,12 +220,15 @@ async fn update_org_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<OrgSettings>,
 ) -> Result<Json<OrgSettings>, ApiError> {
-    let updated = state.settings_service.update_org_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_org_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -186,10 +241,14 @@ async fn get_branding_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<BrandingSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -205,12 +264,15 @@ async fn update_branding_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<BrandingSettings>,
 ) -> Result<Json<BrandingSettings>, ApiError> {
-    let updated = state.settings_service.update_branding_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_branding_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -223,10 +285,14 @@ async fn get_email_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<EmailSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -242,14 +308,65 @@ async fn update_email_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<EmailSettings>,
 ) -> Result<Json<EmailSettings>, ApiError> {
-    let updated = state.settings_service.update_email_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_email_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
-    Ok(Json(updated))
+    Ok(Json(
+        crate::settings::service::SettingsService::redact_email_settings(updated),
+    ))
+}
+
+// ============================================
+// SMS Settings
+// ============================================
+
+async fn get_sms_settings(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<SettingsCategoryResponse<SmsSettings>>, ApiError> {
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
+
+    Ok(Json(SettingsCategoryResponse {
+        tenant_id: current_user.tenant_id.clone(),
+        category: "sms".to_string(),
+        settings: settings.sms,
+        updated_at: row.updated_at,
+    }))
+}
+
+async fn update_sms_settings(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Query(reason): Query<UpdateReason>,
+    Json(settings): Json<SmsSettings>,
+) -> Result<Json<SmsSettings>, ApiError> {
+    let updated = state
+        .settings_service
+        .update_sms_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
+
+    Ok(Json(
+        crate::settings::service::SettingsService::redact_sms_settings(updated),
+    ))
 }
 
 // ============================================
@@ -260,10 +377,14 @@ async fn get_oauth_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<OAuthSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -279,12 +400,15 @@ async fn update_oauth_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<OAuthSettings>,
 ) -> Result<Json<OAuthSettings>, ApiError> {
-    let updated = state.settings_service.update_oauth_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_oauth_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -297,10 +421,14 @@ async fn get_localization_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<LocalizationSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -316,12 +444,15 @@ async fn update_localization_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<LocalizationSettings>,
 ) -> Result<Json<LocalizationSettings>, ApiError> {
-    let updated = state.settings_service.update_localization_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_localization_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -334,10 +465,14 @@ async fn get_webhook_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<WebhookSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -353,14 +488,19 @@ async fn update_webhook_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<WebhookSettings>,
 ) -> Result<Json<WebhookSettings>, ApiError> {
-    let updated = state.settings_service.update_webhook_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_webhook_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
-    Ok(Json(updated))
+    Ok(Json(
+        crate::settings::service::SettingsService::redact_webhook_settings(updated),
+    ))
 }
 
 // ============================================
@@ -371,10 +511,14 @@ async fn get_privacy_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<PrivacySettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -390,12 +534,15 @@ async fn update_privacy_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<PrivacySettings>,
 ) -> Result<Json<PrivacySettings>, ApiError> {
-    let updated = state.settings_service.update_privacy_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_privacy_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -408,10 +555,14 @@ async fn get_advanced_settings(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<SettingsCategoryResponse<AdvancedSettings>>, ApiError> {
-    
-
-    let settings = state.settings_service.get_settings(&current_user.tenant_id).await?;
-    let row = state.settings_service.get_settings_response(&current_user.tenant_id).await?;
+    let settings = state
+        .settings_service
+        .get_settings_redacted(&current_user.tenant_id)
+        .await?;
+    let row = state
+        .settings_service
+        .get_settings_response(&current_user.tenant_id)
+        .await?;
 
     Ok(Json(SettingsCategoryResponse {
         tenant_id: current_user.tenant_id.clone(),
@@ -427,12 +578,15 @@ async fn update_advanced_settings(
     Query(reason): Query<UpdateReason>,
     Json(settings): Json<AdvancedSettings>,
 ) -> Result<Json<AdvancedSettings>, ApiError> {
-    let updated = state.settings_service.update_advanced_settings(
-        &current_user.tenant_id,
-        settings,
-        Some(&current_user.user_id),
-        reason.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_advanced_settings(
+            &current_user.tenant_id,
+            settings,
+            Some(&current_user.user_id),
+            reason.reason.as_deref(),
+        )
+        .await?;
 
     Ok(Json(updated))
 }
@@ -452,14 +606,19 @@ async fn update_all_settings(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<UpdateAllRequest>,
 ) -> Result<Json<TenantSettings>, ApiError> {
-    let updated = state.settings_service.update_all_settings(
-        &current_user.tenant_id,
-        req.settings,
-        Some(&current_user.user_id),
-        req.reason.as_deref(),
-    ).await?;
+    let updated = state
+        .settings_service
+        .update_all_settings(
+            &current_user.tenant_id,
+            req.settings,
+            Some(&current_user.user_id),
+            req.reason.as_deref(),
+        )
+        .await?;
 
-    Ok(Json(updated))
+    Ok(Json(
+        crate::settings::service::SettingsService::redact_tenant_settings(updated),
+    ))
 }
 
 // ============================================
@@ -489,20 +648,26 @@ async fn get_settings_history(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<HistoryResponse>, ApiError> {
-    let (rows, total) = state.settings_service.get_settings_history(
-        &current_user.tenant_id,
-        query.category.as_deref(),
-        query.page,
-        query.per_page,
-    ).await?;
+    let (rows, total) = state
+        .settings_service
+        .get_settings_history(
+            &current_user.tenant_id,
+            query.category.as_deref(),
+            query.page,
+            query.per_page,
+        )
+        .await?;
 
-    let changes: Vec<HistoryItem> = rows.into_iter().map(|row| HistoryItem {
-        id: row.id,
-        change_type: row.change_type,
-        changed_by: row.changed_by,
-        reason: row.reason,
-        created_at: row.created_at,
-    }).collect();
+    let changes: Vec<HistoryItem> = rows
+        .into_iter()
+        .map(|row| HistoryItem {
+            id: row.id,
+            change_type: row.change_type,
+            changed_by: row.changed_by,
+            reason: row.reason,
+            created_at: row.created_at,
+        })
+        .collect();
 
     Ok(Json(HistoryResponse {
         tenant_id: current_user.tenant_id,
@@ -539,8 +704,6 @@ async fn get_public_settings(
     State(state): State<AppState>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<PublicSettings>, ApiError> {
-    
-
     let settings = state.settings_service.get_settings(&tenant_id).await?;
 
     let public_settings = PublicSettings {

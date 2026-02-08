@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  vault:
+    image: ghcr.io/your-org/vault-server:latest
+    ports:
+      - "3000:3000"
+      - "9090:9090"
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+    environment:
+      VAULT_HOST: 0.0.0.0
+      VAULT_PORT: 3000
+      VAULT_METRICS_PORT: 9090
+      VAULT_LOG_LEVEL: info
+      VAULT_DATABASE_URL: ${VAULT_DATABASE_URL}
+      VAULT_REDIS_URL: ${VAULT_REDIS_URL}
+      VAULT_JWT_SECRET: ${VAULT_JWT_SECRET}

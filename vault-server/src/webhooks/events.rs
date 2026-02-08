@@ -160,6 +160,38 @@ pub async fn trigger_mfa_disabled(
     trigger_event(state, tenant_id, "user.mfa_disabled", payload).await;
 }
 
+/// Trigger a user.mfa_verified webhook event
+pub async fn trigger_mfa_verified(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    method: &str,
+) {
+    let payload = json!({
+        "user_id": user_id,
+        "method": method,
+        "verified_at": chrono::Utc::now().to_rfc3339(),
+    });
+
+    trigger_event(state, tenant_id, "user.mfa_verified", payload).await;
+}
+
+/// Trigger a user.mfa_denied webhook event
+pub async fn trigger_mfa_denied(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    method: &str,
+) {
+    let payload = json!({
+        "user_id": user_id,
+        "method": method,
+        "denied_at": chrono::Utc::now().to_rfc3339(),
+    });
+
+    trigger_event(state, tenant_id, "user.mfa_denied", payload).await;
+}
+
 /// Trigger a user.login webhook event
 pub async fn trigger_user_login(
     state: &AppState,
@@ -230,6 +262,17 @@ pub async fn trigger_event(
             event_type
         );
         return;
+    }
+
+    if let Ok(settings) = state.settings_service.get_settings(tenant_id).await {
+        if !settings.webhook.webhooks_enabled {
+            debug!(
+                "Webhooks disabled for tenant {}, skipping event: {}",
+                tenant_id,
+                event_type
+            );
+            return;
+        }
     }
 
     match state

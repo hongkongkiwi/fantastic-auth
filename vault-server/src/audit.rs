@@ -54,6 +54,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::db::Database;
+use crate::security::SecurityNotificationService;
 use crate::state::CurrentUser;
 
 /// Trait for webhook event triggering
@@ -336,12 +337,16 @@ impl AuditAction {
             AuditAction::AccountDeletionRequested => "account_deletion.requested",
             AuditAction::AccountDeletionCancelled => "account_deletion.cancelled",
             AuditAction::AccountDeletionCompleted => "account_deletion.completed",
+            AuditAction::AnonymousSessionCreated => "anonymous.session_created",
+            AuditAction::AnonymousSessionFailed => "anonymous.session_failed",
+            AuditAction::AnonymousConverted => "anonymous.converted",
+            AuditAction::AnonymousConversionFailed => "anonymous.conversion_failed",
         }
     }
 }
 
 /// Resource types for audit logs
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceType {
     User,
     Session,
@@ -361,10 +366,11 @@ pub enum ResourceType {
     Consent,
     RiskAssessment,
     SecurityPolicy,
+    Other(String),
 }
 
 impl ResourceType {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &str {
         match self {
             ResourceType::User => "user",
             ResourceType::Session => "session",
@@ -384,6 +390,7 @@ impl ResourceType {
             ResourceType::Consent => "consent",
             ResourceType::RiskAssessment => "risk_assessment",
             ResourceType::SecurityPolicy => "security_policy",
+            ResourceType::Other(s) => s.as_str(),
         }
     }
 }
@@ -391,18 +398,25 @@ impl ResourceType {
 impl From<&str> for AuditAction {
     fn from(action: &str) -> Self {
         match action {
-            "consent_submitted" => AuditAction::ConsentGranted,
-            "consent_withdrawn" => AuditAction::ConsentWithdrawn,
+            "user.login" => AuditAction::Login,
+            "user.logout" => AuditAction::Logout,
+            "user.created" => AuditAction::UserCreated,
+            "user.updated" => AuditAction::UserUpdated,
+            "user.deleted" => AuditAction::UserDeleted,
+            "consent.accepted" | "consent_submitted" => AuditAction::ConsentGranted,
+            "consent.withdrawn" | "consent_withdrawn" => AuditAction::ConsentWithdrawn,
             "consent_version_created" => AuditAction::ConsentVersionCreated,
             "consent_version_updated" => AuditAction::ConsentVersionUpdated,
             "data_export_requested" => AuditAction::DataExportRequested,
             "deletion_requested" => AuditAction::AccountDeletionRequested,
             "deletion_cancelled" => AuditAction::AccountDeletionCancelled,
             "security_policy.updated" => AuditAction::SecurityPolicyUpdated,
-            _ => AuditAction::Custom(action),
+            _ => AuditAction::Custom(Box::leak(action.to_string().into_boxed_str())),
         }
     }
 }
+
+
 
 /// Context information extracted from an HTTP request
 #[derive(Debug, Clone, Default)]
@@ -451,6 +465,7 @@ impl RequestContext {
 pub struct AuditLogger {
     db: Database,
     webhook_notifier: Option<Arc<dyn WebhookNotifier>>,
+    security_notifier: Option<Arc<SecurityNotificationService>>,
 }
 
 impl AuditLogger {
@@ -459,6 +474,7 @@ impl AuditLogger {
         Self {
             db,
             webhook_notifier: None,
+            security_notifier: None,
         }
     }
 
@@ -467,12 +483,18 @@ impl AuditLogger {
         Self {
             db,
             webhook_notifier: Some(notifier),
+            security_notifier: None,
         }
     }
 
     /// Enable webhook notifications
     pub fn enable_webhooks(&mut self, notifier: Arc<dyn WebhookNotifier>) {
         self.webhook_notifier = Some(notifier);
+    }
+
+    /// Enable security notifications
+    pub fn enable_security_notifications(&mut self, notifier: Arc<SecurityNotificationService>) {
+        self.security_notifier = Some(notifier);
     }
 
     /// Log an audit event
@@ -499,6 +521,10 @@ impl AuditLogger {
         let resource_type_str = resource_type.as_str().to_string();
         let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
         let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
+        let security_notifier = self.security_notifier.clone();
+        let notify_action = action;
+        let notify_user_id = user_id.clone();
+        let notify_context = context.clone();
 
         // Spawn async task to write to database
         tokio::spawn(async move {
@@ -520,6 +546,18 @@ impl AuditLogger {
             .await
             {
                 tracing::error!(error = %e, "Failed to write audit log to database");
+            }
+
+            if let Some(notifier) = security_notifier {
+                notifier
+                    .notify_audit_action(
+                        &tenant_id,
+                        notify_action,
+                        notify_user_id.as_deref(),
+                        notify_context,
+                        success,
+                    )
+                    .await;
             }
         });
     }
@@ -554,7 +592,7 @@ impl AuditLogger {
             action_str,
             resource_type_str,
             resource_id,
-            user_id,
+            user_id.clone(),
             session_id,
             ip_address,
             user_agent,
@@ -566,6 +604,18 @@ impl AuditLogger {
         .await
         {
             tracing::error!(error = %e, "Failed to write audit log to database");
+        }
+
+        if let Some(ref notifier) = self.security_notifier {
+            notifier
+                .notify_audit_action(
+                    &tenant_id,
+                    action,
+                    user_id.as_deref(),
+                    context,
+                    success,
+                )
+                .await;
         }
     }
 
@@ -595,6 +645,10 @@ impl AuditLogger {
         let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
         let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
         let impersonator_id = impersonator_id.clone();
+        let security_notifier = self.security_notifier.clone();
+        let notify_action = action;
+        let notify_user_id = user_id.clone();
+        let notify_context = context.clone();
 
         // Include impersonator info in metadata for webhook payload
         let mut metadata_with_impersonator = metadata.clone();
@@ -613,25 +667,49 @@ impl AuditLogger {
         }
 
         // Spawn async task to write to database
+        let db_tenant_id = tenant_id.clone();
+        let db_action_str = action_str.clone();
+        let db_resource_type_str = resource_type_str.clone();
+        let db_resource_id = resource_id.clone();
+        let db_user_id = user_id.clone();
+        let db_session_id = session_id.clone();
+        let db_ip_address = ip_address.clone();
+        let db_user_agent = user_agent.clone();
+        let db_error_message = error_message.clone();
+        let db_metadata = metadata.clone();
+        let db_impersonator_id = impersonator_id.clone();
+
         tokio::spawn(async move {
             if let Err(e) = Self::write_to_db(
                 &db,
-                &tenant_id,
-                action_str,
-                resource_type_str,
-                resource_id,
-                user_id,
-                session_id.clone(),
-                ip_address.clone(),
-                user_agent.clone(),
+                &db_tenant_id,
+                db_action_str,
+                db_resource_type_str,
+                db_resource_id,
+                db_user_id,
+                db_session_id,
+                db_ip_address,
+                db_user_agent,
                 success,
-                error_message.clone(),
-                metadata.clone(),
-                impersonator_id.clone(),
+                db_error_message,
+                db_metadata,
+                db_impersonator_id,
             )
             .await
             {
                 tracing::error!(error = %e, "Failed to write audit log to database");
+            }
+
+            if let Some(notifier) = security_notifier {
+                notifier
+                    .notify_audit_action(
+                        &tenant_id,
+                        notify_action,
+                        notify_user_id.as_deref(),
+                        notify_context,
+                        success,
+                    )
+                    .await;
             }
         });
 
@@ -1794,20 +1872,27 @@ pub fn log_action(
     );
 }
 
-impl From<&str> for AuditAction {
-    fn from(s: &str) -> Self {
-        match s {
-            "user.login" => AuditAction::Login,
-            "user.logout" => AuditAction::Logout,
-            "user.created" => AuditAction::UserCreated,
-            "user.updated" => AuditAction::UserUpdated,
-            "user.deleted" => AuditAction::UserDeleted,
-            "consent.accepted" => AuditAction::ConsentAccepted,
-            "consent.withdrawn" => AuditAction::ConsentWithdrawn,
-            "security_policy.updated" => AuditAction::SecurityPolicyUpdated,
-            _ => AuditAction::Custom(s.to_string()),
-        }
-    }
+/// Log an activity event (async convenience function for use in handlers)
+pub async fn log_activity(
+    state: &crate::state::AppState,
+    tenant_id: &str,
+    user_id: &str,
+    action: &str,
+    resource_id: Option<&str>,
+) {
+    let logger = AuditLogger::new(state.db.clone());
+    logger.log(
+        tenant_id,
+        AuditAction::from(action),
+        ResourceType::Other("activity".to_string()),
+        resource_id.unwrap_or("-"),
+        Some(user_id.to_string()),
+        None,
+        None,
+        true,
+        None,
+        None,
+    );
 }
 
 impl From<&str> for ResourceType {

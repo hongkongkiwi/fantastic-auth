@@ -31,20 +31,11 @@ export class OrganizationManager {
    */
   async getAll(filter?: OrganizationFilter): Promise<AdminOrganizationResponse[]> {
     const results: AdminOrganizationResponse[] = [];
-    let page = 1;
-    let hasMore = true;
 
-    while (hasMore) {
-      const response = await this.client.listOrganizations({
-        page,
-        perPage: 100,
-        status: filter?.status,
-      });
-
-      results.push(...response.data);
-      
-      hasMore = response.data.length === 100 && page < response.pagination.totalPages;
-      page++;
+    for await (const org of this.client.iterateOrganizations({
+      status: filter?.status,
+    })) {
+      results.push(org);
     }
 
     return results;

@@ -50,6 +50,7 @@ use crate::{
     routes::ApiError,
     state::AppState,
 };
+use vault_core::db::{with_request_context, RequestContext as DbRequestContext};
 
 /// M2M auth routes
 pub fn routes() -> Router<AppState> {
@@ -66,66 +67,69 @@ async fn token_endpoint(
     // Extract tenant ID from request (could be in form data, header, or inferred from client_id)
     let tenant_id = extract_tenant_id(&request);
 
-    // Create audit context
-    let context = RequestContext::from_headers(&axum::http::HeaderMap::new());
-    let audit = AuditLogger::new(state.db.clone());
+    let ctx = DbRequestContext {
+        tenant_id: Some(tenant_id.clone()),
+        user_id: None,
+        role: Some("service".to_string()),
+    };
 
-    // Set tenant context
-    if let Err(e) = state.set_tenant_context(&tenant_id).await {
-        tracing::error!("Failed to set tenant context: {}", e);
-        return Err(ApiError::Internal);
-    }
+    with_request_context(ctx, async move {
+        // Create audit context
+        let context = RequestContext::from_headers(&axum::http::HeaderMap::new());
+        let audit = AuditLogger::new(state.db.clone());
 
-    // Exchange credentials for token
-    match state
-        .m2m_service
-        .client_credentials()
-        .exchange_token(request, &tenant_id)
-        .await
-    {
-        Ok(response) => {
-            // Log successful token exchange
-            audit.log(
-                &tenant_id,
-                AuditAction::Custom("m2m.token_issued"),
-                ResourceType::Token,
-                "access_token",
-                None,
-                None,
-                Some(context),
-                true,
-                None,
-                Some(serde_json::json!({
-                    "scope": response.scope,
-                    "expires_in": response.expires_in,
-                })),
-            );
+        // Exchange credentials for token
+        match state
+            .m2m_service
+            .client_credentials()
+            .exchange_token(request, &tenant_id)
+            .await
+        {
+            Ok(response) => {
+                // Log successful token exchange
+                audit.log(
+                    &tenant_id,
+                    AuditAction::Custom("m2m.token_issued"),
+                    ResourceType::Token,
+                    "access_token",
+                    None,
+                    None,
+                    Some(context),
+                    true,
+                    None,
+                    Some(serde_json::json!({
+                        "scope": response.scope,
+                        "expires_in": response.expires_in,
+                    })),
+                );
 
-            Ok((StatusCode::OK, Json(response)).into_response())
+                Ok((StatusCode::OK, Json(response)).into_response())
+            }
+            Err(e) => {
+                // Log failed token exchange
+                let error_message = format!("{}", e);
+                audit.log(
+                    &tenant_id,
+                    AuditAction::Custom("m2m.token_failed"),
+                    ResourceType::Token,
+                    "access_token",
+                    None,
+                    None,
+                    Some(context),
+                    false,
+                    Some(error_message.clone()),
+                    None,
+                );
+
+                tracing::warn!("Client credentials exchange failed: {}", e);
+
+                // Convert to OAuth-compliant error response
+                let (status, error_response) = map_client_credentials_error(e);
+                Ok((status, Json(error_response)).into_response())
+            }
         }
-        Err(e) => {
-            // Log failed token exchange
-            let error_message = format!("{}", e);
-            audit.log(
-                &tenant_id,
-                AuditAction::Custom("m2m.token_failed"),
-                ResourceType::Token,
-                "access_token",
-                None,
-                None,
-                Some(context),
-                false,
-                Some(error_message.clone()),
-                None,
-            );
-
-            tracing::warn!("Client credentials exchange failed: {}", e);
-
-            // Convert to OAuth-compliant error response
-            let (status, error_response) = map_client_credentials_error(e);
-            Ok((status, Json(error_response)).into_response())
-        }
-    }
+    })
+    .await
 }
 
 /// Extract tenant ID from the request

@@ -8,6 +8,7 @@
 //! - Encrypted assertions
 //! - Attribute mapping and JIT provisioning
 
+use base64::Engine;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

@@ -9,13 +9,14 @@
 //!
 //! Authentication: API Key (`X-API-Key` header) or Internal JWT with super_admin role
 //!
-//! TODO: Add authentication and superadmin middleware. Currently these routes
-//! are functional but require manual authentication/authorization before use.
+//! Authentication is enforced via internal API key or superadmin JWT.
 
 use axum::Router;
+use axum::middleware;
 
 pub mod analytics;
 pub mod api_keys;
+pub mod audit_logs;
 pub mod billing;
 pub mod config;
 pub mod maintenance;
@@ -42,9 +43,11 @@ pub fn routes() -> Router<AppState> {
         .merge(config::routes())
         .merge(maintenance::routes())
         .merge(organizations::routes())
+        .merge(audit_logs::routes())
         .merge(roles::routes())
         .merge(tenant_admins::routes())
         .merge(api_keys::routes())
         .merge(notifications::routes())
         .merge(support::routes())
+        .layer(middleware::from_fn(crate::middleware::auth::internal_auth_middleware))
 }

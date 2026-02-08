@@ -156,14 +156,14 @@ async fn submit_consent(
 
     // Log the consent action
     crate::audit::log_action(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "consent_submitted",
+        "consent",
         &record.id,
         true,
-    )
-    .await;
+    );
 
     Ok(Json(SubmitConsentResponse {
         success: true,
@@ -264,14 +264,14 @@ async fn request_data_export(
 
     // Log the export request
     crate::audit::log_action(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "data_export_requested",
+        "user",
         &response.id,
         true,
-    )
-    .await;
+    );
 
     Ok(Json(response))
 }
@@ -337,7 +337,7 @@ async fn request_account_deletion(
         &state,
         &user.tenant_id,
         "user.deletion_requested",
-        &serde_json::json!({
+        serde_json::json!({
             "user_id": user.user_id,
             "deletion_id": response.id,
             "scheduled_deletion_at": response.scheduled_deletion_at,
@@ -376,14 +376,14 @@ async fn cancel_deletion(
 
     // Log the cancellation
     crate::audit::log_action(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "deletion_cancelled",
+        "user",
         &body.token,
         true,
-    )
-    .await;
+    );
 
     Ok(Json(CancelDeletionResponse {
         success: true,
@@ -461,38 +461,6 @@ async fn create_consent_service(state: &AppState) -> Result<ConsentService, ApiE
 
     Ok(ConsentService::new(manager))
 }
-
-// Extension trait for audit logging
-mod audit_ext {
-    use super::*;
-
-    pub async fn log_action(
-        state: &AppState,
-        tenant_id: &str,
-        user_id: &str,
-        action: &str,
-        resource_id: &str,
-        success: bool,
-    ) {
-        let audit = crate::audit::AuditLogger::new(state.db.clone());
-        audit
-            .log(
-                tenant_id,
-                crate::audit::AuditAction::from(action),
-                crate::audit::ResourceType::Consent,
-                resource_id,
-                Some(user_id),
-                None,
-                None,
-                success,
-                None,
-                None,
-            )
-            .await;
-    }
-}
-
-use audit_ext::*;
 
 // Import consent module for error types
 use crate::consent;

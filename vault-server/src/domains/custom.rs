@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
+use trust_dns_resolver::proto::rr::RecordType;
 
 /// Custom domain status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -401,8 +402,15 @@ impl DomainValidator {
             }
 
             // Labels must start and end with alphanumeric
-            let first_char = label.chars().next().unwrap();
-            let last_char = label.chars().last().unwrap();
+            // SECURITY: Safe character access without unwrap()
+            let first_char = match label.chars().next() {
+                Some(c) => c,
+                None => return Err(DomainValidationError::InvalidChars),
+            };
+            let last_char = match label.chars().last() {
+                Some(c) => c,
+                None => return Err(DomainValidationError::InvalidChars),
+            };
 
             if !first_char.is_alphanumeric() || !last_char.is_alphanumeric() {
                 return Err(DomainValidationError::InvalidChars);
@@ -562,12 +570,19 @@ pub struct TenantDomainInfo {
 }
 
 /// Generate a verification token
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// token generation. Domain verification tokens prove domain ownership and must
+/// be unpredictable to prevent attackers from verifying domains they don't own.
 fn generate_verification_token() -> String {
     use rand::Rng;
+    use rand_core::OsRng;
+    
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     const TOKEN_LEN: usize = 32;
 
-    let mut rng = rand::thread_rng();
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     (0..TOKEN_LEN)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());
@@ -577,6 +592,7 @@ fn generate_verification_token() -> String {
 }
 
 /// DNS record verifier for custom domains
+#[derive(Clone)]
 pub struct CustomDomainDnsVerifier {
     resolver: trust_dns_resolver::TokioAsyncResolver,
     timeout: Duration,
@@ -600,7 +616,8 @@ impl CustomDomainDnsVerifier {
         expected_target: &str,
     ) -> anyhow::Result<DnsVerificationResult> {
         let domain = domain.trim().to_lowercase();
-        let expected = expected_target.trim().to_lowercase().trim_end_matches('.');
+        let expected = expected_target.trim().to_lowercase();
+        let expected = expected.trim_end_matches('.').to_string();
 
         info!(
             "Checking CNAME record for {}: expecting '{}'",
@@ -608,8 +625,11 @@ impl CustomDomainDnsVerifier {
         );
 
         // Try CNAME lookup first
-        let cname_result =
-            tokio::time::timeout(self.timeout, self.resolver.cname_lookup(&domain)).await;
+        let cname_result = tokio::time::timeout(
+            self.timeout,
+            self.resolver.lookup(domain.clone(), RecordType::CNAME),
+        )
+        .await;
 
         match cname_result {
             Ok(Ok(cname_lookup)) => {
@@ -724,8 +744,11 @@ impl CustomDomainDnsVerifier {
         let domain = domain.trim().to_lowercase();
 
         // Check CNAME
-        let cname_result =
-            tokio::time::timeout(self.timeout, self.resolver.cname_lookup(&domain)).await;
+        let cname_result = tokio::time::timeout(
+            self.timeout,
+            self.resolver.lookup(domain.clone(), RecordType::CNAME),
+        )
+        .await;
 
         if let Ok(Ok(lookup)) = cname_result {
             if let Some(cname) = lookup.iter().next() {

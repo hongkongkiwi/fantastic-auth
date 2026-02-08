@@ -220,17 +220,17 @@ async fn create_consent_version(
 
     // Log the action
     crate::audit::log_admin_event(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "consent_version_created",
+        "consent_version",
         &response.id,
-        &serde_json::json!({
+        Some(serde_json::json!({
             "consent_type": response.consent_type,
             "version": response.version,
-        }),
-    )
-    .await;
+        })),
+    );
 
     Ok(Json(response))
 }
@@ -263,17 +263,17 @@ async fn update_consent_version(
 
     // Log the action
     crate::audit::log_admin_event(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "consent_version_updated",
+        "consent_version",
         &version_id,
-        &serde_json::json!({
+        Some(serde_json::json!({
             "consent_type": response.consent_type,
             "version": response.version,
-        }),
-    )
-    .await;
+        })),
+    );
 
     Ok(Json(response))
 }
@@ -453,36 +453,5 @@ async fn create_consent_service(state: &AppState) -> Result<ConsentService, ApiE
 }
 
 // Extension trait for audit logging
-mod audit_ext {
-    use super::*;
-
-    pub async fn log_admin_event(
-        state: &AppState,
-        tenant_id: &str,
-        user_id: &str,
-        action: &str,
-        resource_id: &str,
-        details: &serde_json::Value,
-    ) {
-        let audit = crate::audit::AuditLogger::new(state.db.clone());
-        audit
-            .log(
-                tenant_id,
-                crate::audit::AuditAction::from(action),
-                crate::audit::ResourceType::Consent,
-                resource_id,
-                Some(user_id),
-                None,
-                None,
-                true,
-                None,
-                Some(details.clone()),
-            )
-            .await;
-    }
-}
-
-use audit_ext::*;
-
 // Import consent module
 use crate::consent;

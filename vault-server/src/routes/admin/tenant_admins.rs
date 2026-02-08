@@ -238,33 +238,36 @@ async fn create_invitation(
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    if let Some(email_service) = state.email_service.clone() {
-        if let Some(ref smtp_config) = state.config.smtp {
-            let link = format!(
-                "{}/admin/tenant-admins/invitations/accept?token={}&tenant_id={}",
-                state.config.base_url, token, current_user.tenant_id
-            );
-            let html_body = format!(
-                r#"<p>You have been invited to be a tenant admin.</p>
+    if let Some(sender) = state
+        .communications
+        .resolve_email_sender(&current_user.tenant_id)
+        .await
+    {
+        let link = format!(
+            "{}/admin/tenant-admins/invitations/accept?token={}&tenant_id={}",
+            state.config.base_url, token, current_user.tenant_id
+        );
+        let html_body = format!(
+            r#"<p>You have been invited to be a tenant admin.</p>
 <p><a href="{}">Accept invitation</a></p>"#,
-                link
-            );
-            let text_body = format!("Accept invitation: {}", link);
+            link
+        );
+        let text_body = format!("Accept invitation: {}", link);
 
-            let _ = email_service
-                .send_email(EmailRequest {
-                    to: req.email.clone(),
-                    to_name: None,
-                    subject: "Tenant admin invitation".to_string(),
-                    html_body,
-                    text_body,
-                    from: smtp_config.from_address.clone(),
-                    from_name: smtp_config.from_name.clone(),
-                    reply_to: None,
-                    headers: HashMap::new(),
-                })
-                .await;
-        }
+        let _ = sender
+            .service
+            .send_email(EmailRequest {
+                to: req.email.clone(),
+                to_name: None,
+                subject: "Tenant admin invitation".to_string(),
+                html_body,
+                text_body,
+                from: sender.from_address.clone(),
+                from_name: sender.from_name.clone(),
+                reply_to: sender.reply_to.clone(),
+                headers: HashMap::new(),
+            })
+            .await;
     }
 
     Ok(Json(InvitationResponse {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -72,12 +72,85 @@ export function RateLimitSettings() {
   const [config, setConfig] = useState<RateLimitConfig>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'general' | 'auth' | 'api' | 'blocking'>('general')
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadConfig() {
+      try {
+        const response = await fetch('/api/v1/admin/rate-limits', { credentials: 'include' })
+        if (!response.ok) {
+          throw new Error('Failed to load rate limits')
+        }
+        const data = await response.json() as {
+          config: {
+            api_per_minute: number
+            auth_per_minute: number
+            window_seconds: number
+            burst_allowance: number
+            auto_block_enabled: boolean
+            auto_block_threshold: number
+            auto_block_duration_minutes: number
+          }
+        }
+        if (cancelled) return
+        setConfig((prev) => ({
+          ...prev,
+          defaultLimits: {
+            ...prev.defaultLimits,
+            requestsPerMinute: data.config.api_per_minute,
+          },
+          authEndpoints: {
+            ...prev.authEndpoints,
+            loginAttemptsPerMinute: data.config.auth_per_minute,
+          },
+          apiEndpoints: {
+            ...prev.apiEndpoints,
+            burstLimit: data.config.burst_allowance,
+            windowSeconds: data.config.window_seconds,
+          },
+          ipBlocking: {
+            ...prev.ipBlocking,
+            enabled: data.config.auto_block_enabled,
+            failedAttemptsThreshold: data.config.auto_block_threshold,
+            blockDurationMinutes: data.config.auto_block_duration_minutes,
+          },
+        }))
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Unable to load rate limits')
+        }
+      }
+    }
+    void loadConfig()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      // TODO: Implement save API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const response = await fetch('/api/v1/admin/rate-limits/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          api_per_minute: config.defaultLimits.requestsPerMinute,
+          auth_per_minute: config.authEndpoints.loginAttemptsPerMinute,
+          window_seconds: config.apiEndpoints.windowSeconds,
+          burst_allowance: config.apiEndpoints.burstLimit,
+          auto_block_enabled: config.ipBlocking.enabled,
+          auto_block_threshold: config.ipBlocking.failedAttemptsThreshold,
+          auto_block_duration_minutes: config.ipBlocking.blockDurationMinutes,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to save rate limits')
+      }
+      setLoadError(null)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to save rate limits')
     } finally {
       setIsLoading(false)
     }
@@ -127,6 +200,7 @@ export function RateLimitSettings() {
           </span>
         </div>
       </div>
+      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
       {/* Presets */}
       <div className="grid gap-4 md:grid-cols-3">

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vault.fullname" . }}
+  labels:
+    app: {{ include "vault.name" . }}
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "vault.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "vault.name" . }}
+    spec:
+      containers:
+        - name: vault
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: metrics
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: {{ include "vault.fullname" . }}-config
+            - secretRef:
+                name: {{ include "vault.fullname" . }}-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+{{- toYaml .Values.resources | nindent 12 }}

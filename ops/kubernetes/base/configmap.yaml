@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  labels:
+    app: vault
+
+data:
+  VAULT_HOST: "0.0.0.0"
+  VAULT_PORT: "3000"
+  VAULT_METRICS_PORT: "9090"
+  VAULT_LOG_LEVEL: "info"
+  VAULT_JWT_ISSUER: "vault"
+  VAULT_JWT_AUDIENCE: "vault-api"
+  VAULT_RATE_LIMIT_RPS: "100"
+  VAULT_RATE_LIMIT_BURST: "150"

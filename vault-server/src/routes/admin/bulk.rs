@@ -15,7 +15,7 @@
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, Query, State},
-    http::{header, StatusCode},
+    http::{header, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post},
     Extension, Json, Router,
@@ -32,6 +32,7 @@ use crate::bulk::{
     BulkExportJob, BulkImportJob, BulkJobRow, ExportOptions, FileFormat, ImportOptions,
     JobProgress, JobStatus, JobType, StorageConfig,
 };
+use crate::middleware::security::validate_file_path;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
@@ -510,21 +511,34 @@ async fn download_error_report(
     // Get error report path
     let error_path = row.error_report_path.ok_or_else(|| ApiError::NotFound)?;
 
+    // SECURITY: Validate file path before reading
+    let path_str = error_path.to_string_lossy();
+    if let Some(filename) = error_path.file_name().and_then(|n| n.to_str()) {
+        if !validate_file_path(filename) {
+            tracing::warn!(
+                job_id = %job_id,
+                path = %path_str,
+                "SECURITY: Invalid error report path"
+            );
+            return Err(ApiError::BadRequest("Invalid file path".to_string()));
+        }
+    }
+
     // Read error report
     let content = tokio::fs::read_to_string(&error_path)
         .await
         .map_err(|_| ApiError::NotFound)?;
 
     let filename = format!("import_errors_{}.json", job_id);
+    let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+        .map_err(|_| ApiError::Internal)?;
 
+    let content_type = HeaderValue::from_static("application/json");
     Ok((
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE, "application/json"),
-            (
-                header::CONTENT_DISPOSITION,
-                &format!("attachment; filename=\"{}\"", filename),
-            ),
+            (header::CONTENT_TYPE, content_type),
+            (header::CONTENT_DISPOSITION, disposition),
         ],
         content,
     ))
@@ -547,14 +561,15 @@ async fn download_template(Path(format): Path<String>) -> Result<impl IntoRespon
         }
     };
 
+    let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+        .map_err(|_| ApiError::Internal)?;
+
+    let content_type = HeaderValue::from_static(content_type);
     Ok((
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, content_type),
-            (
-                header::CONTENT_DISPOSITION,
-                &format!("attachment; filename=\"{}\"", filename),
-            ),
+            (header::CONTENT_DISPOSITION, disposition),
         ],
         content,
     ))
@@ -733,6 +748,19 @@ async fn download_export_file(
     // Get result file path
     let result_path = row.result_file_path.ok_or_else(|| ApiError::NotFound)?;
 
+    // SECURITY: Validate file path before reading
+    let path_str = result_path.to_string_lossy();
+    if let Some(filename) = result_path.file_name().and_then(|n| n.to_str()) {
+        if !validate_file_path(filename) {
+            tracing::warn!(
+                job_id = %job_id,
+                path = %path_str,
+                "SECURITY: Invalid result file path"
+            );
+            return Err(ApiError::BadRequest("Invalid file path".to_string()));
+        }
+    }
+
     // Read file
     let content = tokio::fs::read(&result_path)
         .await
@@ -741,19 +769,18 @@ async fn download_export_file(
     let extension = if row.format == "csv" { "csv" } else { "json" };
     let filename = format!("users_export_{}.{}.{}", job_id, row.format, extension);
     let content_type = if row.format == "csv" {
-        "text/csv"
+        HeaderValue::from_static("text/csv")
     } else {
-        "application/json"
+        HeaderValue::from_static("application/json")
     };
+    let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
+        .map_err(|_| ApiError::Internal)?;
 
     Ok((
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, content_type),
-            (
-                header::CONTENT_DISPOSITION,
-                &format!("attachment; filename=\"{}\"", filename),
-            ),
+            (header::CONTENT_DISPOSITION, disposition),
         ],
         content,
     ))

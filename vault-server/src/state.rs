@@ -8,13 +8,13 @@ use vault_core::security::bot_protection::{
     BotProtection, CloudflareTurnstile, DisabledBotProtection, HCaptcha,
 };
 use vault_core::webauthn::{WebAuthnConfig, WebAuthnService};
-use crate::i18n::I18n;
 
 use crate::audit::{AuditLogger, DefaultWebhookNotifier};
 use crate::auth::{AccountLinkingService, StepUpPolicy};
 use crate::auth::web3::{create_web3_auth_in_memory, create_web3_auth_with_redis, Web3Auth};
 use crate::billing::{BillingConfig, BillingService};
 use crate::config::{BotProtectionProvider, Config, DataEncryptionProvider, EvictionPolicy};
+use crate::communications::{SharedOtpCodeStore, TenantCommunicationResolver};
 use crate::db::Database;
 use crate::impersonation::ImpersonationService;
 use crate::monitoring::{HealthRegistry, MetricsRegistry};
@@ -25,7 +25,6 @@ use crate::security::{
 };
 use crate::settings::{SettingsRepository, SettingsService};
 use crate::webhooks::WebhookService;
-use crate::webhooks::WebhookService as AppWebhookService;
 
 /// Shared application state
 #[derive(Clone)]
@@ -70,6 +69,8 @@ pub struct AppState {
     pub tenant_key_service: Arc<TenantKeyService>,
     /// Email service for transactional emails
     pub email_service: Option<Arc<dyn EmailService>>,
+    /// Tenant-aware communication resolver
+    pub communications: Arc<TenantCommunicationResolver>,
     /// Web3 authentication service
     pub web3_auth: Arc<Web3Auth>,
     /// Consent manager for GDPR/CCPA compliance
@@ -80,6 +81,8 @@ pub struct AppState {
     pub impersonation_service: Arc<ImpersonationService>,
     /// Tenant settings service for per-tenant configuration
     pub settings_service: Arc<SettingsService>,
+    /// Security notification service (email/SMS/WhatsApp)
+    pub security_notification_service: Arc<crate::security::SecurityNotificationService>,
     /// M2M authentication service
     pub m2m_service: Arc<crate::m2m::M2mAuthService>,
     /// AI security engine for ML-based threat detection
@@ -128,14 +131,24 @@ impl AppState {
                 None
             };
 
+        // Initialize shared SMS code store
+        let sms_code_store: Arc<dyn vault_core::sms::OtpCodeStore> = if let Some(ref redis_mgr) = redis {
+            Arc::new(vault_core::sms::RedisOtpCodeStore::new(redis_mgr.clone()))
+        } else {
+            Arc::new(vault_core::sms::InMemoryOtpCodeStore::new())
+        };
+
         // Initialize SMS service if configured (used by AuthService for MFA)
-        let sms_service = initialize_sms_service(&config, redis.clone()).await;
+        let sms_service = initialize_sms_service(&config, sms_code_store.clone()).await;
 
         let data_encryption_key = Arc::new(load_data_encryption_key()?);
         let default_provider = match config.security.data_encryption.provider {
             DataEncryptionProvider::Local => KmsProviderKind::Local,
             DataEncryptionProvider::AwsKms => KmsProviderKind::AwsKms,
             DataEncryptionProvider::AzureKv => KmsProviderKind::AzureKv,
+            DataEncryptionProvider::GcpKms => KmsProviderKind::GcpKms,
+            DataEncryptionProvider::AlicloudKms => KmsProviderKind::AlicloudKms,
+            DataEncryptionProvider::OracleKms => KmsProviderKind::OracleKms,
         };
 
         let mut kms_registry = KmsRegistry::new(default_provider).with_provider(Arc::new(
@@ -187,12 +200,64 @@ impl AppState {
             }
         }
 
+        #[cfg(feature = "gcp-kms")]
+        {
+            let gcp_cfg = &config.security.data_encryption.gcp_kms;
+            if let Some(key_name) = gcp_cfg.key_name.clone() {
+                let provider = crate::security::tenant_keys::GcpKmsProvider::new(
+                    key_name,
+                    gcp_cfg.tenant_context_key.clone(),
+                )
+                .await?;
+                kms_registry = kms_registry.with_provider(Arc::new(provider));
+            }
+        }
+
+        #[cfg(not(feature = "gcp-kms"))]
+        {
+            if default_provider == KmsProviderKind::GcpKms {
+                anyhow::bail!("GCP KMS support is not enabled; build with feature `gcp-kms`");
+            }
+        }
+
+        #[cfg(not(feature = "alicloud-kms"))]
+        {
+            if default_provider == KmsProviderKind::AlicloudKms {
+                anyhow::bail!(
+                    "Alicloud KMS support is not enabled; build with feature `alicloud-kms`"
+                );
+            }
+        }
+
+        #[cfg(not(feature = "oracle-kms"))]
+        {
+            if default_provider == KmsProviderKind::OracleKms {
+                anyhow::bail!(
+                    "Oracle KMS support is not enabled; build with feature `oracle-kms`"
+                );
+            }
+        }
+
         let kms_registry = Arc::new(kms_registry);
-        let tenant_key_service = Arc::new(TenantKeyService::new(db.clone(), kms_registry));
+        let dek_cache_ttl = std::time::Duration::from_secs(
+            config.security.data_encryption.dek_cache.ttl_minutes * 60,
+        );
+        let dek_cache_redis = if config.security.data_encryption.dek_cache.redis_enabled {
+            redis.clone()
+        } else {
+            None
+        };
+        let tenant_key_service = Arc::new(TenantKeyService::new(
+            db.clone(),
+            kms_registry,
+            dek_cache_ttl,
+            dek_cache_redis,
+            data_encryption_key.clone(),
+        ));
 
         // Initialize auth service with database
         let db_context = Arc::new(vault_core::db::DbContext::new(db.pool().clone()));
-        let base_url = format!("https://{}:{}", config.host, config.port);
+        let base_url = config.base_url.clone();
         let mut auth_service = match &config.redis_url {
             Some(redis_url) => AuthService::with_redis(
                 &config.jwt.issuer,
@@ -210,45 +275,9 @@ impl AppState {
             ),
         };
 
-        if let (Some(ref email_service), Some(ref smtp_config)) = (&email_service, &config.smtp) {
-            let from_address = smtp_config.from_address.clone();
-            let from_name = smtp_config.from_name.clone();
-            let email_service = email_service.clone();
-            auth_service = auth_service.with_email_sender(move |payload| {
-                let email_service = email_service.clone();
-                let from_address = from_address.clone();
-                let from_name = from_name.clone();
-                async move {
-                    email_service
-                        .send_email(EmailRequest {
-                            to: payload.to,
-                            to_name: None,
-                            subject: payload.subject,
-                            html_body: payload.html_body,
-                            text_body: payload.text_body,
-                            from: from_address,
-                            from_name,
-                            reply_to: None,
-                            headers: std::collections::HashMap::new(),
-                        })
-                        .await
-                        .map_err(|e| vault_core::error::VaultError::internal(format!(
-                            "Failed to send email: {}",
-                            e
-                        )))
-                }
-            });
-        }
-
-        if let Some(ref sms_service) = sms_service {
-            auth_service = auth_service.with_sms_service(sms_service.clone());
-        }
-
-        let auth_service = Arc::new(
-            auth_service
-                .with_data_encryption_key((*data_encryption_key).clone())
-                .with_data_key_resolver(tenant_key_service.clone()),
-        );
+        auth_service = auth_service
+            .with_data_encryption_key((*data_encryption_key).clone())
+            .with_data_key_resolver(tenant_key_service.clone());
 
         // Initialize WebAuthn service
         let rp_id = config
@@ -341,9 +370,6 @@ impl AppState {
         let step_up_policy = StepUpPolicy::new();
         let step_up_max_age_minutes = 10; // Default 10 minutes
         
-        // Initialize i18n service
-        let i18n = Arc::new(I18n::new()?);
-        
         // Initialize consent manager
         let consent_repository = crate::consent::ConsentRepository::new(db.pool().clone());
         let consent_config = crate::consent::ConsentConfig::default();
@@ -355,6 +381,105 @@ impl AppState {
         // Initialize risk engine for risk-based authentication
         let risk_engine = Arc::new(RiskEngine::default_with_db(db.clone()));
         tracing::info!("Risk-based authentication engine initialized");
+
+        let settings_service = Arc::new(SettingsService::new(
+            Arc::new(SettingsRepository::new(db.pool().clone())),
+            tenant_key_service.clone(),
+        ));
+
+        let communications = Arc::new(TenantCommunicationResolver::new(
+            Arc::new(config.clone()),
+            settings_service.clone(),
+            tenant_key_service.clone(),
+            sms_code_store.clone(),
+        ));
+
+        let communications_for_email = communications.clone();
+        auth_service = auth_service.with_email_sender(move |payload| {
+            let communications = communications_for_email.clone();
+            async move {
+                if let Some(sender) = communications.resolve_email_sender(&payload.tenant_id).await {
+                    sender
+                        .service
+                        .send_email(EmailRequest {
+                            to: payload.to,
+                            to_name: None,
+                            subject: payload.subject,
+                            html_body: payload.html_body,
+                            text_body: payload.text_body,
+                            from: sender.from_address,
+                            from_name: sender.from_name,
+                            reply_to: sender.reply_to,
+                            headers: std::collections::HashMap::new(),
+                        })
+                        .await
+                        .map_err(|e| vault_core::error::VaultError::internal(format!(
+                            "Failed to send email: {}",
+                            e
+                        )))
+                } else {
+                    tracing::info!("Email would be sent to {}: {}", payload.to, payload.subject);
+                    Ok(())
+                }
+            }
+        });
+
+        auth_service = auth_service.with_sms_service_resolver(communications.clone());
+
+        let auth_service = Arc::new(auth_service);
+
+        let base_url = format!("https://{}:{}", config.host, config.port);
+        let security_notification_service = Arc::new(
+            crate::security::SecurityNotificationService::new(
+                auth_service.clone(),
+                settings_service.clone(),
+                communications.clone(),
+                base_url,
+            ),
+        );
+
+        let web3_auth = {
+            let base_url = config.base_url.clone();
+            let domain = config
+                .web3_auth
+                .domain
+                .clone()
+                .unwrap_or_else(|| base_url.replace("https://", "").replace("http://", ""));
+
+            let web3_auth = if let Some(ref redis_mgr) = redis {
+                create_web3_auth_with_redis(&domain, &base_url, redis_mgr.clone())
+            } else {
+                create_web3_auth_in_memory(&domain, &base_url)
+            };
+
+            Arc::new(web3_auth)
+        };
+
+        let impersonation_service = Arc::new(ImpersonationService::new(db.clone()));
+        let m2m_service = Arc::new(crate::m2m::M2mAuthService::new(
+            db.clone(),
+            config.jwt.issuer.clone(),
+            config.jwt.audience.clone(),
+        ));
+        let ai_engine = if std::env::var("VAULT_AI_ENABLED").unwrap_or_else(|_| "true".to_string())
+            == "true"
+        {
+            let ai_config = vault_core::ai::AiSecurityConfig::default();
+            let db_context = vault_core::db::DbContext::new(db.pool().clone());
+            match vault_core::ai::AiSecurityEngine::new(ai_config, db_context).await {
+                Ok(engine) => {
+                    tracing::info!("AI security engine initialized");
+                    Some(Arc::new(engine))
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to initialize AI security engine: {}", e);
+                    None
+                }
+            }
+        } else {
+            tracing::info!("AI security engine disabled via configuration");
+            None
+        };
 
         Ok(Self {
             config: Arc::new(config),
@@ -377,52 +502,15 @@ impl AppState {
             data_encryption_key,
             tenant_key_service,
             email_service,
-            i18n,
-            web3_auth: {
-                // Initialize Web3 authentication service
-                let base_url = config.base_url.clone();
-                let domain = config.web3_auth.domain.clone()
-                    .unwrap_or_else(|| base_url.replace("https://", "").replace("http://", ""));
-                
-                let web3_auth = if let Some(ref redis_mgr) = redis {
-                    create_web3_auth_with_redis(&domain, &base_url, redis_mgr.clone())
-                } else {
-                    create_web3_auth_in_memory(&domain, &base_url)
-                };
-                
-                Arc::new(web3_auth)
-            },
+            communications,
+            web3_auth,
             consent_manager,
             risk_engine,
-            impersonation_service: Arc::new(ImpersonationService::new(db.clone())),
-            settings_service: Arc::new(SettingsService::new(Arc::new(SettingsRepository::new(
-                db.pool().clone(),
-            )))),
-            m2m_service: Arc::new(crate::m2m::M2mAuthService::new(
-                db.clone(),
-                config.jwt.issuer.clone(),
-                config.jwt.audience.clone(),
-            )),
-            // Initialize AI security engine (optional - can be disabled)
-            ai_engine: {
-                if std::env::var("VAULT_AI_ENABLED").unwrap_or_else(|_| "true".to_string()) == "true" {
-                    let ai_config = vault_core::ai::AiSecurityConfig::default();
-                    let db_context = vault_core::db::DbContext::new(db.pool().clone());
-                    match vault_core::ai::AiSecurityEngine::new(ai_config, db_context).await {
-                        Ok(engine) => {
-                            tracing::info!("AI security engine initialized");
-                            Some(Arc::new(engine))
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to initialize AI security engine: {}", e);
-                            None
-                        }
-                    }
-                } else {
-                    tracing::info!("AI security engine disabled via configuration");
-                    None
-                }
-            },
+            impersonation_service,
+            settings_service,
+            security_notification_service,
+            m2m_service,
+            ai_engine,
         })
     }
 
@@ -435,17 +523,6 @@ impl AppState {
             .execute(&mut *conn)
             .await?;
 
-        // Reset to avoid leaking context across pooled connections.
-        let _ = sqlx::query("RESET app.current_tenant_id")
-            .execute(&mut *conn)
-            .await;
-        let _ = sqlx::query("RESET app.current_user_id")
-            .execute(&mut *conn)
-            .await;
-        let _ = sqlx::query("RESET app.current_user_role")
-            .execute(&mut *conn)
-            .await;
-
         Ok(())
     }
 
@@ -457,6 +534,8 @@ impl AppState {
             let notifier = Arc::new(DefaultWebhookNotifier::new(self.db.clone()));
             logger.enable_webhooks(notifier);
         }
+
+        logger.enable_security_notifications(self.security_notification_service.clone());
 
         logger
     }
@@ -593,16 +672,27 @@ fn load_data_encryption_key() -> anyhow::Result<Vec<u8>> {
     if let Ok(path) = std::env::var("VAULT_MASTER_KEY_FILE")
         .or_else(|_| std::env::var("MASTER_KEY_FILE"))
     {
-        let contents = std::fs::read(&path)?;
-        if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(contents.trim()) {
-            if decoded.len() == 32 {
-                return Ok(decoded);
+        if let Ok(contents) = std::fs::read(&path) {
+            let trimmed = String::from_utf8_lossy(&contents);
+            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(trimmed.trim()) {
+                if decoded.len() == 32 {
+                    return Ok(decoded);
+                }
             }
+            if contents.len() == 32 {
+                return Ok(contents);
+            }
+            anyhow::bail!("MASTER_KEY_FILE must contain 32 raw bytes or base64-encoded 32 bytes");
+        } else {
+            let key = vault_core::crypto::generate_random_bytes(32);
+            let encoded = base64::engine::general_purpose::STANDARD.encode(&key);
+            std::fs::write(&path, encoded.as_bytes())?;
+            tracing::warn!(
+                path = %path,
+                "Generated new platform master key and wrote to MASTER_KEY_FILE"
+            );
+            return Ok(key);
         }
-        if contents.len() == 32 {
-            return Ok(contents);
-        }
-        anyhow::bail!("MASTER_KEY_FILE must contain 32 raw bytes or base64-encoded 32 bytes");
     }
 
     if let Ok(encoded) = std::env::var("VAULT_DATA_ENCRYPTION_KEY")
@@ -891,7 +981,7 @@ pub struct TenantContext {
 /// Initialize SMS service based on configuration
 async fn initialize_sms_service(
     config: &Config,
-    redis: Option<redis::aio::ConnectionManager>,
+    sms_code_store: Arc<dyn vault_core::sms::OtpCodeStore>,
 ) -> Option<Arc<vault_core::sms::SmsService>> {
     if !config.sms.is_enabled() {
         tracing::info!("SMS service disabled");
@@ -905,16 +995,8 @@ async fn initialize_sms_service(
     }
     
     // Create code store
-    let code_store: Box<dyn vault_core::sms::OtpCodeStore> = match redis {
-        Some(redis_conn) => {
-            tracing::info!("Using Redis for SMS OTP code storage");
-            Box::new(vault_core::sms::RedisOtpCodeStore::new(redis_conn))
-        }
-        None => {
-            tracing::warn!("Using in-memory store for SMS OTP codes (not recommended for production)");
-            Box::new(vault_core::sms::InMemoryOtpCodeStore::new())
-        }
-    };
+    let code_store: Box<dyn vault_core::sms::OtpCodeStore> =
+        Box::new(SharedOtpCodeStore::new(sms_code_store));
     
     // Create provider based on config
     let provider: Option<Box<dyn vault_core::sms::SmsProvider>> = match config.sms.provider {
@@ -948,6 +1030,7 @@ async fn initialize_sms_service(
         rate_limit_window_secs: config.sms.rate_limit_window_secs,
         code_expiry_minutes: config.sms.code_expiry_minutes,
         code_length: config.sms.code_length,
+        fallback_to_sms: true, // Default fallback behavior
     };
     
     Some(Arc::new(vault_core::sms::SmsService::new(

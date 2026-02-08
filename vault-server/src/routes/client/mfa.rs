@@ -1,13 +1,14 @@
 //! Client MFA Routes
 
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     middleware,
     routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use vault_core::email::EmailRequest;
 
 use crate::auth::SensitiveOperation;
@@ -20,6 +21,7 @@ use crate::state::{AppState, CurrentUser};
 /// Sensitive operations (enable/disable MFA, generate backup codes) require step-up authentication.
 pub fn routes() -> Router<AppState> {
     // Standard routes (no step-up required)
+    // Verification endpoints have strict rate limiting to prevent brute force attacks
     let standard_routes = Router::new()
         .route("/me/mfa", get(get_mfa_status))
         .route("/me/mfa/totp/verify", post(verify_totp_setup))
@@ -28,7 +30,11 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/email/send", post(send_email_code))
         .route("/me/mfa/email/verify-code", post(verify_email_code))
         .route("/me/mfa/sms/send", post(send_sms_code))
-        .route("/me/mfa/sms/verify-code", post(verify_sms_code));
+        .route("/me/mfa/sms/verify-code", post(verify_sms_code))
+        .route("/me/mfa/whatsapp/send", post(send_whatsapp_code))
+        .route("/me/mfa/whatsapp/verify-code", post(verify_whatsapp_code))
+        // Apply rate limiting to verification endpoints
+        .route_layer(middleware::from_fn(mfa_verification_rate_limit));
 
     // Routes requiring elevated step-up (setup/enable MFA)
     let elevated_routes = Router::new()
@@ -41,12 +47,15 @@ pub fn routes() -> Router<AppState> {
         .route("/me/mfa/email/verify", post(verify_email_setup))
         .route("/me/mfa/sms/setup", post(setup_sms))
         .route("/me/mfa/sms/verify", post(verify_sms_setup))
+        .route("/me/mfa/whatsapp/setup", post(setup_whatsapp))
+        .route("/me/mfa/whatsapp/verify", post(verify_whatsapp_setup))
         .route_layer(middleware::from_fn(require_step_up_enable_mfa));
 
     // Routes requiring high assurance step-up (disable MFA)
     let high_assurance_routes = Router::new()
         .route("/me/mfa", delete(disable_mfa))
         .route("/me/mfa/sms", delete(disable_sms_mfa))
+        .route("/me/mfa/whatsapp", delete(disable_whatsapp_mfa))
         .route_layer(middleware::from_fn(require_step_up_disable_mfa));
 
     // Combine all routes
@@ -72,6 +81,54 @@ async fn require_step_up_disable_mfa(
     next: axum::middleware::Next,
 ) -> Result<axum::response::Response, axum::http::StatusCode> {
     require_step_up_for_operation(State(state), request, next, SensitiveOperation::DisableMfa).await
+}
+
+/// Rate limiting middleware for MFA verification endpoints
+/// 
+/// SECURITY: Enforces strict rate limiting on MFA verification endpoints to prevent brute force attacks.
+/// - 5 attempts per 5 minutes per IP address for verification endpoints
+/// - Applies to all code verification endpoints (TOTP, SMS, Email, WhatsApp, Backup codes)
+async fn mfa_verification_rate_limit(
+    State(state): State<AppState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, axum::http::StatusCode> {
+    // Only apply rate limiting to POST requests (verification attempts)
+    if request.method() != axum::http::Method::POST {
+        return Ok(next.run(request).await);
+    }
+    
+    // Create rate limit key based on IP address
+    let ip = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|info| info.0.ip().to_string())
+        .or_else(|| {
+            request
+                .headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.split(',').next())
+                .map(|v| v.trim().to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let key = format!("mfa_verify:{}", ip);
+    
+    // Check rate limit: 5 attempts per 5 minutes (300 seconds)
+    // This is stricter than general rate limiting due to security sensitivity
+    const MAX_ATTEMPTS: u32 = 5;
+    const WINDOW_SECS: u64 = 300; // 5 minutes
+    
+    if !state.rate_limiter.is_allowed(&key, MAX_ATTEMPTS, WINDOW_SECS).await {
+        tracing::warn!(
+            "MFA verification rate limit exceeded for IP: {}",
+            ip
+        );
+        return Err(axum::http::StatusCode::TOO_MANY_REQUESTS);
+    }
+    
+    Ok(next.run(request).await)
 }
 
 #[derive(Debug, Serialize)]
@@ -168,6 +225,38 @@ struct SmsStatusResponse {
 struct SmsSendRequest {
     #[serde(rename = "phoneNumber")]
     phone_number: Option<String>, // Optional - uses registered number if not provided
+}
+
+#[derive(Debug, Deserialize)]
+struct WhatsAppSetupRequest {
+    phone_number: String,
+    #[serde(rename = "preferredChannel")]
+    preferred_channel: Option<String>, // "whatsapp" or "sms"
+}
+
+#[derive(Debug, Serialize)]
+struct WhatsAppSetupResponse {
+    message: String,
+    #[serde(rename = "phoneNumber")]
+    phone_number: String,
+    #[serde(rename = "channel")]
+    channel: String,
+    #[serde(rename = "remainingAttempts")]
+    remaining_attempts: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct WhatsAppVerifySetupRequest {
+    phone_number: String,
+    code: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WhatsAppSendRequest {
+    #[serde(rename = "phoneNumber")]
+    phone_number: Option<String>, // Optional - uses registered number if not provided
+    #[serde(rename = "channel")]
+    channel: Option<String>, // "whatsapp" or "sms"
 }
 
 #[derive(Debug, Serialize)]
@@ -282,9 +371,10 @@ async fn setup_totp(
     )
     .await;
 
+    let qr_code_uri = totp_config.qr_uri();
     Ok(Json(TotpSetupResponse {
         secret: totp_config.secret,
-        qr_code_uri: totp_config.qr_uri(),
+        qr_code_uri,
         backup_codes,
     }))
 }
@@ -450,7 +540,7 @@ async fn disable_mfa(
     let method_type = match req.method.as_str() {
         "totp" => vault_core::db::mfa::MfaMethodType::Totp,
         "webauthn" => vault_core::db::mfa::MfaMethodType::Webauthn,
-        "sms" => vault_core::db::mfa::MfaMethodType::Sms,
+        "sms" | "whatsapp" => vault_core::db::mfa::MfaMethodType::Sms,
         "email" => vault_core::db::mfa::MfaMethodType::Email,
         _ => return Err(ApiError::BadRequest("Invalid method type".to_string())),
     };
@@ -762,7 +852,7 @@ async fn setup_sms(
 
     // Get or create SMS service from state
     // For now, we'll use a simple approach - in production this should be initialized in AppState
-    let sms_service = get_sms_service(&state)?;
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
 
     // Send verification code
     sms_service
@@ -821,7 +911,7 @@ async fn verify_sms_setup(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     // Create SMS service
-    let sms_service = get_sms_service(&state)?;
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
 
     // Verify the code
     let valid = sms_service
@@ -937,7 +1027,7 @@ async fn send_sms_code(
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     // Create SMS service
-    let sms_service = get_sms_service(&state)?;
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
 
     // Send code
     sms_service
@@ -984,30 +1074,28 @@ async fn verify_sms_code(
         .ok_or_else(|| ApiError::BadRequest("SMS MFA not configured".to_string()))?;
 
     // Create SMS service
-    let sms_service = get_sms_service(&state)?;
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
 
     // Verify code
-    let valid = sms_service
-        .verify_code(&phone_number, &req.code)
-        .await
-        .map_err(|e| {
+    let valid = match sms_service.verify_code(&phone_number, &req.code).await {
+        Ok(valid) => valid,
+        Err(vault_core::sms::SmsError::InvalidCode) => {
+            return Ok(Json(VerifyCodeResponse {
+                valid: false,
+                message: "Invalid verification code".to_string(),
+            }));
+        }
+        Err(vault_core::sms::SmsError::CodeNotFound) => {
+            return Ok(Json(VerifyCodeResponse {
+                valid: false,
+                message: "Code expired or not found".to_string(),
+            }));
+        }
+        Err(e) => {
             tracing::error!("Failed to verify SMS code: {}", e);
-            match e {
-                vault_core::sms::SmsError::InvalidCode => {
-                    return Ok(Json(VerifyCodeResponse {
-                        valid: false,
-                        message: "Invalid verification code".to_string(),
-                    }));
-                }
-                vault_core::sms::SmsError::CodeNotFound => {
-                    return Ok(Json(VerifyCodeResponse {
-                        valid: false,
-                        message: "Code expired or not found".to_string(),
-                    }));
-                }
-                _ => ApiError::Internal,
-            }
-        })?;
+            return Err(ApiError::Internal);
+        }
+    };
 
     if valid {
         // Mark method as used
@@ -1069,17 +1157,372 @@ async fn disable_sms_mfa(
     }))
 }
 
+/// Setup WhatsApp MFA - send verification code
+async fn setup_whatsapp(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<WhatsAppSetupRequest>,
+) -> Result<Json<WhatsAppSetupResponse>, ApiError> {
+    // Validate phone number format
+    let normalized_phone = vault_core::sms::SmsService::validate_phone_number(&req.phone_number)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    // Get SMS service from state
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
+    
+    // Check if WhatsApp is configured
+    let channel = if sms_service.is_whatsapp_configured() {
+        vault_core::sms::OtpChannel::WhatsApp
+    } else {
+        // Fallback to SMS if WhatsApp not configured
+        if state.config.whatsapp.fallback_to_sms {
+            vault_core::sms::OtpChannel::Sms
+        } else {
+            return Err(ApiError::BadRequest(
+                "WhatsApp is not configured for this server".to_string(),
+            ));
+        }
+    };
+
+    // Send verification code via selected channel
+    sms_service
+        .send_code_with_channel(&normalized_phone, channel)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send WhatsApp/SMS code: {}", e);
+            match e {
+                vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
+                    "Rate limit exceeded. Please try again later.".to_string(),
+                ),
+                vault_core::sms::SmsError::InvalidPhoneNumber(msg) => {
+                    ApiError::BadRequest(format!("Invalid phone number: {}", msg))
+                }
+                _ => ApiError::Internal,
+            }
+        })?;
+
+    // Store pending phone number in user's profile for verification
+    if let Err(e) = state
+        .db
+        .users()
+        .update_pending_phone(
+            &current_user.tenant_id,
+            &current_user.user_id,
+            &normalized_phone,
+        )
+        .await
+    {
+        tracing::error!("Failed to store pending phone: {}", e);
+    }
+
+    // Get remaining attempts
+    let remaining_attempts = sms_service
+        .get_remaining_attempts(&normalized_phone)
+        .await
+        .unwrap_or(0);
+
+    let channel_name = match channel {
+        vault_core::sms::OtpChannel::WhatsApp => "whatsapp",
+        _ => "sms",
+    };
+
+    Ok(Json(WhatsAppSetupResponse {
+        message: format!("Verification code sent via {}", channel_name),
+        phone_number: normalized_phone,
+        channel: channel_name.to_string(),
+        remaining_attempts,
+    }))
+}
+
+/// Verify WhatsApp MFA setup code and enable WhatsApp MFA
+async fn verify_whatsapp_setup(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<WhatsAppVerifySetupRequest>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    // Validate phone number
+    let normalized_phone = vault_core::sms::SmsService::validate_phone_number(&req.phone_number)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    // Create SMS service
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
+
+    // Verify the code
+    let valid = sms_service
+        .verify_code(&normalized_phone, &req.code)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to verify WhatsApp code: {}", e);
+            match e {
+                vault_core::sms::SmsError::InvalidCode => {
+                    ApiError::BadRequest("Invalid verification code".to_string())
+                }
+                vault_core::sms::SmsError::CodeNotFound => {
+                    ApiError::BadRequest("Code expired or not found".to_string())
+                }
+                _ => ApiError::Internal,
+            }
+        })?;
+
+    if !valid {
+        return Ok(Json(MessageResponse {
+            message: "Invalid verification code".to_string(),
+        }));
+    }
+
+    // Update user's phone number and mark as verified
+    state
+        .db
+        .users()
+        .update_phone_number(
+            &current_user.tenant_id,
+            &current_user.user_id,
+            &normalized_phone,
+            true,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update phone number: {}", e);
+            ApiError::Internal
+        })?;
+
+    // Create SMS MFA method in database (WhatsApp uses same underlying phone verification)
+    state
+        .db
+        .mfa()
+        .create_sms_method(
+            &current_user.tenant_id,
+            &current_user.user_id,
+            &normalized_phone,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to create WhatsApp MFA method: {}", e);
+            ApiError::Internal
+        })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
+    // Trigger webhook
+    crate::webhooks::events::trigger_mfa_enabled(
+        &state,
+        &current_user.tenant_id,
+        &current_user.user_id,
+        &current_user.email,
+        "whatsapp",
+    )
+    .await;
+
+    Ok(Json(MessageResponse {
+        message: "WhatsApp MFA enabled successfully".to_string(),
+    }))
+}
+
+/// Send WhatsApp code for login verification
+async fn send_whatsapp_code(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<WhatsAppSendRequest>,
+) -> Result<Json<WhatsAppSetupResponse>, ApiError> {
+    // Get phone number - either from request or from user's profile
+    let phone_number = match req.phone_number {
+        Some(phone) => phone,
+        None => {
+            // Get from user's MFA method
+            let methods = state
+                .db
+                .mfa()
+                .get_user_methods(&current_user.tenant_id, &current_user.user_id)
+                .await
+                .map_err(|_| ApiError::Internal)?;
+
+            let sms_method = methods.iter().find(|m| {
+                matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Sms) && m.enabled
+            });
+
+            match sms_method {
+                Some(_) => state
+                    .db
+                    .mfa()
+                    .get_sms_phone_number(&current_user.tenant_id, &current_user.user_id)
+                    .await
+                    .map_err(|_| ApiError::Internal)?
+                    .ok_or_else(|| ApiError::BadRequest("WhatsApp MFA not configured".to_string()))?,
+                None => return Err(ApiError::BadRequest("WhatsApp MFA not enabled".to_string())),
+            }
+        }
+    };
+
+    // Validate phone number
+    let normalized_phone = vault_core::sms::SmsService::validate_phone_number(&phone_number)
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    // Get SMS service
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
+    
+    // Determine channel (WhatsApp preferred, fallback to SMS)
+    let channel = if sms_service.is_whatsapp_configured() {
+        vault_core::sms::OtpChannel::WhatsApp
+    } else {
+        vault_core::sms::OtpChannel::Sms
+    };
+
+    // Send code
+    sms_service
+        .send_code_with_channel(&normalized_phone, channel)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to send WhatsApp code: {}", e);
+            match e {
+                vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
+                    "Rate limit exceeded. Please try again later.".to_string(),
+                ),
+                _ => ApiError::Internal,
+            }
+        })?;
+
+    let remaining_attempts = sms_service
+        .get_remaining_attempts(&normalized_phone)
+        .await
+        .unwrap_or(0);
+
+    let channel_name = match channel {
+        vault_core::sms::OtpChannel::WhatsApp => "whatsapp",
+        _ => "sms",
+    };
+
+    Ok(Json(WhatsAppSetupResponse {
+        message: "Verification code sent".to_string(),
+        phone_number: normalized_phone,
+        channel: channel_name.to_string(),
+        remaining_attempts,
+    }))
+}
+
+/// Verify WhatsApp code for login
+async fn verify_whatsapp_code(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<VerifyTotpRequest>, // Reuse same request structure
+) -> Result<Json<VerifyCodeResponse>, ApiError> {
+    // Get user's registered phone number
+    let phone_number = state
+        .db
+        .mfa()
+        .get_sms_phone_number(&current_user.tenant_id, &current_user.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to get WhatsApp phone number: {}", e);
+            ApiError::Internal
+        })?
+        .ok_or_else(|| ApiError::BadRequest("WhatsApp MFA not configured".to_string()))?;
+
+    // Create SMS service
+    let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
+
+    // Verify code
+    let valid = match sms_service.verify_code(&phone_number, &req.code).await {
+        Ok(valid) => valid,
+        Err(vault_core::sms::SmsError::InvalidCode) => {
+            return Ok(Json(VerifyCodeResponse {
+                valid: false,
+                message: "Invalid verification code".to_string(),
+            }));
+        }
+        Err(vault_core::sms::SmsError::CodeNotFound) => {
+            return Ok(Json(VerifyCodeResponse {
+                valid: false,
+                message: "Code expired or not found".to_string(),
+            }));
+        }
+        Err(e) => {
+            tracing::error!("Failed to verify WhatsApp code: {}", e);
+            return Err(ApiError::Internal);
+        }
+    };
+
+    if valid {
+        // Mark method as used
+        state
+            .db
+            .mfa()
+            .mark_method_used(
+                &current_user.tenant_id,
+                &current_user.user_id,
+                vault_core::db::mfa::MfaMethodType::Sms,
+            )
+            .await
+            .ok();
+    }
+
+    Ok(Json(VerifyCodeResponse {
+        valid,
+        message: if valid {
+            "Code verified".to_string()
+        } else {
+            "Invalid verification code".to_string()
+        },
+    }))
+}
+
+/// Disable WhatsApp MFA
+async fn disable_whatsapp_mfa(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<MessageResponse>, ApiError> {
+    // WhatsApp MFA uses the same underlying SMS method
+    state
+        .db
+        .mfa()
+        .disable_method(
+            &current_user.tenant_id,
+            &current_user.user_id,
+            vault_core::db::mfa::MfaMethodType::Sms,
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to disable WhatsApp MFA: {}", e);
+            ApiError::Internal
+        })?;
+
+    sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
+
+    // Trigger webhook
+    crate::webhooks::events::trigger_mfa_disabled(
+        &state,
+        &current_user.tenant_id,
+        &current_user.user_id,
+        &current_user.email,
+        "whatsapp",
+    )
+    .await;
+
+    Ok(Json(MessageResponse {
+        message: "WhatsApp MFA disabled".to_string(),
+    }))
+}
+
 /// Get SMS service from app state
 /// Returns error if SMS service is not configured
-fn get_sms_service(state: &AppState) -> Result<std::sync::Arc<vault_core::sms::SmsService>, ApiError> {
-    state.sms_service.clone()
+async fn get_sms_service(
+    state: &AppState,
+    tenant_id: &str,
+) -> Result<std::sync::Arc<vault_core::sms::SmsService>, ApiError> {
+    state
+        .communications
+        .resolve_sms_service(tenant_id)
+        .await
         .ok_or_else(|| ApiError::BadRequest("SMS service not configured".to_string()))
 }
 
-fn get_email_service(state: &AppState) -> Result<std::sync::Arc<dyn vault_core::email::EmailService>, ApiError> {
+async fn get_email_sender(
+    state: &AppState,
+    tenant_id: &str,
+) -> Result<crate::communications::ResolvedEmailSender, ApiError> {
     state
-        .email_service
-        .clone()
+        .communications
+        .resolve_email_sender(tenant_id)
+        .await
         .ok_or_else(|| ApiError::BadRequest("Email service not configured".to_string()))
 }
 
@@ -1087,9 +1530,17 @@ const EMAIL_OTP_CODE_LENGTH: usize = 6;
 const EMAIL_OTP_EXPIRY_MINUTES: i64 = 10;
 const EMAIL_OTP_MAX_ATTEMPTS: u32 = 5;
 
+/// Generate email OTP code
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// OTP generation. Email OTP codes are authentication credentials and must be
+/// unpredictable to prevent unauthorized account access.
 fn generate_email_otp_code() -> String {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    use rand_core::OsRng;
+    
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     let mut code = String::with_capacity(EMAIL_OTP_CODE_LENGTH);
     for _ in 0..EMAIL_OTP_CODE_LENGTH {
         let digit = rng.gen_range(0..10);
@@ -1117,12 +1568,7 @@ async fn send_email_otp(
             ApiError::Internal
         })?;
 
-    let email_service = get_email_service(state)?;
-    let smtp_config = state
-        .config
-        .smtp
-        .as_ref()
-        .ok_or_else(|| ApiError::BadRequest("Email service not configured".to_string()))?;
+    let sender = get_email_sender(state, tenant_id).await?;
 
     let subject = "Your verification code".to_string();
     let html_body = format!(
@@ -1135,16 +1581,17 @@ async fn send_email_otp(
         code, EMAIL_OTP_EXPIRY_MINUTES
     );
 
-    email_service
+    sender
+        .service
         .send_email(EmailRequest {
             to: email.to_string(),
             to_name: None,
             subject,
             html_body,
             text_body,
-            from: smtp_config.from_address.clone(),
-            from_name: smtp_config.from_name.clone(),
-            reply_to: None,
+            from: sender.from_address.clone(),
+            from_name: sender.from_name.clone(),
+            reply_to: sender.reply_to.clone(),
             headers: HashMap::new(),
         })
         .await

@@ -338,7 +338,7 @@ impl AnalyticsService {
                  AND expires_at > NOW()"#,
         )
         .bind(tenant_id)
-        .fetch_one(self.repository.repository())
+        .fetch_one(self.repository.pool())
         .await?;
 
         let days = (end_date - start_date).num_days().max(1);

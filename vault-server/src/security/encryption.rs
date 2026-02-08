@@ -1,5 +1,6 @@
 //! Symmetric encryption helpers for sensitive data (AES-256-GCM)
 
+use base64::Engine;
 use vault_core::crypto::generate_random_bytes;
 
 pub fn encrypt_to_base64(key: &[u8], plaintext: &[u8]) -> Result<String, EncryptionError> {

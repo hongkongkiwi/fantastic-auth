@@ -35,6 +35,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
+ARG DBMATE_VERSION=2.12.0
+RUN curl -fsSL "https://github.com/amacneil/dbmate/releases/download/v${DBMATE_VERSION}/dbmate-linux-amd64" \
+    -o /usr/local/bin/dbmate \
+    && chmod +x /usr/local/bin/dbmate
+
 # Create app user
 RUN groupadd -r vault && useradd -r -g vault vault
 
@@ -43,6 +48,7 @@ WORKDIR /app
 # Copy binary and necessary files
 COPY --from=builder /usr/src/vault-server/target/release/vault-server /app/vault-server
 COPY --from=builder /usr/src/vault-server/.env.example /app/.env.example
+COPY --from=builder /usr/src/vault-server/migrations /app/migrations
 
 # Set permissions
 RUN chown -R vault:vault /app

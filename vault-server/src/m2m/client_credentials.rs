@@ -11,7 +11,7 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use vault_core::crypto::TokenType;
+use vault_core::crypto::{HybridSigningKey, HybridVerifyingKey, TokenType};
 
 /// Client credentials token request
 #[derive(Debug, Deserialize)]
@@ -64,6 +64,8 @@ pub struct ClientCredentialsService {
     jwt_issuer: String,
     jwt_audience: String,
     token_lifetime_secs: i64,
+    signing_key: HybridSigningKey,
+    verifying_key: HybridVerifyingKey,
 }
 
 impl ClientCredentialsService {
@@ -73,11 +75,14 @@ impl ClientCredentialsService {
         jwt_issuer: String,
         jwt_audience: String,
     ) -> Self {
+        let (signing_key, verifying_key) = HybridSigningKey::generate();
         Self {
             db,
             jwt_issuer,
             jwt_audience,
             token_lifetime_secs: DEFAULT_TOKEN_LIFETIME_SECS,
+            signing_key,
+            verifying_key,
         }
     }
 
@@ -239,8 +244,7 @@ impl ClientCredentialsService {
             email: None,
             email_verified: None,
             mfa_authenticated: None,
-            roles: None,
-            permissions: Some(service_account.permissions.clone()),
+            roles: Some(service_account.permissions.clone()),
             iat: now.timestamp(),
             exp: expires_at.timestamp(),
             nbf: now.timestamp(),
@@ -249,6 +253,11 @@ impl ClientCredentialsService {
             token_type: TokenType::Access,
             jti: uuid::Uuid::new_v4().to_string(),
             custom,
+            name: None,
+            scope: None,
+            acr: None,
+            amr: None,
+            step_up_expires_at: None,
         };
 
         // Get signing key - in production this integrates with the AuthService
@@ -262,30 +271,9 @@ impl ClientCredentialsService {
     }
 
     /// Get the JWT signing key
-    async fn get_signing_key(&self) -> Result<jsonwebtoken::EncodingKey, ClientCredentialsError> {
-        // In production, this would integrate with the existing key management
-        // For now, fetch from the keys table or use a default
-        let key_result: Option<(Vec<u8>,)> = sqlx::query_as(
-            r#"SELECT decode(public_key, 'base64') 
-               FROM keys 
-               WHERE tenant_id = 'system' 
-               AND key_type = 'jwt_signing' 
-               AND is_active = true 
-               ORDER BY created_at DESC 
-               LIMIT 1"#
-        )
-        .fetch_optional(self.db.pool())
-        .await
-        .map_err(|e| ClientCredentialsError::Database(e.to_string()))?;
-
-        if let Some((key_bytes,)) = key_result {
-            jsonwebtoken::EncodingKey::from_secret(&key_bytes)
-                .map_err(|e| ClientCredentialsError::TokenGeneration(e.to_string()))
-        } else {
-            // Fallback: use a default secret (NOT FOR PRODUCTION)
-            jsonwebtoken::EncodingKey::from_secret(b"vault-development-key-do-not-use-in-production")
-                .map_err(|e| ClientCredentialsError::TokenGeneration(e.to_string()))
-        }
+    async fn get_signing_key(&self) -> Result<HybridSigningKey, ClientCredentialsError> {
+        // In production, this should load from tenant key management.
+        Ok(self.signing_key.clone())
     }
 
     /// Validate an M2M access token
@@ -297,7 +285,7 @@ impl ClientCredentialsService {
         let verifying_key = self.get_verifying_key().await?;
 
         // Decode and validate
-        let claims = vault_core::crypto::HybridJwt::decode(token, verifying_key)
+        let claims = vault_core::crypto::HybridJwt::decode(token, &verifying_key)
             .map_err(|_| ClientCredentialsError::InvalidToken)?;
 
         // Verify it's an M2M token
@@ -358,29 +346,9 @@ impl ClientCredentialsService {
     }
 
     /// Get the JWT verifying key
-    async fn get_verifying_key(&self) -> Result<jsonwebtoken::DecodingKey, ClientCredentialsError> {
-        // Try to get from keys table first
-        let key_result: Option<(String,)> = sqlx::query_as(
-            r#"SELECT public_key 
-               FROM keys 
-               WHERE tenant_id = 'system' 
-               AND key_type = 'jwt_signing' 
-               AND is_active = true 
-               ORDER BY created_at DESC 
-               LIMIT 1"#
-        )
-        .fetch_optional(self.db.pool())
-        .await
-        .map_err(|e| ClientCredentialsError::Database(e.to_string()))?;
-
-        if let Some((public_key,)) = key_result {
-            jsonwebtoken::DecodingKey::from_secret(public_key.as_bytes())
-                .map_err(|e| ClientCredentialsError::TokenGeneration(e.to_string()))
-        } else {
-            // Fallback to default secret
-            jsonwebtoken::DecodingKey::from_secret(b"vault-development-key-do-not-use-in-production")
-                .map_err(|e| ClientCredentialsError::TokenGeneration(e.to_string()))
-        }
+    async fn get_verifying_key(&self) -> Result<HybridVerifyingKey, ClientCredentialsError> {
+        // In production, this should load from tenant key management.
+        Ok(self.verifying_key.clone())
     }
 }
 

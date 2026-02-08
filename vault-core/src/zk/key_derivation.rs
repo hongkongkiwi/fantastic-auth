@@ -174,9 +174,17 @@ impl MasterKey {
 }
 
 /// Generate a cryptographically secure random salt
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating salts.
+/// Salts must be unpredictable to prevent precomputation attacks (rainbow tables).
+/// This is critical for the security of the key derivation function.
 pub fn generate_salt() -> Vec<u8> {
+    use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut salt = vec![0u8; SALT_LENGTH];
-    rand::thread_rng().fill_bytes(&mut salt);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut salt);
     salt
 }
 
@@ -225,10 +233,14 @@ pub fn derive_master_key_from_password(
 }
 
 /// Generate RSA key pair deterministically from seed
-fn generate_rsa_keypair(seed: &[u8]) -> Result<(RsaPrivateKey, RsaPublicKey), ZkError> {
-    // Use seed to generate deterministic "random" values
-    // In production, you might want to use a proper DRBG
-    let mut rng = rand::thread_rng();
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for RSA key generation.
+/// RSA keys are used for encryption and must be generated with cryptographically
+/// secure randomness to prevent private key recovery attacks.
+fn generate_rsa_keypair(_seed: &[u8]) -> Result<(RsaPrivateKey, RsaPublicKey), ZkError> {
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    // Note: For deterministic generation, a seeded RNG would be needed
+    let mut rng = rand_core::OsRng;
 
     // Generate RSA key pair
     // Note: For true deterministic generation, we'd need a seeded RNG

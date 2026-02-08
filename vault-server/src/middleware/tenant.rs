@@ -6,6 +6,8 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use sqlx::Row;
+use uuid::Uuid;
 
 use crate::state::{AppState, TenantContext};
 
@@ -62,8 +64,8 @@ pub async fn tenant_middleware(
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    // Extract tenant ID
-    let tenant_id = match extract_tenant_id(&request, &state).await {
+    // Extract tenant identifier (id or slug)
+    let tenant_identifier = match extract_tenant_id(&request, &state).await {
         Some(id) => id,
         None => {
             // Try to get from JWT if authenticated
@@ -75,12 +77,9 @@ pub async fn tenant_middleware(
         }
     };
 
-    // Validate tenant exists in database
-    // TODO: Query database to validate tenant
-    // For now, we'll accept any tenant ID format
-    if tenant_id.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    let (tenant_id, tenant_slug) = resolve_tenant(&state, &tenant_identifier)
+        .await
+        .ok_or(StatusCode::BAD_REQUEST)?;
 
     // Set tenant context in database connection
     if let Err(_) = state.set_tenant_context(&tenant_id).await {
@@ -90,7 +89,7 @@ pub async fn tenant_middleware(
     // Add tenant context to request extensions
     let tenant_context = TenantContext {
         tenant_id: tenant_id.clone(),
-        tenant_slug: None, // TODO: Look up slug if needed
+        tenant_slug,
     };
 
     request.extensions_mut().insert(tenant_context);
@@ -128,6 +127,49 @@ async fn extract_tenant_id(request: &Request, state: &AppState) -> Option<String
     }
 
     None
+}
+
+async fn resolve_tenant(state: &AppState, identifier: &str) -> Option<(String, Option<String>)> {
+    if identifier.is_empty() {
+        return None;
+    }
+
+    let mut conn = match state.db.pool().acquire().await {
+        Ok(conn) => conn,
+        Err(_) => return None,
+    };
+
+    if let Ok(uuid) = Uuid::parse_str(identifier) {
+        let row = sqlx::query(
+            r#"
+            SELECT id::text AS id, slug
+            FROM tenants
+            WHERE id = $1 AND deleted_at IS NULL AND status = 'active'
+            LIMIT 1
+            "#,
+        )
+        .bind(uuid)
+        .fetch_optional(&mut *conn)
+        .await
+        .ok()?;
+
+        return row.map(|r| (r.get::<String, _>("id"), Some(r.get::<String, _>("slug"))));
+    }
+
+    let row = sqlx::query(
+        r#"
+        SELECT id::text AS id, slug
+        FROM tenants
+        WHERE slug = $1 AND deleted_at IS NULL AND status = 'active'
+        LIMIT 1
+        "#,
+    )
+    .bind(identifier)
+    .fetch_optional(&mut *conn)
+    .await
+    .ok()?;
+
+    row.map(|r| (r.get::<String, _>("id"), Some(r.get::<String, _>("slug"))))
 }
 
 /// Check if the host is the base domain or an IP address

@@ -3,6 +3,7 @@
 //! Supports multiple providers:
 //! - Twilio
 //! - AWS SNS
+//! - WhatsApp Business API
 //! - Mock provider for testing
 
 use crate::error::VaultError;
@@ -14,8 +15,46 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub mod twilio;
+pub mod whatsapp;
 
 pub use twilio::TwilioProvider;
+pub use whatsapp::{WhatsAppConfig, WhatsAppProvider};
+
+/// OTP channel type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OtpChannel {
+    /// SMS text message
+    #[default]
+    Sms,
+    /// WhatsApp message
+    WhatsApp,
+    /// Voice call
+    Voice,
+}
+
+impl OtpChannel {
+    /// Get channel name
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OtpChannel::Sms => "sms",
+            OtpChannel::WhatsApp => "whatsapp",
+            OtpChannel::Voice => "voice",
+        }
+    }
+}
+
+impl std::str::FromStr for OtpChannel {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "sms" | "text" => Ok(OtpChannel::Sms),
+            "whatsapp" | "wa" => Ok(OtpChannel::WhatsApp),
+            "voice" | "call" => Ok(OtpChannel::Voice),
+            _ => Err(format!("Unknown OTP channel: {}", s)),
+        }
+    }
+}
 
 /// SMS error types
 #[derive(Debug, thiserror::Error)]
@@ -34,6 +73,8 @@ pub enum SmsError {
     InvalidCode,
     #[error("SMS service not configured")]
     NotConfigured,
+    #[error("WhatsApp not available for this phone number")]
+    WhatsAppNotAvailable,
 }
 
 impl From<SmsError> for VaultError {
@@ -53,6 +94,10 @@ impl From<SmsError> for VaultError {
             }
             SmsError::InvalidCode => VaultError::authentication("Invalid verification code"),
             SmsError::NotConfigured => VaultError::Config("SMS service not configured".to_string()),
+            SmsError::WhatsAppNotAvailable => VaultError::ExternalService {
+                service: "whatsapp".to_string(),
+                message: "WhatsApp not available for this phone number".to_string(),
+            },
         }
     }
 }
@@ -69,6 +114,18 @@ pub trait SmsProvider: Send + Sync {
     /// Health check
     async fn health_check(&self) -> Result<(), SmsError> {
         Ok(())
+    }
+
+    /// Send a template message (optional support)
+    async fn send_template(
+        &self,
+        _to: &str,
+        _template_name: &str,
+        _params: &[String],
+    ) -> Result<(), SmsError> {
+        Err(SmsError::ProviderError(
+            "Template messaging not supported".to_string(),
+        ))
     }
 }
 
@@ -306,9 +363,10 @@ impl OtpCodeStore for RedisOtpCodeStore {
     }
 }
 
-/// SMS service for sending OTP codes
+/// SMS service for sending OTP codes via multiple channels (SMS, WhatsApp)
 pub struct SmsService {
-    provider: Option<Box<dyn SmsProvider>>,
+    sms_provider: Option<Box<dyn SmsProvider>>,
+    whatsapp_provider: Option<Box<dyn SmsProvider>>,
     code_store: Box<dyn OtpCodeStore>,
     config: SmsConfig,
 }
@@ -324,6 +382,8 @@ pub struct SmsConfig {
     pub code_expiry_minutes: i64,
     /// OTP code length
     pub code_length: usize,
+    /// Fallback to SMS if primary channel fails
+    pub fallback_to_sms: bool,
 }
 
 impl Default for SmsConfig {
@@ -333,19 +393,37 @@ impl Default for SmsConfig {
             rate_limit_window_secs: 600, // 10 minutes
             code_expiry_minutes: 10,
             code_length: 6,
+            fallback_to_sms: true,
         }
     }
 }
 
 impl SmsService {
     /// Create new SMS service with provider and code store
+    #[deprecated(since = "0.2.0", note = "Use `new_multi_channel` instead")]
     pub fn new(
         provider: Option<Box<dyn SmsProvider>>,
         code_store: Box<dyn OtpCodeStore>,
         config: SmsConfig,
     ) -> Self {
         Self {
-            provider,
+            sms_provider: provider,
+            whatsapp_provider: None,
+            code_store,
+            config,
+        }
+    }
+
+    /// Create new SMS service with multiple channel support
+    pub fn new_multi_channel(
+        sms_provider: Option<Box<dyn SmsProvider>>,
+        whatsapp_provider: Option<Box<dyn SmsProvider>>,
+        code_store: Box<dyn OtpCodeStore>,
+        config: SmsConfig,
+    ) -> Self {
+        Self {
+            sms_provider,
+            whatsapp_provider,
             code_store,
             config,
         }
@@ -354,7 +432,8 @@ impl SmsService {
     /// Create service without provider (for testing/development)
     pub fn new_without_provider(code_store: Box<dyn OtpCodeStore>) -> Self {
         Self {
-            provider: None,
+            sms_provider: None,
+            whatsapp_provider: None,
             code_store,
             config: SmsConfig::default(),
         }
@@ -362,7 +441,13 @@ impl SmsService {
 
     /// Set the SMS provider
     pub fn with_provider(mut self, provider: Box<dyn SmsProvider>) -> Self {
-        self.provider = Some(provider);
+        self.sms_provider = Some(provider);
+        self
+    }
+
+    /// Set the WhatsApp provider
+    pub fn with_whatsapp_provider(mut self, provider: Box<dyn SmsProvider>) -> Self {
+        self.whatsapp_provider = Some(provider);
         self
     }
 
@@ -411,18 +496,33 @@ impl SmsService {
     }
 
     /// Generate a cryptographically secure random OTP code
+    /// 
+    /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+    /// random digit generation. SMS OTP codes are sensitive credentials that must be
+    /// unpredictable to prevent unauthorized access.
     fn generate_code(&self) -> String {
-        let mut rng = rand::thread_rng();
+        use rand::Rng;
+        use rand_core::OsRng;
+        
+        // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+        let mut rng = OsRng;
         let code: String = (0..self.config.code_length)
             .map(|_| rng.gen_range(0..10).to_string())
             .collect();
         code
     }
 
-    /// Send OTP code to phone number
+    /// Send OTP code to phone number via SMS (legacy method)
     pub async fn send_code(&self, phone: &str) -> Result<(), SmsError> {
-        let provider = self.provider.as_ref().ok_or(SmsError::NotConfigured)?;
+        self.send_code_with_channel(phone, OtpChannel::Sms).await
+    }
 
+    /// Send OTP code to phone number via specific channel
+    pub async fn send_code_with_channel(
+        &self,
+        phone: &str,
+        channel: OtpChannel,
+    ) -> Result<(), SmsError> {
         // Validate phone number
         let normalized_phone = Self::validate_phone_number(phone)?;
 
@@ -454,15 +554,55 @@ impl SmsService {
             .record_attempt(&normalized_phone, self.config.rate_limit_window_secs)
             .await?;
 
-        // Send SMS
+        // Send via appropriate channel
+        match channel {
+            OtpChannel::WhatsApp => {
+                if let Some(provider) = &self.whatsapp_provider {
+                    let message = format!(
+                        "Your verification code is: {}. This code will expire in {} minutes.",
+                        code, self.config.code_expiry_minutes
+                    );
+
+                    match provider.send_sms(&normalized_phone, &message).await {
+                        Ok(()) => {
+                            tracing::info!("WhatsApp OTP sent to {}", normalized_phone);
+                        }
+                        Err(e) => {
+                            tracing::warn!("WhatsApp send failed: {}, attempting fallback", e);
+                            if self.config.fallback_to_sms {
+                                self.send_sms_fallback(&normalized_phone, &code).await?;
+                            } else {
+                                return Err(e);
+                            }
+                        }
+                    }
+                } else if self.config.fallback_to_sms {
+                    tracing::warn!("WhatsApp provider not configured, falling back to SMS");
+                    self.send_sms_fallback(&normalized_phone, &code).await?;
+                } else {
+                    return Err(SmsError::NotConfigured);
+                }
+            }
+            OtpChannel::Sms | OtpChannel::Voice => {
+                self.send_sms_fallback(&normalized_phone, &code).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send OTP via SMS (internal helper)
+    async fn send_sms_fallback(&self, phone: &str, code: &str) -> Result<(), SmsError> {
+        let provider = self.sms_provider.as_ref().ok_or(SmsError::NotConfigured)?;
+
         let message = format!(
             "Your verification code is: {}. This code will expire in {} minutes.",
             code, self.config.code_expiry_minutes
         );
 
-        provider.send_sms(&normalized_phone, &message).await?;
+        provider.send_sms(phone, &message).await?;
 
-        tracing::info!("SMS OTP sent to {}", normalized_phone);
+        tracing::info!("SMS OTP sent to {} (fallback)", phone);
 
         Ok(())
     }
@@ -515,12 +655,86 @@ impl SmsService {
 
     /// Check if SMS service is configured
     pub fn is_configured(&self) -> bool {
-        self.provider.is_some()
+        self.sms_provider.is_some()
     }
 
-    /// Get provider name
+    /// Send a notification message (non-OTP)
+    pub async fn send_message(
+        &self,
+        phone: &str,
+        message: &str,
+        channel: OtpChannel,
+    ) -> Result<(), SmsError> {
+        let normalized_phone = Self::validate_phone_number(phone)?;
+
+        match channel {
+            OtpChannel::Sms | OtpChannel::Voice => {
+                let provider = self.sms_provider.as_ref().ok_or(SmsError::NotConfigured)?;
+                provider.send_sms(&normalized_phone, message).await?;
+            }
+            OtpChannel::WhatsApp => {
+                if let Some(provider) = &self.whatsapp_provider {
+                    provider.send_sms(&normalized_phone, message).await?;
+                } else if self.config.fallback_to_sms {
+                    let provider = self.sms_provider.as_ref().ok_or(SmsError::NotConfigured)?;
+                    provider.send_sms(&normalized_phone, message).await?;
+                } else {
+                    return Err(SmsError::NotConfigured);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Send a WhatsApp template message (requires WhatsApp provider)
+    pub async fn send_template_message(
+        &self,
+        phone: &str,
+        template_name: &str,
+        params: &[String],
+    ) -> Result<(), SmsError> {
+        let normalized_phone = Self::validate_phone_number(phone)?;
+        let provider = self.whatsapp_provider.as_ref().ok_or(SmsError::NotConfigured)?;
+        provider
+            .send_template(&normalized_phone, template_name, params)
+            .await
+    }
+
+    /// Get SMS provider name
     pub fn provider_name(&self) -> Option<&'static str> {
-        self.provider.as_ref().map(|p| p.name())
+        self.sms_provider.as_ref().map(|p| p.name())
+    }
+
+    /// Check if WhatsApp service is configured
+    pub fn is_whatsapp_configured(&self) -> bool {
+        self.whatsapp_provider.is_some()
+    }
+
+    /// Get WhatsApp provider name
+    pub fn whatsapp_provider_name(&self) -> Option<&'static str> {
+        self.whatsapp_provider.as_ref().map(|p| p.name())
+    }
+
+    /// Check if a specific channel is available
+    pub fn is_channel_available(&self, channel: OtpChannel) -> bool {
+        match channel {
+            OtpChannel::Sms => self.sms_provider.is_some(),
+            OtpChannel::WhatsApp => self.whatsapp_provider.is_some(),
+            OtpChannel::Voice => false, // Voice not yet implemented
+        }
+    }
+
+    /// Get available channels
+    pub fn available_channels(&self) -> Vec<OtpChannel> {
+        let mut channels = Vec::new();
+        if self.sms_provider.is_some() {
+            channels.push(OtpChannel::Sms);
+        }
+        if self.whatsapp_provider.is_some() {
+            channels.push(OtpChannel::WhatsApp);
+        }
+        channels
     }
 }
 

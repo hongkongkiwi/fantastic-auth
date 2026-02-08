@@ -527,8 +527,15 @@ impl DomainService {
             }
 
             // Labels must start and end with alphanumeric
-            let first_char = label.chars().next().unwrap();
-            let last_char = label.chars().last().unwrap();
+            // SECURITY: Safe character access without unwrap()
+            let first_char = match label.chars().next() {
+                Some(c) => c,
+                None => return false,
+            };
+            let last_char = match label.chars().last() {
+                Some(c) => c,
+                None => return false,
+            };
 
             if !first_char.is_alphanumeric() || !last_char.is_alphanumeric() {
                 return false;

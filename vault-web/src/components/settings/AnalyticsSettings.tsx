@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Switch } from '@/components/ui/Switch'
+import { Badge } from '@/components/ui/Badge'
 import {
   BarChart3,
   MousePointerClick,
@@ -82,11 +83,19 @@ export function AnalyticsSettings() {
   const [config, setConfig] = useState<AnalyticsConfig>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState<Record<string, boolean>>({})
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        ...prev,
+        posthog: prev.posthog || Boolean(config.posthog.apiKey?.trim()),
+      }))
+      if (config.posthog.apiKey?.trim()) {
+        updateProviderConfig('posthog', 'apiKey', '')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -159,9 +168,14 @@ export function AnalyticsSettings() {
                               className="space-y-4"
                             >
                               <div className="space-y-2">
-                                <label htmlFor="posthog-key" className="text-sm font-medium leading-none">
-                                  Project API Key
-                                </label>
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="posthog-key" className="text-sm font-medium leading-none">
+                                    Project API Key
+                                  </label>
+                                  {secretState.posthog && !config.posthog.apiKey && (
+                                    <Badge variant="outline" className="text-xs">Set</Badge>
+                                  )}
+                                </div>
                                 <Input
                                   id="posthog-key"
                                   type={showSecrets ? 'text' : 'password'}
@@ -169,7 +183,7 @@ export function AnalyticsSettings() {
                                   onChange={(e) =>
                                     updateProviderConfig('posthog', 'apiKey', e.target.value)
                                   }
-                                  placeholder="phc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                                  placeholder={secretState.posthog && !config.posthog.apiKey ? '******** (set)' : 'phc_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'}
                                 />
                               </div>
 

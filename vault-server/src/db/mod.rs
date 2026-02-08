@@ -15,7 +15,7 @@ pub use webhooks::*;
 pub use vault_core::db::set_connection_context;
 
 /// Database connection pool
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Database {
     pool: PgPool,
 }
@@ -29,14 +29,20 @@ impl Database {
             .acquire_timeout(Duration::from_secs(30))
             .idle_timeout(Duration::from_secs(600))
             .max_lifetime(Duration::from_secs(1800))
+            .before_acquire(|conn, _meta| {
+                Box::pin(async move {
+                    vault_core::db::apply_request_context(conn).await?;
+                    Ok(true)
+                })
+            })
             .after_connect(|conn, _meta| {
                 Box::pin(async move {
                     // Enforce application role + RLS for all pooled connections.
-                    sqlx::query("SET ROLE vault_app").execute(conn).await?;
-                    sqlx::query("SET row_security = ON").execute(conn).await?;
-                    sqlx::query("RESET app.current_tenant_id").execute(conn).await?;
-                    sqlx::query("RESET app.current_user_id").execute(conn).await?;
-                    sqlx::query("RESET app.current_user_role").execute(conn).await?;
+                    sqlx::query("SET ROLE vault_app").execute(&mut *conn).await?;
+                    sqlx::query("SET row_security = ON").execute(&mut *conn).await?;
+                    sqlx::query("RESET app.current_tenant_id").execute(&mut *conn).await?;
+                    sqlx::query("RESET app.current_user_id").execute(&mut *conn).await?;
+                    sqlx::query("RESET app.current_user_role").execute(&mut *conn).await?;
                     Ok(())
                 })
             })
@@ -88,9 +94,29 @@ impl Database {
         vault_core::db::SessionRepository::new(Arc::new(self.pool.clone()))
     }
 
+    /// MFA repository
+    pub fn mfa(&self) -> vault_core::db::MfaRepository {
+        vault_core::db::MfaRepository::new(Arc::new(self.pool.clone()))
+    }
+
+    /// Biometric repository
+    pub fn biometric(&self) -> vault_core::db::BiometricRepository {
+        vault_core::db::BiometricRepository::new(Arc::new(self.pool.clone()))
+    }
+
     /// Organization repository
     pub fn organizations(&self) -> vault_core::db::OrganizationRepository {
         vault_core::db::OrganizationRepository::new(Arc::new(self.pool.clone()))
+    }
+
+    /// Project repository
+    pub fn projects(&self) -> vault_core::db::ProjectRepository {
+        vault_core::db::ProjectRepository::new(Arc::new(self.pool.clone()))
+    }
+
+    /// Application repository
+    pub fn applications(&self) -> vault_core::db::ApplicationRepository {
+        vault_core::db::ApplicationRepository::new(Arc::new(self.pool.clone()))
     }
 
     /// Audit log repository
@@ -173,22 +199,36 @@ impl AuditRepository {
         page: i64,
         per_page: i64,
     ) -> anyhow::Result<(Vec<AuditLogEntry>, i64)> {
+        self.list_filtered(tenant_id, None, page, per_page).await
+    }
+
+    pub async fn list_filtered(
+        &self,
+        tenant_id: &str,
+        user_id: Option<&str>,
+        page: i64,
+        per_page: i64,
+    ) -> anyhow::Result<(Vec<AuditLogEntry>, i64)> {
         let offset = (page - 1) * per_page;
 
-        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .fetch_one(&self.pool)
-            .await?;
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1 AND ($2::uuid IS NULL OR user_id = $2::uuid)"
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
 
         let rows = sqlx::query_as::<_, AuditLogRow>(
             r#"SELECT id, timestamp, tenant_id, user_id, session_id, action,
                       resource_type, resource_id, ip_address, user_agent, success, error, metadata
                FROM audit_logs 
-               WHERE tenant_id = $1
+               WHERE tenant_id = $1 AND ($2::uuid IS NULL OR user_id = $2::uuid)
                ORDER BY timestamp DESC
-               LIMIT $2 OFFSET $3"#,
+               LIMIT $3 OFFSET $4"#,
         )
         .bind(tenant_id)
+        .bind(user_id)
         .bind(per_page)
         .bind(offset)
         .fetch_all(&self.pool)
@@ -196,6 +236,29 @@ impl AuditRepository {
 
         let entries = rows.into_iter().map(|r| r.into()).collect();
         Ok((entries, total))
+    }
+
+    /// Delete audit log entries older than cutoff for a tenant
+    pub async fn prune_older_than(
+        &self,
+        tenant_id: &str,
+        cutoff: chrono::DateTime<chrono::Utc>,
+    ) -> anyhow::Result<u64> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
+            .bind(tenant_id)
+            .execute(&mut *conn)
+            .await?;
+
+        let result = sqlx::query(
+            r#"DELETE FROM audit_logs WHERE tenant_id = $1 AND timestamp < $2"#,
+        )
+        .bind(tenant_id)
+        .bind(cutoff)
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 }
 

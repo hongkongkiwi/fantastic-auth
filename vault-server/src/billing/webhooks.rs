@@ -51,6 +51,8 @@ pub struct StripeSubscription {
     pub items: StripeList<StripeSubscriptionItem>,
     #[serde(rename = "cancel_at_period_end")]
     pub cancel_at_period_end: bool,
+    #[serde(rename = "cancel_at")]
+    pub cancel_at: Option<i64>,
     #[serde(rename = "trial_start")]
     pub trial_start: Option<i64>,
     #[serde(rename = "trial_end")]
@@ -115,7 +117,7 @@ pub struct StripeInvoice {
 }
 
 /// Stripe charge
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeCharge {
     pub id: String,
     pub customer: Option<String>,
@@ -183,6 +185,19 @@ impl DefaultWebhookHandler {
         metadata.get("tenant_id")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string())
+    }
+
+    fn cancel_at_timestamp(&self, subscription: &StripeSubscription) -> Option<chrono::DateTime<chrono::Utc>> {
+        let cancel_at = subscription
+            .cancel_at
+            .or_else(|| {
+                if subscription.cancel_at_period_end {
+                    Some(subscription.current_period_end)
+                } else {
+                    None
+                }
+            });
+        cancel_at.and_then(|t| chrono::DateTime::from_timestamp(t, 0))
     }
 }
 
@@ -290,7 +305,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         sqlx::query(
             r#"INSERT INTO subscriptions (
                 tenant_id, stripe_customer_id, stripe_subscription_id, stripe_price_id,
-                status, current_period_start, current_period_end, cancel_at_period_end,
+                status, current_period_start, current_period_end, cancel_at,
                 trial_start, trial_end, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
             ON CONFLICT (tenant_id) DO UPDATE SET
@@ -299,7 +314,7 @@ impl WebhookHandler for DefaultWebhookHandler {
                 status = $5,
                 current_period_start = $6,
                 current_period_end = $7,
-                cancel_at_period_end = $8,
+                cancel_at = $8,
                 trial_start = $9,
                 trial_end = $10,
                 updated_at = NOW()"#
@@ -311,7 +326,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&subscription.status)
         .bind(chrono::DateTime::from_timestamp(subscription.current_period_start, 0))
         .bind(chrono::DateTime::from_timestamp(subscription.current_period_end, 0))
-        .bind(subscription.cancel_at_period_end)
+        .bind(self.cancel_at_timestamp(&subscription))
         .bind(subscription.trial_start.map(|t| chrono::DateTime::from_timestamp(t, 0)))
         .bind(subscription.trial_end.map(|t| chrono::DateTime::from_timestamp(t, 0)))
         .execute(self.db.pool())
@@ -362,7 +377,7 @@ impl WebhookHandler for DefaultWebhookHandler {
                 status = $1,
                 current_period_start = $2,
                 current_period_end = $3,
-                cancel_at_period_end = $4,
+                cancel_at = $4,
                 trial_start = $5,
                 trial_end = $6,
                 canceled_at = $7,
@@ -372,7 +387,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&subscription.status)
         .bind(chrono::DateTime::from_timestamp(subscription.current_period_start, 0))
         .bind(chrono::DateTime::from_timestamp(subscription.current_period_end, 0))
-        .bind(subscription.cancel_at_period_end)
+        .bind(self.cancel_at_timestamp(&subscription))
         .bind(subscription.trial_start.map(|t| chrono::DateTime::from_timestamp(t, 0)))
         .bind(subscription.trial_end.map(|t| chrono::DateTime::from_timestamp(t, 0)))
         .bind(subscription.canceled_at.map(|t| chrono::DateTime::from_timestamp(t, 0)))

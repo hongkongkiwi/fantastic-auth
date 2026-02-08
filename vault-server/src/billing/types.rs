@@ -241,6 +241,24 @@ pub struct PortalResponse {
     pub url: String,
 }
 
+/// Checkout session for Stripe
+#[derive(Debug, Clone, Serialize)]
+pub struct CheckoutSession {
+    pub id: String,
+    pub url: String,
+    pub status: String,
+    pub customer_id: Option<String>,
+    pub subscription_id: Option<String>,
+}
+
+/// Customer portal session
+#[derive(Debug, Clone, Serialize)]
+pub struct PortalSession {
+    pub id: String,
+    pub url: String,
+    pub customer_id: String,
+}
+
 /// Request to setup usage-based billing
 #[derive(Debug, Deserialize)]
 pub struct SetupMeteredBillingRequest {

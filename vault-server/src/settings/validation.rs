@@ -132,6 +132,35 @@ pub fn validate_security_settings(settings: &SecuritySettings) -> Result<(), Api
         ));
     }
 
+    // Security notification validation
+    let notifications = &settings.notifications;
+    if notifications.admin_roles.is_empty() {
+        return Err(ApiError::BadRequest(
+            "At least one admin role must be configured for security notifications".to_string()
+        ));
+    }
+
+    for (label, audience) in [("user", &notifications.user), ("admin", &notifications.admin)] {
+        if audience.enabled && audience.channels.is_empty() {
+            return Err(ApiError::BadRequest(format!(
+                "Security notifications for {} must include at least one channel",
+                label
+            )));
+        }
+    }
+
+    let whatsapp_enabled = notifications
+        .user
+        .channels
+        .iter()
+        .chain(notifications.admin.channels.iter())
+        .any(|c| matches!(c, NotificationChannel::Whatsapp));
+    if whatsapp_enabled && notifications.whatsapp_template_name.is_none() {
+        return Err(ApiError::BadRequest(
+            "WhatsApp notifications require whatsapp_template_name".to_string()
+        ));
+    }
+
     Ok(())
 }
 
@@ -305,6 +334,97 @@ pub fn validate_email_settings(settings: &EmailSettings) -> Result<(), ApiError>
             return Err(ApiError::BadRequest(
                 "SMTP username cannot be empty".to_string()
             ));
+        }
+    }
+
+    Ok(())
+}
+
+/// Validate SMS settings
+pub fn validate_sms_settings(settings: &SmsSettings) -> Result<(), ApiError> {
+    if let Some(code_length) = settings.code_length {
+        if code_length < 4 || code_length > 10 {
+            return Err(ApiError::BadRequest(
+                "SMS code length must be between 4 and 10".to_string(),
+            ));
+        }
+    }
+
+    if let Some(max) = settings.max_sends_per_phone {
+        if max == 0 {
+            return Err(ApiError::BadRequest(
+                "SMS max_sends_per_phone must be greater than 0".to_string(),
+            ));
+        }
+    }
+
+    if let Some(ref provider) = settings.provider {
+        if matches!(provider, SmsProviderType::Twilio) {
+            if settings
+                .twilio_account_sid
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+            {
+                return Err(ApiError::BadRequest(
+                    "Twilio account_sid cannot be empty when provided".to_string(),
+                ));
+            }
+            if settings
+                .twilio_auth_token_encrypted
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+            {
+                return Err(ApiError::BadRequest(
+                    "Twilio auth_token cannot be empty when provided".to_string(),
+                ));
+            }
+            if settings
+                .twilio_from_number
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+            {
+                return Err(ApiError::BadRequest(
+                    "Twilio from_number cannot be empty when provided".to_string(),
+                ));
+            }
+        }
+    }
+
+    if let Some(ref whatsapp) = settings.whatsapp {
+        if whatsapp.enabled.unwrap_or(false) {
+            if whatsapp
+                .phone_number_id
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                return Err(ApiError::BadRequest(
+                    "WhatsApp phone_number_id is required when WhatsApp is enabled".to_string(),
+                ));
+            }
+            if whatsapp
+                .access_token_encrypted
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(true)
+            {
+                return Err(ApiError::BadRequest(
+                    "WhatsApp access_token is required when WhatsApp is enabled".to_string(),
+                ));
+            }
+            if whatsapp
+                .template_name
+                .as_ref()
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+            {
+                return Err(ApiError::BadRequest(
+                    "WhatsApp template_name cannot be empty".to_string(),
+                ));
+            }
         }
     }
 
@@ -489,6 +609,7 @@ pub fn validate_all_settings(settings: &TenantSettings) -> Result<(), ApiError> 
     validate_org_settings(&settings.org)?;
     validate_branding_settings(&settings.branding)?;
     validate_email_settings(&settings.email)?;
+    validate_sms_settings(&settings.sms)?;
     validate_oauth_settings(&settings.oauth)?;
     validate_localization_settings(&settings.localization)?;
     validate_webhook_settings(&settings.webhook)?;

@@ -1,0 +1,38 @@
+{
+  "family": "vault",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::123456789012:role/vaultTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "vault",
+      "image": "ghcr.io/your-org/vault-server:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 3000, "protocol": "tcp" },
+        { "containerPort": 9090, "protocol": "tcp" }
+      ],
+      "environment": [
+        { "name": "VAULT_HOST", "value": "0.0.0.0" },
+        { "name": "VAULT_PORT", "value": "3000" },
+        { "name": "VAULT_METRICS_PORT", "value": "9090" },
+        { "name": "VAULT_LOG_LEVEL", "value": "info" }
+      ],
+      "secrets": [
+        { "name": "VAULT_DATABASE_URL", "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/vault/database_url" },
+        { "name": "VAULT_REDIS_URL", "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/vault/redis_url" },
+        { "name": "VAULT_JWT_SECRET", "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/vault/jwt_secret" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -sf http://localhost:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ]
+}

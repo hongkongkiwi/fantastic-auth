@@ -12,6 +12,7 @@ pub mod password_policy;
 pub mod risk;
 pub mod session_binding;
 pub mod session_binding_notifications;
+pub mod security_notifications;
 pub mod tenant_keys;
 
 pub use bot_protection::{verify_captcha_token, BotProtectionError, BotProtectionResult};
@@ -40,6 +41,7 @@ pub use session_binding::{
     SessionBindingConfig, SessionBindingInfo, ViolationDetails, ViolationType,
 };
 pub use session_binding_notifications::SessionBindingNotificationService;
+pub use security_notifications::SecurityNotificationService;
 pub use tenant_keys::{
     KmsProvider, KmsProviderKind, KmsRegistry, LocalMasterKeyProvider, TenantKeyError,
     TenantKeyService, WrappedKey,

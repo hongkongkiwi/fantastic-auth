@@ -78,11 +78,24 @@ export function StorageSettings() {
   const [config, setConfig] = useState<StorageConfig>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState({
+    accessKeyId: false,
+    secretAccessKey: false,
+    accountKey: false,
+  })
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        accessKeyId: prev.accessKeyId || Boolean(config.accessKeyId?.trim()),
+        secretAccessKey: prev.secretAccessKey || Boolean(config.secretAccessKey?.trim()),
+        accountKey: prev.accountKey || Boolean(config.accountKey?.trim()),
+      }))
+      if (config.accessKeyId?.trim()) updateConfig('accessKeyId', '')
+      if (config.secretAccessKey?.trim()) updateConfig('secretAccessKey', '')
+      if (config.accountKey?.trim()) updateConfig('accountKey', '')
     } finally {
       setIsLoading(false)
     }
@@ -246,23 +259,36 @@ export function StorageSettings() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <label htmlFor="access-key" className="text-sm font-medium leading-none">
-                        Access Key ID
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="access-key" className="text-sm font-medium leading-none">
+                          Access Key ID
+                        </label>
+                        {secretState.accessKeyId && !config.accessKeyId && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <Input
                         id="access-key"
+                        type={showSecrets ? 'text' : 'password'}
                         value={config.accessKeyId}
+                        placeholder={secretState.accessKeyId && !config.accessKeyId ? '******** (set)' : 'AKIA...'}
                         onChange={(e) => updateConfig('accessKeyId', e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <label htmlFor="secret-key" className="text-sm font-medium leading-none">
-                        Secret Access Key
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="secret-key" className="text-sm font-medium leading-none">
+                          Secret Access Key
+                        </label>
+                        {secretState.secretAccessKey && !config.secretAccessKey && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <Input
                         id="secret-key"
                         type={showSecrets ? 'text' : 'password'}
                         value={config.secretAccessKey}
+                        placeholder={secretState.secretAccessKey && !config.secretAccessKey ? '******** (set)' : '••••••••'}
                         onChange={(e) => updateConfig('secretAccessKey', e.target.value)}
                       />
                     </div>
@@ -300,13 +326,19 @@ export function StorageSettings() {
                   </div>
 
                   <div className="space-y-2">
-                    <label htmlFor="azure-key" className="text-sm font-medium leading-none">
-                      Account Key
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="azure-key" className="text-sm font-medium leading-none">
+                        Account Key
+                      </label>
+                      {secretState.accountKey && !config.accountKey && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="azure-key"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.accountKey}
+                      placeholder={secretState.accountKey && !config.accountKey ? '******** (set)' : '••••••••'}
                       onChange={(e) => updateConfig('accountKey', e.target.value)}
                     />
                   </div>

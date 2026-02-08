@@ -40,6 +40,15 @@ export type { AuditFilter, ActionSummary, UserActivitySummary } from './audit';
 export { SettingsManager } from './settings';
 export type { SecuritySettings } from './settings';
 
+export { AnalyticsManager } from './analytics';
+export { SecurityManager } from './security';
+export { ScimAdminManager } from './scim-admin';
+export { ApiKeysManager } from './api-keys';
+export { OidcManager } from './oidc';
+export { BulkManager } from './bulk';
+export { MigrationManager } from './migrations';
+export { ConsentManager } from './consent';
+
 // Generated types
 export type * from './generated/client';
 
@@ -51,6 +60,7 @@ export type {
   AuditLogEntry,
   TenantSettings,
   DashboardResponse,
+  ListUsersResponse,
   CreateUserRequest,
   UpdateUserRequest,
   UpdateOrgRequest,

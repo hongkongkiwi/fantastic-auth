@@ -604,155 +604,124 @@ async fn update_connection(
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
 
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    let mut params: Vec<
-        Box<dyn sqlx::Encode<'_, sqlx::Postgres> + Send + sqlx::Type<sqlx::Postgres>>,
-    > = Vec::new();
-    let mut param_idx = 1;
+    let mut builder = sqlx::QueryBuilder::new("UPDATE ldap_connections SET ");
+    let mut set = builder.separated(", ");
+    let mut has_updates = false;
 
     if let Some(name) = &req.name {
-        updates.push(format!("name = ${}", param_idx));
-        params.push(Box::new(name.clone()));
-        param_idx += 1;
+        set.push("name = ").push_bind(name);
+        has_updates = true;
     }
     if let Some(url) = &req.url {
-        updates.push(format!("url = ${}", param_idx));
-        params.push(Box::new(url.clone()));
-        param_idx += 1;
+        set.push("url = ").push_bind(url);
+        has_updates = true;
     }
     if let Some(bind_dn) = &req.bind_dn {
-        updates.push(format!("bind_dn = ${}", param_idx));
-        params.push(Box::new(bind_dn.clone()));
-        param_idx += 1;
+        set.push("bind_dn = ").push_bind(bind_dn);
+        has_updates = true;
     }
     if let Some(bind_password) = &req.bind_password {
         let encrypted =
             encrypt_bind_password(&state, &current_user.tenant_id, bind_password).await?;
-        updates.push(format!("bind_password_encrypted = ${}", param_idx));
-        params.push(Box::new(encrypted));
-        param_idx += 1;
+        set.push("bind_password_encrypted = ").push_bind(encrypted);
+        has_updates = true;
     }
     if let Some(base_dn) = &req.base_dn {
-        updates.push(format!("base_dn = ${}", param_idx));
-        params.push(Box::new(base_dn.clone()));
-        param_idx += 1;
+        set.push("base_dn = ").push_bind(base_dn);
+        has_updates = true;
     }
     if req.user_search_base.is_some() {
-        updates.push(format!("user_search_base = ${}", param_idx));
-        params.push(Box::new(req.user_search_base.clone()));
-        param_idx += 1;
+        set.push("user_search_base = ").push_bind(req.user_search_base.clone());
+        has_updates = true;
     }
     if let Some(user_search_filter) = &req.user_search_filter {
-        updates.push(format!("user_search_filter = ${}", param_idx));
-        params.push(Box::new(user_search_filter.clone()));
-        param_idx += 1;
+        set.push("user_search_filter = ").push_bind(user_search_filter);
+        has_updates = true;
     }
     if req.group_search_base.is_some() {
-        updates.push(format!("group_search_base = ${}", param_idx));
-        params.push(Box::new(req.group_search_base.clone()));
-        param_idx += 1;
+        set.push("group_search_base = ").push_bind(req.group_search_base.clone());
+        has_updates = true;
     }
     if let Some(group_search_filter) = &req.group_search_filter {
-        updates.push(format!("group_search_filter = ${}", param_idx));
-        params.push(Box::new(group_search_filter.clone()));
-        param_idx += 1;
+        set.push("group_search_filter = ").push_bind(group_search_filter);
+        has_updates = true;
     }
     if let Some(user_attributes) = &req.user_attributes {
-        updates.push(format!("user_attribute_mappings = ${}", param_idx));
-        params.push(Box::new(
-            serde_json::to_value(user_attributes).unwrap_or_default(),
-        ));
-        param_idx += 1;
+        let mappings = serde_json::to_value(user_attributes).unwrap_or_default();
+        set.push("user_attribute_mappings = ").push_bind(mappings);
+        has_updates = true;
     }
     if let Some(sync_interval) = req.sync_interval_minutes {
-        updates.push(format!("sync_interval_minutes = ${}", param_idx));
-        params.push(Box::new(sync_interval as i32));
-        param_idx += 1;
+        set.push("sync_interval_minutes = ").push_bind(sync_interval as i32);
+        has_updates = true;
     }
     if let Some(enabled) = req.enabled {
-        updates.push(format!("enabled = ${}", param_idx));
-        params.push(Box::new(enabled));
-        param_idx += 1;
+        set.push("enabled = ").push_bind(enabled);
+        has_updates = true;
     }
     if let Some(tls_verify_cert) = req.tls_verify_cert {
-        updates.push(format!("tls_verify_cert = ${}", param_idx));
-        params.push(Box::new(tls_verify_cert));
-        param_idx += 1;
+        set.push("tls_verify_cert = ").push_bind(tls_verify_cert);
+        has_updates = true;
     }
     if req.tls_ca_cert.is_some() {
-        updates.push(format!("tls_ca_cert = ${}", param_idx));
-        params.push(Box::new(req.tls_ca_cert.clone()));
-        param_idx += 1;
+        set.push("tls_ca_cert = ").push_bind(req.tls_ca_cert.clone());
+        has_updates = true;
     }
     if let Some(connection_timeout) = req.connection_timeout_secs {
-        updates.push(format!("connection_timeout_secs = ${}", param_idx));
-        params.push(Box::new(connection_timeout as i32));
-        param_idx += 1;
+        set.push("connection_timeout_secs = ").push_bind(connection_timeout as i32);
+        has_updates = true;
     }
     if let Some(search_timeout) = req.search_timeout_secs {
-        updates.push(format!("search_timeout_secs = ${}", param_idx));
-        params.push(Box::new(search_timeout as i32));
-        param_idx += 1;
+        set.push("search_timeout_secs = ").push_bind(search_timeout as i32);
+        has_updates = true;
     }
     if let Some(jit_enabled) = req.jit_provisioning_enabled {
-        updates.push(format!("jit_provisioning_enabled = ${}", param_idx));
-        params.push(Box::new(jit_enabled));
-        param_idx += 1;
+        set.push("jit_provisioning_enabled = ").push_bind(jit_enabled);
+        has_updates = true;
     }
     if let Some(jit_role) = &req.jit_default_role {
-        updates.push(format!("jit_default_role = ${}", param_idx));
-        params.push(Box::new(jit_role.clone()));
-        param_idx += 1;
+        set.push("jit_default_role = ").push_bind(jit_role);
+        has_updates = true;
     }
     if req.jit_organization_id.is_some() {
-        updates.push(format!("jit_organization_id = ${}::uuid", param_idx));
         let org_id = req
             .jit_organization_id
             .as_deref()
             .map(Uuid::parse_str)
             .transpose()
             .map_err(|_| ApiError::Validation("Invalid organization ID".to_string()))?;
-        params.push(Box::new(org_id));
-        param_idx += 1;
+        set.push("jit_organization_id = ").push_bind(org_id);
+        has_updates = true;
     }
     if let Some(group_sync) = req.group_sync_enabled {
-        updates.push(format!("group_sync_enabled = ${}", param_idx));
-        params.push(Box::new(group_sync));
-        param_idx += 1;
+        set.push("group_sync_enabled = ").push_bind(group_sync);
+        has_updates = true;
     }
 
-    if updates.is_empty() {
+    if !has_updates {
         return Err(ApiError::BadRequest("No fields to update".to_string()));
     }
 
-    updates.push(format!("updated_at = NOW()"));
+    set.push("updated_at = NOW()");
 
-    let sql = format!(
-        "UPDATE ldap_connections SET {} WHERE id = ${} AND tenant_id = ${} RETURNING *",
-        updates.join(", "),
-        param_idx,
-        param_idx + 1
-    );
+    let tenant_uuid = Uuid::parse_str(&current_user.tenant_id)
+        .map_err(|_| ApiError::Validation("Invalid tenant ID".to_string()))?;
 
-    let mut query = sqlx::query(&sql);
-    for param in params {
-        query = query.bind(param);
-    }
-    query
-        .bind(&connection_uuid)
-        .bind(&current_user.tenant_id)
-        .execute(state.db.pool())
+    builder
+        .push(" WHERE id = ")
+        .push_bind(connection_uuid)
+        .push(" AND tenant_id = ")
+        .push_bind(tenant_uuid)
+        .push(" RETURNING *");
+
+    let row = builder
+        .build_query_as::<LdapConnectionRow>()
+        .fetch_one(state.db.pool())
         .await
         .map_err(|e| {
             tracing::error!("Failed to update LDAP connection: {}", e);
             ApiError::Internal
         })?;
-
-    // Fetch and return updated connection
-    let row = fetch_connection_row(state.db.pool(), &connection_uuid, &current_user.tenant_id)
-        .await
-        .map_err(|_| ApiError::Internal)?;
 
     Ok(Json(row_to_response(row)))
 }
@@ -987,19 +956,20 @@ async fn get_sync_status(
 
     // Get stats from last sync if available
     let stats: Option<SyncStatsResponse> = if let Some(ref last) = last_sync_info {
-        sqlx::query_as(
-            "SELECT users_found, users_created, users_updated, users_failed, groups_found, groups_created, groups_updated, groups_failed 
+        sqlx::query_as::<_, (i32, i32, i32, i32, i32, i32, i32, i32, i32)>(
+            "SELECT users_found, users_created, users_updated, users_disabled, users_failed, groups_found, groups_created, groups_updated, groups_failed 
              FROM ldap_sync_logs WHERE id = $1"
         )
         .bind(&last.sync_id)
         .fetch_optional(state.db.pool())
         .await
         .map_err(|_| ApiError::Internal)?
-        .map(|(users_found, users_created, users_updated, users_failed, groups_found, groups_created, groups_updated, groups_failed)| {
+        .map(|(users_found, users_created, users_updated, users_disabled, users_failed, groups_found, groups_created, groups_updated, groups_failed)| {
             SyncStatsResponse {
                 users_found: users_found as usize,
                 users_created: users_created as usize,
                 users_updated: users_updated as usize,
+                users_disabled: users_disabled as usize,
                 users_failed: users_failed as usize,
                 groups_found: groups_found as usize,
                 groups_created: groups_created as usize,
@@ -1053,7 +1023,7 @@ async fn list_sync_logs(
 
     sql.push_str(" ORDER BY started_at DESC LIMIT $2 OFFSET $3");
 
-    let rows: Vec<SyncLogRow> = sqlx::query_as(&sql)
+    let rows: Vec<SyncLogRow> = sqlx::query_as::<_, SyncLogRow>(&sql)
         .bind(&connection_uuid)
         .bind(per_page)
         .bind(offset)
@@ -1113,7 +1083,26 @@ async fn get_sync_log(
         .map_err(|_| ApiError::Internal)?;
 
     // Fetch log with connection verification
-    let row: Option<(SyncLogRow, serde_json::Value)> = sqlx::query_as(
+    #[derive(sqlx::FromRow)]
+    struct SyncLogDetailRow {
+        id: String,
+        connection_id: String,
+        sync_type: String,
+        status: String,
+        started_at: DateTime<Utc>,
+        completed_at: Option<DateTime<Utc>>,
+        users_found: i32,
+        users_created: i32,
+        users_updated: i32,
+        users_failed: i32,
+        groups_found: i32,
+        duration_ms: Option<i32>,
+        error_message: Option<String>,
+        triggered_by: String,
+        log_entries: serde_json::Value,
+    }
+
+    let row: Option<SyncLogDetailRow> = sqlx::query_as::<_, SyncLogDetailRow>(
         r#"
         SELECT 
             l.id::text, l.connection_id::text, l.sync_type, l.status, l.started_at, l.completed_at,
@@ -1131,10 +1120,10 @@ async fn get_sync_log(
     .await
     .map_err(|_| ApiError::Internal)?;
 
-    let (log_row, log_entries_json) = row.ok_or(ApiError::NotFound)?;
+    let row = row.ok_or(ApiError::NotFound)?;
 
     // Parse log entries
-    let log_entries: Vec<SyncLogEntryResponse> = log_entries_json
+    let log_entries: Vec<SyncLogEntryResponse> = (&row.log_entries)
         .as_array()
         .map(|arr| {
             arr.iter()
@@ -1158,20 +1147,20 @@ async fn get_sync_log(
 
     Ok(Json(SyncLogDetailResponse {
         log: SyncLogResponse {
-            id: log_row.id,
-            connection_id: log_row.connection_id,
-            sync_type: log_row.sync_type,
-            status: log_row.status,
-            started_at: log_row.started_at,
-            completed_at: log_row.completed_at,
-            users_found: log_row.users_found,
-            users_created: log_row.users_created,
-            users_updated: log_row.users_updated,
-            users_failed: log_row.users_failed,
-            groups_found: log_row.groups_found,
-            duration_ms: log_row.duration_ms,
-            error_message: log_row.error_message,
-            triggered_by: log_row.triggered_by,
+            id: row.id,
+            connection_id: row.connection_id,
+            sync_type: row.sync_type,
+            status: row.status,
+            started_at: row.started_at,
+            completed_at: row.completed_at,
+            users_found: row.users_found,
+            users_created: row.users_created,
+            users_updated: row.users_updated,
+            users_failed: row.users_failed,
+            groups_found: row.groups_found,
+            duration_ms: row.duration_ms,
+            error_message: row.error_message,
+            triggered_by: row.triggered_by,
         },
         log_entries,
     }))
@@ -1188,7 +1177,7 @@ async fn ldap_authenticate(
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    let jit_auth = LdapJitAuth::new(state.db.pool().clone());
+    let jit_auth = LdapJitAuth::new(state.db.pool().clone(), state.tenant_key_service.clone());
 
     match jit_auth
         .authenticate(&current_user.tenant_id, &req.email, &req.password)

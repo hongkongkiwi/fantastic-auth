@@ -39,6 +39,10 @@ pub fn routes() -> Router<AppState> {
         // Data encryption provider migration
         .route("/security/data-encryption", get(get_data_encryption_status))
         .route("/security/data-encryption/migrate", put(migrate_data_encryption_provider))
+        .route(
+            "/security/data-encryption/providers",
+            get(list_data_encryption_providers),
+        )
 }
 
 // ============ Request/Response Types ============
@@ -119,6 +123,9 @@ fn parse_kms_provider(value: &str) -> Result<KmsProviderKind, ApiError> {
         "local" => Ok(KmsProviderKind::Local),
         "aws_kms" | "aws-kms" => Ok(KmsProviderKind::AwsKms),
         "azure_kv" | "azure-kv" | "azure_kms" => Ok(KmsProviderKind::AzureKv),
+        "gcp_kms" | "gcp-kms" => Ok(KmsProviderKind::GcpKms),
+        "alicloud_kms" | "alicloud-kms" => Ok(KmsProviderKind::AlicloudKms),
+        "oracle_kms" | "oracle-kms" => Ok(KmsProviderKind::OracleKms),
         _ => Err(ApiError::BadRequest(format!(
             "Unknown provider: {}",
             value
@@ -245,11 +252,17 @@ async fn get_data_encryption_status(
             KmsProviderKind::Local => "local",
             KmsProviderKind::AwsKms => "aws_kms",
             KmsProviderKind::AzureKv => "azure_kv",
+            KmsProviderKind::GcpKms => "gcp_kms",
+            KmsProviderKind::AlicloudKms => "alicloud_kms",
+            KmsProviderKind::OracleKms => "oracle_kms",
         },
         None => match state.config.security.data_encryption.provider {
             crate::config::DataEncryptionProvider::Local => "local",
             crate::config::DataEncryptionProvider::AwsKms => "aws_kms",
             crate::config::DataEncryptionProvider::AzureKv => "azure_kv",
+            crate::config::DataEncryptionProvider::GcpKms => "gcp_kms",
+            crate::config::DataEncryptionProvider::AlicloudKms => "alicloud_kms",
+            crate::config::DataEncryptionProvider::OracleKms => "oracle_kms",
         },
     };
 
@@ -299,6 +312,40 @@ async fn migrate_data_encryption_provider(
     Ok(Json(serde_json::json!({
         "message": "Data encryption provider migrated",
         "provider": req.provider
+    })))
+}
+
+async fn list_data_encryption_providers(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let supported: Vec<String> = state
+        .tenant_key_service
+        .supported_providers()
+        .into_iter()
+        .map(|provider| match provider {
+            KmsProviderKind::Local => "local".to_string(),
+            KmsProviderKind::AwsKms => "aws_kms".to_string(),
+            KmsProviderKind::AzureKv => "azure_kv".to_string(),
+            KmsProviderKind::GcpKms => "gcp_kms".to_string(),
+            KmsProviderKind::AlicloudKms => "alicloud_kms".to_string(),
+            KmsProviderKind::OracleKms => "oracle_kms".to_string(),
+        })
+        .collect();
+
+    let default_provider = match state.config.security.data_encryption.provider {
+        crate::config::DataEncryptionProvider::Local => "local",
+        crate::config::DataEncryptionProvider::AwsKms => "aws_kms",
+        crate::config::DataEncryptionProvider::AzureKv => "azure_kv",
+        crate::config::DataEncryptionProvider::GcpKms => "gcp_kms",
+        crate::config::DataEncryptionProvider::AlicloudKms => "alicloud_kms",
+        crate::config::DataEncryptionProvider::OracleKms => "oracle_kms",
+    };
+
+    Ok(Json(serde_json::json!({
+        "supported": supported,
+        "default": default_provider,
+        "tenant_id": current_user.tenant_id
     })))
 }
 

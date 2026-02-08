@@ -106,6 +106,7 @@ export function OAuthProviderSettings() {
   const [configs, setConfigs] = useState<OAuthProvidersState>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState<Record<string, boolean>>({})
   const [activeProvider, setActiveProvider] = useState<keyof OAuthProvidersState | null>(null)
 
   const hasAnyProviderEnabled = oauthProviders.some(isProviderEnabled)
@@ -125,6 +126,23 @@ export function OAuthProviderSettings() {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => {
+        const next = { ...prev }
+        oauthProviders.forEach((provider) => {
+          const secret = configs[provider.id].clientSecret?.trim()
+          if (secret) next[provider.id] = true
+        })
+        return next
+      })
+      setConfigs((prev) => {
+        const next = { ...prev }
+        oauthProviders.forEach((provider) => {
+          if (next[provider.id].clientSecret?.trim()) {
+            next[provider.id] = { ...next[provider.id], clientSecret: '' }
+          }
+        })
+        return next
+      })
     } finally {
       setIsLoading(false)
     }
@@ -293,15 +311,24 @@ export function OAuthProviderSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <label htmlFor="client-secret" className="text-sm font-medium leading-none">
-                    Client Secret
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="client-secret" className="text-sm font-medium leading-none">
+                      Client Secret
+                    </label>
+                    {secretState[activeProvider] && !configs[activeProvider].clientSecret && (
+                      <Badge variant="outline" className="text-xs">Set</Badge>
+                    )}
+                  </div>
                   <Input
                     id="client-secret"
                     type={showSecrets ? 'text' : 'password'}
                     value={configs[activeProvider].clientSecret}
                     onChange={(e) => updateProviderConfig(activeProvider, 'clientSecret', e.target.value)}
-                    placeholder={`Enter your ${activeProviderDef?.name} Client Secret`}
+                    placeholder={
+                      secretState[activeProvider] && !configs[activeProvider].clientSecret
+                        ? '******** (set)'
+                        : `Enter your ${activeProviderDef?.name} Client Secret`
+                    }
                   />
                 </div>
 

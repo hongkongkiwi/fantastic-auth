@@ -73,11 +73,27 @@ export function SmsSettings() {
   const [isTesting, setIsTesting] = useState(false)
   const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState({
+    twilioAuthToken: false,
+    messageBirdApiKey: false,
+    vonageApiKey: false,
+    vonageApiSecret: false,
+  })
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        twilioAuthToken: prev.twilioAuthToken || Boolean(config.twilioAuthToken?.trim()),
+        messageBirdApiKey: prev.messageBirdApiKey || Boolean(config.messageBirdApiKey?.trim()),
+        vonageApiKey: prev.vonageApiKey || Boolean(config.vonageApiKey?.trim()),
+        vonageApiSecret: prev.vonageApiSecret || Boolean(config.vonageApiSecret?.trim()),
+      }))
+      if (config.twilioAuthToken?.trim()) updateConfig('twilioAuthToken', '')
+      if (config.messageBirdApiKey?.trim()) updateConfig('messageBirdApiKey', '')
+      if (config.vonageApiKey?.trim()) updateConfig('vonageApiKey', '')
+      if (config.vonageApiSecret?.trim()) updateConfig('vonageApiSecret', '')
     } finally {
       setIsLoading(false)
     }
@@ -210,13 +226,19 @@ export function SmsSettings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="twilio-token" className="text-sm font-medium leading-none">
-                      Auth Token
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="twilio-token" className="text-sm font-medium leading-none">
+                        Auth Token
+                      </label>
+                      {secretState.twilioAuthToken && !config.twilioAuthToken && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="twilio-token"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.twilioAuthToken}
+                      placeholder={secretState.twilioAuthToken && !config.twilioAuthToken ? '******** (set)' : '••••••••'}
                       onChange={(e) => updateConfig('twilioAuthToken', e.target.value)}
                     />
                   </div>
@@ -237,13 +259,19 @@ export function SmsSettings() {
               {config.provider === 'message_bird' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label htmlFor="mb-api-key" className="text-sm font-medium leading-none">
-                      API Key
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="mb-api-key" className="text-sm font-medium leading-none">
+                        API Key
+                      </label>
+                      {secretState.messageBirdApiKey && !config.messageBirdApiKey && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="mb-api-key"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.messageBirdApiKey}
+                      placeholder={secretState.messageBirdApiKey && !config.messageBirdApiKey ? '******** (set)' : '••••••••'}
                       onChange={(e) => updateConfig('messageBirdApiKey', e.target.value)}
                     />
                   </div>
@@ -268,23 +296,36 @@ export function SmsSettings() {
                 <div className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-2">
-                      <label htmlFor="vonage-key" className="text-sm font-medium leading-none">
-                        API Key
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="vonage-key" className="text-sm font-medium leading-none">
+                          API Key
+                        </label>
+                        {secretState.vonageApiKey && !config.vonageApiKey && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <Input
                         id="vonage-key"
                         value={config.vonageApiKey}
+                        type={showSecrets ? 'text' : 'password'}
+                        placeholder={secretState.vonageApiKey && !config.vonageApiKey ? '******** (set)' : 'Enter API key'}
                         onChange={(e) => updateConfig('vonageApiKey', e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
-                      <label htmlFor="vonage-secret" className="text-sm font-medium leading-none">
-                        API Secret
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="vonage-secret" className="text-sm font-medium leading-none">
+                          API Secret
+                        </label>
+                        {secretState.vonageApiSecret && !config.vonageApiSecret && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <Input
                         id="vonage-secret"
                         type={showSecrets ? 'text' : 'password'}
                         value={config.vonageApiSecret}
+                        placeholder={secretState.vonageApiSecret && !config.vonageApiSecret ? '******** (set)' : '••••••••'}
                         onChange={(e) => updateConfig('vonageApiSecret', e.target.value)}
                       />
                     </div>

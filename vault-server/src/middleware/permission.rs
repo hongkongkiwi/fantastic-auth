@@ -497,7 +497,7 @@ mod tests {
         let request = Request::builder()
             .uri("/documents/123e4567-e89b-12d3-a456-426614174000")
             .body(())
-            .unwrap();
+            .expect("Failed to build test request");
         
         assert_eq!(
             extract_resource_id(&request, "document"),
@@ -507,7 +507,7 @@ mod tests {
         let request = Request::builder()
             .uri("/api/v1/organizations/org-123/users/user-456")
             .body(())
-            .unwrap();
+            .expect("Failed to build test request");
         
         assert_eq!(
             extract_resource_id(&request, "user"),

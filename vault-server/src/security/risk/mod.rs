@@ -375,13 +375,7 @@ pub struct RiskEngine {
     /// Database for persistence
     db: Database,
     /// Velocity tracking cache
-    velocity_cache: Arc<RwLock<HashMap<String, VelocityEntry>>>,
-}
-
-#[derive(Debug, Clone)]
-struct VelocityEntry {
-    count: u32,
-    window_start: DateTime<Utc>,
+    velocity_cache: Arc<RwLock<HashMap<String, factors::VelocityCacheEntry>>>,
 }
 
 impl RiskEngine {

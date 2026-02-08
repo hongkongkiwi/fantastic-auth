@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-migrate
+  labels:
+    app: vault
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: vault
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/your-org/vault-server:latest
+          imagePullPolicy: IfNotPresent
+          command: ["dbmate", "-d", "/app/migrations", "up"]
+          envFrom:
+            - configMapRef:
+                name: vault-config
+            - secretRef:
+                name: vault-secrets

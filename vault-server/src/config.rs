@@ -66,9 +66,18 @@ pub struct Config {
     /// SMS configuration for MFA
     #[serde(default)]
     pub sms: SmsConfig,
+    /// WhatsApp configuration for MFA
+    #[serde(default)]
+    pub whatsapp: WhatsAppConfig,
     /// Web3 authentication configuration
     #[serde(default)]
     pub web3_auth: Web3AuthConfig,
+    /// Internal API key for /api/v1/internal routes (superadmin only)
+    #[serde(default)]
+    pub internal_api_key: Option<String>,
+    /// Tenant ID used for internal admin context (must be a valid tenant UUID)
+    #[serde(default)]
+    pub internal_admin_tenant_id: Option<String>,
 }
 
 /// Database pool configuration
@@ -145,7 +154,7 @@ impl Default for RateLimitConfig {
 }
 
 /// SMTP configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SmtpConfig {
     /// SMTP host
     pub host: String,
@@ -162,17 +171,74 @@ pub struct SmtpConfig {
     pub from_name: String,
 }
 
-/// OAuth provider configurations
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for SmtpConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SmtpConfig")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("username", &self.username)
+            .field("password", &"[REDACTED]")
+            .field("from_address", &"[REDACTED]")
+            .field("from_name", &self.from_name)
+            .finish()
+    }
+}
+
+/// OAuth provider configurations - 30+ providers supported
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct OAuthConfigs {
+    // Existing providers
     pub google: Option<OAuthProviderConfig>,
     pub github: Option<OAuthProviderConfig>,
     pub microsoft: Option<OAuthProviderConfig>,
     pub apple: Option<OAuthProviderConfig>,
+    pub discord: Option<OAuthProviderConfig>,
+    pub slack: Option<OAuthProviderConfig>,
+    
+    // Social/Consumer
+    pub facebook: Option<OAuthProviderConfig>,
+    pub twitter: Option<OAuthProviderConfig>,
+    pub instagram: Option<OAuthProviderConfig>,
+    pub tiktok: Option<OAuthProviderConfig>,
+    pub snapchat: Option<OAuthProviderConfig>,
+    pub pinterest: Option<OAuthProviderConfig>,
+    pub reddit: Option<OAuthProviderConfig>,
+    pub twitch: Option<OAuthProviderConfig>,
+    pub spotify: Option<OAuthProviderConfig>,
+    
+    // Professional
+    pub linkedin: Option<OAuthProviderConfig>,
+    
+    // Developer/Tech
+    pub gitlab: Option<OAuthProviderConfig>,
+    pub bitbucket: Option<OAuthProviderConfig>,
+    pub digitalocean: Option<OAuthProviderConfig>,
+    pub heroku: Option<OAuthProviderConfig>,
+    pub vercel: Option<OAuthProviderConfig>,
+    pub netlify: Option<OAuthProviderConfig>,
+    pub cloudflare: Option<OAuthProviderConfig>,
+    
+    // Enterprise
+    pub salesforce: Option<OAuthProviderConfig>,
+    pub hubspot: Option<OAuthProviderConfig>,
+    pub zendesk: Option<OAuthProviderConfig>,
+    pub notion: Option<OAuthProviderConfig>,
+    pub figma: Option<OAuthProviderConfig>,
+    pub linear: Option<OAuthProviderConfig>,
+    pub atlassian: Option<OAuthProviderConfig>,
+    pub okta: Option<OktaOAuthConfig>,
+    
+    // Regional
+    pub wechat: Option<WeChatOAuthConfig>,
+    pub line: Option<OAuthProviderConfig>,
+    pub kakaotalk: Option<OAuthProviderConfig>,
+    pub vkontakte: Option<OAuthProviderConfig>,
+    pub yandex: Option<OAuthProviderConfig>,
 }
 
 /// Single OAuth provider configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct OAuthProviderConfig {
     pub client_id: String,
     pub client_secret: String,
@@ -182,8 +248,20 @@ pub struct OAuthProviderConfig {
     pub apple_config: Option<AppleOAuthConfig>,
 }
 
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for OAuthProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OAuthProviderConfig")
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("redirect_uri", &self.redirect_uri)
+            .field("apple_config", &self.apple_config)
+            .finish()
+    }
+}
+
 /// Apple Sign-In specific configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct AppleOAuthConfig {
     /// Apple Team ID
     pub team_id: String,
@@ -191,6 +269,99 @@ pub struct AppleOAuthConfig {
     pub key_id: String,
     /// Private Key contents (PEM format)
     pub private_key: String,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for AppleOAuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppleOAuthConfig")
+            .field("team_id", &self.team_id)
+            .field("key_id", &self.key_id)
+            .field("private_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+/// Okta OAuth configuration
+/// Okta requires a custom domain for each organization
+#[derive(Clone, Deserialize, Serialize)]
+pub struct OktaOAuthConfig {
+    /// Okta domain (e.g., "dev-123456.okta.com")
+    pub domain: String,
+    /// Client ID
+    pub client_id: String,
+    /// Client Secret
+    pub client_secret: String,
+    /// Redirect URI
+    pub redirect_uri: String,
+    /// Authorization server ID (optional, defaults to "default")
+    pub auth_server_id: Option<String>,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for OktaOAuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OktaOAuthConfig")
+            .field("domain", &self.domain)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("redirect_uri", &self.redirect_uri)
+            .field("auth_server_id", &self.auth_server_id)
+            .finish()
+    }
+}
+
+/// WeChat OAuth configuration
+/// WeChat uses different endpoints for web vs mobile
+#[derive(Clone, Deserialize, Serialize)]
+pub struct WeChatOAuthConfig {
+    /// App ID (acts as client_id)
+    pub app_id: String,
+    /// App Secret
+    pub app_secret: String,
+    /// Redirect URI
+    pub redirect_uri: String,
+    /// Use QR code login (web) vs mobile login
+    #[serde(default = "default_true")]
+    pub use_qr_login: bool,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for WeChatOAuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WeChatOAuthConfig")
+            .field("app_id", &self.app_id)
+            .field("app_secret", &"[REDACTED]")
+            .field("redirect_uri", &self.redirect_uri)
+            .field("use_qr_login", &self.use_qr_login)
+            .finish()
+    }
+}
+
+/// Zendesk OAuth configuration
+/// Zendesk uses subdomain-based endpoints
+#[derive(Clone, Deserialize, Serialize)]
+pub struct ZendeskOAuthConfig {
+    /// Zendesk subdomain (e.g., "mycompany" for mycompany.zendesk.com)
+    pub subdomain: String,
+    /// Client ID
+    pub client_id: String,
+    /// Client Secret
+    pub client_secret: String,
+    /// Redirect URI
+    pub redirect_uri: String,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for ZendeskOAuthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZendeskOAuthConfig")
+            .field("subdomain", &self.subdomain)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("redirect_uri", &self.redirect_uri)
+            .finish()
+    }
 }
 
 /// Bot protection provider type
@@ -293,7 +464,7 @@ impl Default for BotProtectionEndpoints {
 }
 
 /// Bot protection configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct BotProtectionConfig {
     /// Provider type (disabled, turnstile, hcaptcha)
     #[serde(default)]
@@ -311,6 +482,20 @@ pub struct BotProtectionConfig {
     /// Window for failed login attempts in seconds
     #[serde(default = "default_failed_login_window_seconds")]
     pub failed_login_window_seconds: u64,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for BotProtectionConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BotProtectionConfig")
+            .field("provider", &self.provider)
+            .field("secret_key", &"[REDACTED]")
+            .field("site_key", &self.site_key)
+            .field("endpoints", &self.endpoints)
+            .field("login_attempts_before_captcha", &self.login_attempts_before_captcha)
+            .field("failed_login_window_seconds", &self.failed_login_window_seconds)
+            .finish()
+    }
 }
 
 impl Default for BotProtectionConfig {
@@ -547,6 +732,14 @@ pub struct DataEncryptionConfig {
     pub aws_kms: AwsKmsConfig,
     #[serde(default)]
     pub azure_kv: AzureKeyVaultConfig,
+    #[serde(default)]
+    pub gcp_kms: GcpKmsConfig,
+    #[serde(default)]
+    pub alicloud_kms: AlicloudKmsConfig,
+    #[serde(default)]
+    pub oracle_kms: OracleKmsConfig,
+    #[serde(default)]
+    pub dek_cache: DekCacheConfig,
 }
 
 impl Default for DataEncryptionConfig {
@@ -555,6 +748,10 @@ impl Default for DataEncryptionConfig {
             provider: default_data_encryption_provider(),
             aws_kms: AwsKmsConfig::default(),
             azure_kv: AzureKeyVaultConfig::default(),
+            gcp_kms: GcpKmsConfig::default(),
+            alicloud_kms: AlicloudKmsConfig::default(),
+            oracle_kms: OracleKmsConfig::default(),
+            dek_cache: DekCacheConfig::default(),
         }
     }
 }
@@ -563,10 +760,14 @@ impl Default for DataEncryptionConfig {
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum DataEncryptionProvider {
+    #[serde(alias = "kms_emulator")]
     #[default]
     Local,
     AwsKms,
     AzureKv,
+    GcpKms,
+    AlicloudKms,
+    OracleKms,
 }
 
 /// AWS KMS configuration
@@ -609,6 +810,141 @@ impl Default for AzureKeyVaultConfig {
             tenant_context_key: default_kms_context_key(),
         }
     }
+}
+
+/// GCP KMS configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GcpKmsConfig {
+    /// Full cryptoKey resource name
+    /// Example: projects/PROJECT/locations/LOCATION/keyRings/RING/cryptoKeys/KEY
+    pub key_name: Option<String>,
+    #[serde(default = "default_kms_context_key")]
+    pub tenant_context_key: String,
+}
+
+impl Default for GcpKmsConfig {
+    fn default() -> Self {
+        Self {
+            key_name: None,
+            tenant_context_key: default_kms_context_key(),
+        }
+    }
+}
+
+/// Alibaba Cloud KMS configuration
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AlicloudKmsConfig {
+    pub key_id: Option<String>,
+    pub access_key_id: Option<String>,
+    pub access_key_secret: Option<String>,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+    #[serde(default = "default_kms_context_key")]
+    pub tenant_context_key: String,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for AlicloudKmsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AlicloudKmsConfig")
+            .field("key_id", &self.key_id)
+            .field("access_key_id", &self.access_key_id)
+            .field("access_key_secret", &"[REDACTED]")
+            .field("region", &self.region)
+            .field("endpoint", &self.endpoint)
+            .field("tenant_context_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl Default for AlicloudKmsConfig {
+    fn default() -> Self {
+        Self {
+            key_id: None,
+            access_key_id: None,
+            access_key_secret: None,
+            region: None,
+            endpoint: None,
+            tenant_context_key: default_kms_context_key(),
+        }
+    }
+}
+
+/// Oracle OCI Vault KMS configuration
+#[derive(Clone, Deserialize, Serialize)]
+pub struct OracleKmsConfig {
+    /// Crypto endpoint (data plane), e.g. https://<vault>.crypto.kms.<region>.oraclecloud.com
+    pub crypto_endpoint: Option<String>,
+    /// Key OCID
+    pub key_id: Option<String>,
+    /// Optional key version OCID
+    pub key_version_id: Option<String>,
+    /// Tenancy OCID
+    pub tenancy_ocid: Option<String>,
+    /// User OCID
+    pub user_ocid: Option<String>,
+    /// Fingerprint for API key
+    pub key_fingerprint: Option<String>,
+    /// Private key PEM contents
+    pub private_key_pem: Option<String>,
+    #[serde(default = "default_kms_context_key")]
+    pub tenant_context_key: String,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for OracleKmsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OracleKmsConfig")
+            .field("crypto_endpoint", &self.crypto_endpoint)
+            .field("key_id", &self.key_id)
+            .field("key_version_id", &self.key_version_id)
+            .field("tenancy_ocid", &self.tenancy_ocid)
+            .field("user_ocid", &self.user_ocid)
+            .field("key_fingerprint", &"[REDACTED]")
+            .field("private_key_pem", &"[REDACTED]")
+            .field("tenant_context_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl Default for OracleKmsConfig {
+    fn default() -> Self {
+        Self {
+            crypto_endpoint: None,
+            key_id: None,
+            key_version_id: None,
+            tenancy_ocid: None,
+            user_ocid: None,
+            key_fingerprint: None,
+            private_key_pem: None,
+            tenant_context_key: default_kms_context_key(),
+        }
+    }
+}
+
+/// DEK cache configuration (in-memory + Redis)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DekCacheConfig {
+    #[serde(default = "default_dek_cache_ttl_minutes")]
+    pub ttl_minutes: u64,
+    #[serde(default = "default_dek_cache_redis_enabled")]
+    pub redis_enabled: bool,
+}
+
+impl Default for DekCacheConfig {
+    fn default() -> Self {
+        Self {
+            ttl_minutes: default_dek_cache_ttl_minutes(),
+            redis_enabled: default_dek_cache_redis_enabled(),
+        }
+    }
+}
+
+fn default_dek_cache_ttl_minutes() -> u64 {
+    15
+}
+fn default_dek_cache_redis_enabled() -> bool {
+    true
 }
 
 /// Webhook configuration
@@ -705,14 +1041,37 @@ pub struct ObservabilityConfig {
 }
 
 /// Background job configuration
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BackgroundJobsConfig {
     #[serde(default)]
     pub audit_log_rotation: Option<AuditLogRotationConfig>,
     #[serde(default)]
     pub audit_log_prune: Option<AuditLogPruneConfig>,
     #[serde(default)]
+    pub audit_log_retention: Option<AuditLogRetentionConfig>,
+    #[serde(default)]
     pub data_encryption_migration: Option<DataEncryptionMigrationConfig>,
+}
+
+impl Default for BackgroundJobsConfig {
+    fn default() -> Self {
+        Self {
+            audit_log_rotation: None,
+            audit_log_prune: None,
+            audit_log_retention: Some(AuditLogRetentionConfig {
+                interval_minutes: default_audit_log_retention_interval_minutes(),
+            }),
+            data_encryption_migration: None,
+        }
+    }
+}
+
+/// Audit log retention cleanup configuration (database audit_logs)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AuditLogRetentionConfig {
+    /// Interval in minutes between cleanup runs
+    #[serde(default = "default_audit_log_retention_interval_minutes")]
+    pub interval_minutes: u64,
 }
 
 /// Audit log rotation configuration
@@ -776,6 +1135,10 @@ fn default_audit_log_retention_days() -> u64 {
 }
 fn default_audit_log_prune_interval_minutes() -> u64 {
     60
+}
+
+fn default_audit_log_retention_interval_minutes() -> u64 {
+    1440
 }
 
 impl Default for ObservabilityConfig {
@@ -977,7 +1340,55 @@ impl Config {
                     );
                 }
             }
+            DataEncryptionProvider::GcpKms => {
+                if self.security.data_encryption.gcp_kms.key_name.is_none() {
+                    anyhow::bail!(
+                        "security.data_encryption.gcp_kms.key_name is required for GCP KMS"
+                    );
+                }
+            }
+            DataEncryptionProvider::AlicloudKms => {
+                if self.security.data_encryption.alicloud_kms.key_id.is_none() {
+                    anyhow::bail!(
+                        "security.data_encryption.alicloud_kms.key_id is required for Alicloud KMS"
+                    );
+                }
+                if self.security.data_encryption.alicloud_kms.access_key_id.is_none()
+                    || self.security.data_encryption.alicloud_kms.access_key_secret.is_none()
+                {
+                    anyhow::bail!(
+                        "security.data_encryption.alicloud_kms.access_key_id and access_key_secret are required"
+                    );
+                }
+            }
+            DataEncryptionProvider::OracleKms => {
+                let oracle = &self.security.data_encryption.oracle_kms;
+                if oracle.crypto_endpoint.is_none()
+                    || oracle.key_id.is_none()
+                    || oracle.tenancy_ocid.is_none()
+                    || oracle.user_ocid.is_none()
+                    || oracle.key_fingerprint.is_none()
+                    || oracle.private_key_pem.is_none()
+                {
+                    anyhow::bail!(
+                        "oracle_kms requires crypto_endpoint, key_id, tenancy_ocid, user_ocid, key_fingerprint, private_key_pem"
+                    );
+                }
+            }
         }
+
+        if self.internal_api_key.is_some() && self.internal_admin_tenant_id.is_none() {
+            anyhow::bail!("internal_admin_tenant_id is required when internal_api_key is set");
+        }
+
+        if let Some(ref tenant_id) = self.internal_admin_tenant_id {
+            if uuid::Uuid::parse_str(tenant_id).is_err() {
+                anyhow::bail!("internal_admin_tenant_id must be a valid UUID");
+            }
+        }
+
+        // Validate WhatsApp configuration
+        self.whatsapp.validate()?;
 
         Ok(())
     }
@@ -1215,7 +1626,7 @@ pub struct LdapConfigs {
 }
 
 /// LDAP connection configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct LdapConfig {
     /// Connection enabled
     pub enabled: bool,
@@ -1260,6 +1671,30 @@ pub struct LdapConfig {
     /// Page size for LDAP pagination
     #[serde(default = "default_ldap_page_size")]
     pub page_size: i32,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for LdapConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LdapConfig")
+            .field("enabled", &self.enabled)
+            .field("url", &self.url)
+            .field("bind_dn", &self.bind_dn)
+            .field("bind_password", &"[REDACTED]")
+            .field("base_dn", &self.base_dn)
+            .field("user_search_base", &self.user_search_base)
+            .field("user_search_filter", &self.user_search_filter)
+            .field("group_search_base", &self.group_search_base)
+            .field("group_search_filter", &self.group_search_filter)
+            .field("user_attributes", &self.user_attributes)
+            .field("sync_interval_minutes", &self.sync_interval_minutes)
+            .field("tls_verify_cert", &self.tls_verify_cert)
+            .field("tls_ca_cert", &"[REDACTED]")
+            .field("connection_timeout_secs", &self.connection_timeout_secs)
+            .field("search_timeout_secs", &self.search_timeout_secs)
+            .field("page_size", &self.page_size)
+            .finish()
+    }
 }
 
 impl Default for LdapConfig {
@@ -1471,6 +1906,9 @@ fn default_cert_storage_path() -> String {
 fn default_acme_directory_url() -> String {
     "https://acme-v02.api.letsencrypt.org/directory".to_string()
 }
+fn default_ssl_provider() -> SslProviderType {
+    SslProviderType::LetsEncrypt
+}
 fn default_cert_renewal_interval_hours() -> u64 {
     24
 }
@@ -1495,7 +1933,7 @@ pub enum SmsProviderType {
 }
 
 /// SMS configuration
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct SmsConfig {
     /// SMS provider type
     #[serde(default)]
@@ -1521,6 +1959,22 @@ pub struct SmsConfig {
     /// OTP code length (default: 6)
     #[serde(default = "default_sms_code_length")]
     pub code_length: usize,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for SmsConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SmsConfig")
+            .field("provider", &self.provider)
+            .field("twilio_account_sid", &self.twilio_account_sid)
+            .field("twilio_auth_token", &"[REDACTED]")
+            .field("twilio_from_number", &self.twilio_from_number)
+            .field("max_sends_per_phone", &self.max_sends_per_phone)
+            .field("rate_limit_window_secs", &self.rate_limit_window_secs)
+            .field("code_expiry_minutes", &self.code_expiry_minutes)
+            .field("code_length", &self.code_length)
+            .finish()
+    }
 }
 
 impl Default for SmsConfig {
@@ -1608,6 +2062,123 @@ fn default_sms_code_expiry_minutes() -> i64 {
 }
 fn default_sms_code_length() -> usize {
     6
+}
+
+// ============================================
+// WhatsApp Configuration for MFA
+// ============================================
+
+/// WhatsApp configuration
+#[derive(Clone, Deserialize, Serialize)]
+pub struct WhatsAppConfig {
+    /// Enable WhatsApp MFA
+    #[serde(default = "default_false")]
+    pub enabled: bool,
+    /// WhatsApp Business phone number ID
+    #[serde(default)]
+    pub phone_number_id: Option<String>,
+    /// Meta access token
+    #[serde(default)]
+    pub access_token: Option<String>,
+    /// Graph API version (default: v18.0)
+    #[serde(default = "default_whatsapp_api_version")]
+    pub api_version: String,
+    /// Template name for OTP messages (default: vault_otp_en)
+    #[serde(default = "default_whatsapp_template_name")]
+    pub template_name: String,
+    /// Language code for template (default: en)
+    #[serde(default = "default_whatsapp_language_code")]
+    pub language_code: String,
+    /// Fallback to SMS if WhatsApp fails
+    #[serde(default = "default_true")]
+    pub fallback_to_sms: bool,
+}
+
+/// SECURITY: Custom Debug implementation that redacts sensitive credentials
+impl std::fmt::Debug for WhatsAppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WhatsAppConfig")
+            .field("enabled", &self.enabled)
+            .field("phone_number_id", &self.phone_number_id)
+            .field("access_token", &"[REDACTED]")
+            .field("api_version", &self.api_version)
+            .field("template_name", &self.template_name)
+            .field("language_code", &self.language_code)
+            .field("fallback_to_sms", &self.fallback_to_sms)
+            .finish()
+    }
+}
+
+impl Default for WhatsAppConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            phone_number_id: None,
+            access_token: None,
+            api_version: default_whatsapp_api_version(),
+            template_name: default_whatsapp_template_name(),
+            language_code: default_whatsapp_language_code(),
+            fallback_to_sms: true,
+        }
+    }
+}
+
+impl WhatsAppConfig {
+    /// Check if WhatsApp MFA is enabled and configured
+    pub fn is_enabled(&self) -> bool {
+        self.enabled 
+            && self.phone_number_id.is_some() 
+            && self.access_token.is_some()
+            && !self.phone_number_id.as_ref().unwrap().is_empty()
+            && !self.access_token.as_ref().unwrap().is_empty()
+    }
+    
+    /// Validate configuration
+    pub fn validate(&self) -> anyhow::Result<()> {
+        if !self.enabled {
+            return Ok(());
+        }
+        
+        if self.phone_number_id.is_none() || self.phone_number_id.as_ref().unwrap().is_empty() {
+            anyhow::bail!("WhatsApp phone_number_id is required when WhatsApp is enabled");
+        }
+        
+        if self.access_token.is_none() || self.access_token.as_ref().unwrap().is_empty() {
+            anyhow::bail!("WhatsApp access_token is required when WhatsApp is enabled");
+        }
+        
+        if self.template_name.is_empty() {
+            anyhow::bail!("WhatsApp template_name cannot be empty");
+        }
+        
+        Ok(())
+    }
+    
+    /// Get WhatsApp config for core library
+    pub fn core_config(&self) -> Option<vault_core::sms::whatsapp::WhatsAppConfig> {
+        if self.is_enabled() {
+            Some(vault_core::sms::whatsapp::WhatsAppConfig {
+                phone_number_id: self.phone_number_id.clone()?,
+                access_token: self.access_token.clone()?,
+                api_version: self.api_version.clone(),
+                template_name: self.template_name.clone(),
+                fallback_to_sms: self.fallback_to_sms,
+                language_code: self.language_code.clone(),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+fn default_whatsapp_api_version() -> String {
+    "v18.0".to_string()
+}
+fn default_whatsapp_template_name() -> String {
+    "vault_otp_en".to_string()
+}
+fn default_whatsapp_language_code() -> String {
+    "en".to_string()
 }
 
 // ============================================

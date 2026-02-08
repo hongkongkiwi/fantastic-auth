@@ -160,11 +160,7 @@ export interface VaultConfig {
   /**
    * OAuth providers configuration
    */
-  oauth?: {
-    google?: { clientId: string };
-    github?: { clientId: string };
-    microsoft?: { clientId: string };
-  };
+  oauth?: OAuthProvidersConfig;
 }
 
 // ============================================================================
@@ -192,9 +188,139 @@ export interface MagicLinkOptions {
   turnstileToken?: string;
 }
 
+/**
+ * OAuth provider type - 30+ providers supported
+ */
+export type OAuthProvider =
+  // Existing providers
+  | 'google'
+  | 'github'
+  | 'microsoft'
+  | 'apple'
+  | 'discord'
+  | 'slack'
+  // Social/Consumer
+  | 'facebook'
+  | 'twitter'
+  | 'instagram'
+  | 'tiktok'
+  | 'snapchat'
+  | 'pinterest'
+  | 'reddit'
+  | 'twitch'
+  | 'spotify'
+  // Professional
+  | 'linkedin'
+  // Developer/Tech
+  | 'gitlab'
+  | 'bitbucket'
+  | 'digitalocean'
+  | 'heroku'
+  | 'vercel'
+  | 'netlify'
+  | 'cloudflare'
+  // Enterprise
+  | 'salesforce'
+  | 'hubspot'
+  | 'zendesk'
+  | 'notion'
+  | 'figma'
+  | 'linear'
+  | 'atlassian'
+  | 'okta'
+  // Regional
+  | 'wechat'
+  | 'line'
+  | 'kakaotalk'
+  | 'vkontakte'
+  | 'yandex'
+  // Custom
+  | string;
+
+/**
+ * OAuth provider category
+ */
+export type OAuthProviderCategory = 
+  | 'social'
+  | 'professional'
+  | 'developer'
+  | 'enterprise'
+  | 'regional'
+  | 'custom';
+
+/**
+ * OAuth provider metadata
+ */
+export interface OAuthProviderMetadata {
+  id: OAuthProvider;
+  name: string;
+  displayName: string;
+  category: OAuthProviderCategory;
+  icon?: string;
+  color?: string;
+  pkceEnabled: boolean;
+  scopes: string[];
+}
+
+/**
+ * OAuth providers configuration
+ */
+export interface OAuthProvidersConfig {
+  // Existing providers
+  google?: { clientId: string };
+  github?: { clientId: string };
+  microsoft?: { clientId: string };
+  apple?: { clientId: string };
+  discord?: { clientId: string };
+  slack?: { clientId: string };
+  // Social/Consumer
+  facebook?: { clientId: string };
+  twitter?: { clientId: string };
+  instagram?: { clientId: string };
+  tiktok?: { clientId: string };
+  snapchat?: { clientId: string };
+  pinterest?: { clientId: string };
+  reddit?: { clientId: string };
+  twitch?: { clientId: string };
+  spotify?: { clientId: string };
+  // Professional
+  linkedin?: { clientId: string };
+  // Developer/Tech
+  gitlab?: { clientId: string };
+  bitbucket?: { clientId: string };
+  digitalocean?: { clientId: string };
+  heroku?: { clientId: string };
+  vercel?: { clientId: string };
+  netlify?: { clientId: string };
+  cloudflare?: { clientId: string };
+  // Enterprise
+  salesforce?: { clientId: string };
+  hubspot?: { clientId: string };
+  zendesk?: { clientId: string; subdomain: string };
+  notion?: { clientId: string };
+  figma?: { clientId: string };
+  linear?: { clientId: string };
+  atlassian?: { clientId: string };
+  okta?: { clientId: string; domain: string };
+  // Regional
+  wechat?: { appId: string };
+  line?: { clientId: string };
+  kakaotalk?: { clientId: string };
+  vkontakte?: { clientId: string };
+  yandex?: { clientId: string };
+}
+
 export interface OAuthOptions {
-  provider: 'google' | 'github' | 'microsoft' | string;
+  provider: OAuthProvider;
   redirectUrl?: string;
+  /**
+   * Additional OAuth scopes to request
+   */
+  scopes?: string[];
+  /**
+   * Force consent screen even if previously authorized
+   */
+  prompt?: 'none' | 'login' | 'consent' | 'select_account';
 }
 
 export interface ForgotPasswordOptions {
@@ -342,7 +468,7 @@ export interface SignInProps {
   /**
    * Enable OAuth providers
    */
-  oauthProviders?: Array<'google' | 'github' | 'microsoft'>;
+  oauthProviders?: OAuthProvider[];
   /**
    * Enable WebAuthn/passkey sign in
    */
@@ -373,7 +499,7 @@ export interface SignUpProps {
   /**
    * Enable OAuth providers
    */
-  oauthProviders?: Array<'google' | 'github' | 'microsoft'>;
+  oauthProviders?: OAuthProvider[];
   /**
    * Require name field
    */

@@ -5,12 +5,14 @@
 pub mod biometric;
 pub mod mfa;
 pub mod organizations;
+pub mod projects;
 pub mod sessions;
 pub mod users;
 pub mod tenant_admins;
 pub mod oidc;
 pub mod log_streams;
 pub mod actions;
+pub mod applications;
 
 use sqlx::{postgres::PgPoolOptions, PgConnection, PgPool};
 use std::future::Future;
@@ -20,15 +22,18 @@ use tokio::task_local;
 pub use biometric::BiometricRepository;
 pub use mfa::MfaRepository;
 pub use organizations::OrganizationRepository;
+pub use projects::ProjectRepository;
 pub use sessions::SessionRepository;
 pub use users::UserRepository;
 pub use tenant_admins::TenantAdminRepository;
 pub use oidc::OidcRepository;
 pub use log_streams::LogStreamsRepository;
 pub use actions::ActionsRepository;
+pub use applications::ApplicationRepository;
 
 #[derive(Clone, Debug, Default)]
 pub struct RequestContext {
+    pub tenant_id: Option<String>,
     pub user_id: Option<String>,
     pub role: Option<String>,
 }
@@ -46,6 +51,59 @@ where
 
 pub fn current_request_context() -> Option<RequestContext> {
     REQUEST_CONTEXT.try_with(|ctx| ctx.clone()).ok()
+}
+
+pub async fn apply_request_context(conn: &mut PgConnection) -> Result<(), sqlx::Error> {
+    if let Some(ctx) = current_request_context() {
+        if let Some(tenant_id) = ctx.tenant_id {
+            sqlx::query("SELECT set_config('app.current_tenant_id', $1, false)")
+                .bind(tenant_id)
+                .execute(&mut *conn)
+                .await?;
+        } else {
+            sqlx::query("RESET app.current_tenant_id")
+                .execute(&mut *conn)
+                .await?;
+        }
+
+        if let Some(user_id) = ctx.user_id {
+            sqlx::query("SELECT set_config('app.current_user_id', $1, false)")
+                .bind(user_id)
+                .execute(&mut *conn)
+                .await?;
+        } else {
+            sqlx::query(
+                "SELECT set_config('app.current_user_id', '00000000-0000-0000-0000-000000000000', false)",
+            )
+            .execute(&mut *conn)
+            .await?;
+        }
+
+        if let Some(role) = ctx.role {
+            sqlx::query("SELECT set_config('app.current_user_role', $1, false)")
+                .bind(role)
+                .execute(&mut *conn)
+                .await?;
+        } else {
+            sqlx::query("RESET app.current_user_role")
+                .execute(&mut *conn)
+                .await?;
+        }
+    } else {
+        sqlx::query("RESET app.current_tenant_id")
+            .execute(&mut *conn)
+            .await?;
+        sqlx::query(
+            "SELECT set_config('app.current_user_id', '00000000-0000-0000-0000-000000000000', false)",
+        )
+        .execute(&mut *conn)
+        .await?;
+        sqlx::query("RESET app.current_user_role")
+            .execute(&mut *conn)
+            .await?;
+    }
+
+    Ok(())
 }
 
 pub async fn set_connection_context(
@@ -127,6 +185,16 @@ impl DbContext {
     /// Organization repository
     pub fn organizations(&self) -> OrganizationRepository {
         OrganizationRepository::new(self.pool.clone())
+    }
+
+    /// Project repository
+    pub fn projects(&self) -> ProjectRepository {
+        ProjectRepository::new(self.pool.clone())
+    }
+
+    /// Application repository
+    pub fn applications(&self) -> ApplicationRepository {
+        ApplicationRepository::new(self.pool.clone())
     }
 
     /// MFA repository

@@ -372,20 +372,50 @@ async fn get_config(
         return Err(ApiError::Forbidden);
     }
 
-    // TODO: Load from database configuration
-    let config = ScimConfig {
-        enabled: true,
-        base_url: format!("{}/scim/v2", state.config.base_url),
-        user_schema: ScimUserSchemaConfig {
-            custom_attributes: vec![],
-            required_attributes: vec!["userName".to_string()],
-        },
-        group_schema: ScimGroupSchemaConfig { sync_members: true },
-        mappings: ScimMappingsConfig {
-            auto_create_users: true,
-            auto_deactivate_users: true,
-            default_role: "member".to_string(),
-        },
+    let row = sqlx::query!(
+        r#"
+        SELECT enabled, auto_create_users, auto_deactivate_users, default_user_role, sync_group_members
+        FROM scim_settings
+        WHERE tenant_id = $1::uuid
+        "#,
+        current_user.tenant_id
+    )
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let config = if let Some(row) = row {
+        ScimConfig {
+            enabled: row.enabled,
+            base_url: format!("{}/scim/v2", state.config.base_url),
+            user_schema: ScimUserSchemaConfig {
+                custom_attributes: vec![],
+                required_attributes: vec!["userName".to_string()],
+            },
+            group_schema: ScimGroupSchemaConfig {
+                sync_members: row.sync_group_members,
+            },
+            mappings: ScimMappingsConfig {
+                auto_create_users: row.auto_create_users,
+                auto_deactivate_users: row.auto_deactivate_users,
+                default_role: row.default_user_role,
+            },
+        }
+    } else {
+        ScimConfig {
+            enabled: true,
+            base_url: format!("{}/scim/v2", state.config.base_url),
+            user_schema: ScimUserSchemaConfig {
+                custom_attributes: vec![],
+                required_attributes: vec!["userName".to_string()],
+            },
+            group_schema: ScimGroupSchemaConfig { sync_members: true },
+            mappings: ScimMappingsConfig {
+                auto_create_users: true,
+                auto_deactivate_users: true,
+                default_role: "member".to_string(),
+            },
+        }
     };
 
     Ok(Json(config))
@@ -395,17 +425,42 @@ async fn get_config(
 ///
 /// PUT /api/v1/admin/scim/config
 async fn update_config(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
-    Json(_config): Json<ScimConfig>,
+    Json(config): Json<ScimConfig>,
 ) -> Result<Json<ScimConfig>, ApiError> {
     // Verify admin access
     if !is_admin(&current_user) {
         return Err(ApiError::Forbidden);
     }
 
-    // TODO: Save to database configuration
-    Err(ApiError::NotImplemented)
+    sqlx::query!(
+        r#"
+        INSERT INTO scim_settings (
+            tenant_id, enabled, auto_create_users, auto_deactivate_users,
+            default_user_role, sync_groups, sync_group_members
+        )
+        VALUES ($1::uuid, $2, $3, $4, $5, true, $6)
+        ON CONFLICT (tenant_id) DO UPDATE
+        SET enabled = EXCLUDED.enabled,
+            auto_create_users = EXCLUDED.auto_create_users,
+            auto_deactivate_users = EXCLUDED.auto_deactivate_users,
+            default_user_role = EXCLUDED.default_user_role,
+            sync_group_members = EXCLUDED.sync_group_members,
+            updated_at = NOW()
+        "#,
+        current_user.tenant_id,
+        config.enabled,
+        config.mappings.auto_create_users,
+        config.mappings.auto_deactivate_users,
+        config.mappings.default_role,
+        config.group_schema.sync_members,
+    )
+    .execute(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    Ok(Json(config))
 }
 
 // ============================================================================

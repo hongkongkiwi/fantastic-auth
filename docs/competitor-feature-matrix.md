@@ -29,13 +29,13 @@ Generated from OpenAPI specs with code-path validation notes.
 | Authentication | GET | `/auth/sso/redirect` | `vault-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | POST | `/auth/sso/callback` | `vault-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | GET | `/auth/sso/metadata` | `vault-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
-| MFA | GET | `/users/me/mfa` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | DELETE | `/users/me/mfa` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/webauthn/register/begin` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/webauthn/register/finish` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/backup-codes` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/backup-codes/verify` | `vault-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
+| MFA | GET | `/users/me/mfa` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | DELETE | `/users/me/mfa` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/webauthn/register/begin` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/webauthn/register/finish` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/backup-codes` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/backup-codes/verify` | `vault-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
 | Authentication | POST | `/auth/register` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | POST | `/auth/login` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | POST | `/auth/logout` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
@@ -50,13 +50,13 @@ Generated from OpenAPI specs with code-path validation notes.
 | Authentication | GET | `/auth/sso/redirect` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | POST | `/auth/sso/callback` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
 | Authentication | GET | `/auth/sso/metadata` | `vault-client-api.yaml` | Spec mismatch | Routes mounted at /api/v1/* without /auth prefix (vault-server/src/routes/client/auth.rs). |
-| MFA | GET | `/users/me/mfa` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | DELETE | `/users/me/mfa` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/webauthn/register/begin` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/webauthn/register/finish` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/backup-codes` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
-| MFA | POST | `/users/me/mfa/backup-codes/verify` | `vault-client-api.yaml` | Partial | MFA secrets are base64-encoded and backup codes use SHA256; TODO proper encryption/hashing (vault-server/src/routes/client/mfa.rs). |
+| MFA | GET | `/users/me/mfa` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | DELETE | `/users/me/mfa` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/webauthn/register/begin` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/webauthn/register/finish` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/backup-codes` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
+| MFA | POST | `/users/me/mfa/backup-codes/verify` | `vault-client-api.yaml` | Implemented | MFA secrets are encrypted at rest and backup codes are hashed. |
 | SSO | GET | `/sso/saml/connections` | `vault-admin-api.yaml` | Implemented |  |
 | SSO | POST | `/sso/saml/connections` | `vault-admin-api.yaml` | Implemented |  |
 | SSO | GET | `/sso/saml/connections/{connectionId}` | `vault-admin-api.yaml` | Implemented |  |
@@ -126,10 +126,10 @@ Generated from OpenAPI specs with code-path validation notes.
 | Roles & Permissions | POST | `/organizations/{orgId}/roles` | `vault-admin-api.yaml` | Stub | Role CRUD returns generated data; no persistence (vault-server/src/routes/admin/roles.rs). |
 | Roles & Permissions | PATCH | `/organizations/{orgId}/roles/{roleId}` | `vault-admin-api.yaml` | Stub | Role CRUD returns generated data; no persistence (vault-server/src/routes/admin/roles.rs). |
 | Roles & Permissions | DELETE | `/organizations/{orgId}/roles/{roleId}` | `vault-admin-api.yaml` | Stub | Role CRUD returns generated data; no persistence (vault-server/src/routes/admin/roles.rs). |
-| Directory | GET | `/directory/ldap/connections` | `vault-admin-api.yaml` | Partial | LDAP bind_password stored/returned without encryption; TODO in vault-server/src/routes/admin/directory.rs. |
-| Directory | POST | `/directory/ldap/connections` | `vault-admin-api.yaml` | Partial | LDAP bind_password stored/returned without encryption; TODO in vault-server/src/routes/admin/directory.rs. |
-| Directory | PATCH | `/directory/ldap/connections/{connectionId}` | `vault-admin-api.yaml` | Partial | LDAP bind_password stored/returned without encryption; TODO in vault-server/src/routes/admin/directory.rs. |
-| Directory | DELETE | `/directory/ldap/connections/{connectionId}` | `vault-admin-api.yaml` | Partial | LDAP bind_password stored/returned without encryption; TODO in vault-server/src/routes/admin/directory.rs. |
+| Directory | GET | `/directory/ldap/connections` | `vault-admin-api.yaml` | Implemented | LDAP bind_password is encrypted at rest and never returned in responses. |
+| Directory | POST | `/directory/ldap/connections` | `vault-admin-api.yaml` | Implemented | LDAP bind_password is encrypted at rest and never returned in responses. |
+| Directory | PATCH | `/directory/ldap/connections/{connectionId}` | `vault-admin-api.yaml` | Implemented | LDAP bind_password is encrypted at rest and never returned in responses. |
+| Directory | DELETE | `/directory/ldap/connections/{connectionId}` | `vault-admin-api.yaml` | Implemented | LDAP bind_password is encrypted at rest and never returned in responses. |
 
 ### Tokens
 | Feature (Tag) | Method | Endpoint (Spec) | Spec File | Vault Status | Notes |

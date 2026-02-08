@@ -5,7 +5,7 @@
  */
 
 import { VaultAdminClient } from './client';
-import type { TenantSettings, UpdateTenantSettingsRequest, PasswordPolicy, MfaPolicy } from './generated/client';
+import type { TenantSettings, PasswordPolicy, MfaPolicy } from './generated/client';
 
 export interface SecuritySettings {
   passwordPolicy: PasswordPolicy;
@@ -86,7 +86,7 @@ export class SettingsManager {
    */
   async addAllowedDomain(domain: string): Promise<TenantSettings> {
     const current = await this.get();
-    const domains = new Set(current.allowedDomains);
+    const domains = new Set(current.allowedDomains ?? []);
     domains.add(domain.toLowerCase());
 
     return this.client.updateSettings({
@@ -99,7 +99,7 @@ export class SettingsManager {
    */
   async removeAllowedDomain(domain: string): Promise<TenantSettings> {
     const current = await this.get();
-    const domains = current.allowedDomains.filter(d => d !== domain.toLowerCase());
+    const domains = (current.allowedDomains ?? []).filter(d => d !== domain.toLowerCase());
 
     return this.client.updateSettings({
       allowedDomains: domains,
@@ -120,12 +120,13 @@ export class SettingsManager {
    */
   async isDomainAllowed(email: string): Promise<boolean> {
     const settings = await this.get();
-    if (settings.allowedDomains.length === 0) return true;
+    const allowedDomains = settings.allowedDomains ?? [];
+    if (allowedDomains.length === 0) return true;
 
     const domain = email.split('@')[1]?.toLowerCase();
     if (!domain) return false;
 
-    return settings.allowedDomains.includes(domain);
+    return allowedDomains.includes(domain);
   }
 
   /**
@@ -140,27 +141,28 @@ export class SettingsManager {
 
     // Determine password strength
     let passwordStrength: 'weak' | 'medium' | 'strong' = 'weak';
-    const policy = settings.passwordPolicy;
-    if (policy.minLength >= 12 && 
-        policy.requireUppercase && 
-        policy.requireLowercase && 
-        policy.requireNumbers && 
+    const policy = settings.passwordPolicy ?? {};
+    if (policy.minLength !== undefined &&
+        policy.minLength >= 12 &&
+        policy.requireUppercase &&
+        policy.requireLowercase &&
+        policy.requireNumbers &&
         policy.requireSpecial) {
       passwordStrength = 'strong';
-    } else if (policy.minLength >= 8) {
+    } else if ((policy.minLength ?? 0) >= 8) {
       passwordStrength = 'medium';
     }
 
     // Determine MFA status
     let mfaStatus: 'disabled' | 'optional' | 'required' = 'disabled';
-    if (settings.mfaPolicy.enabled) {
+    if (settings.mfaPolicy?.enabled) {
       mfaStatus = settings.mfaPolicy.required ? 'required' : 'optional';
     }
 
     return {
       passwordStrength,
       mfaStatus,
-      domainRestrictions: settings.allowedDomains.length > 0 ? 'restricted' : 'none',
+      domainRestrictions: (settings.allowedDomains?.length ?? 0) > 0 ? 'restricted' : 'none',
     };
   }
 }

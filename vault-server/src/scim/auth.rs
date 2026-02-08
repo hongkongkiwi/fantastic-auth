@@ -19,9 +19,9 @@ use std::sync::Arc;
 use crate::state::AppState;
 use vault_core::db::set_connection_context;
 
-/// SCIM Token for authentication
+/// SCIM Token record stored in the database
 #[derive(Debug, Clone, FromRow)]
-pub struct ScimToken {
+pub struct ScimTokenRecord {
     pub id: String,
     pub tenant_id: String,
     pub token_hash: String,
@@ -31,6 +31,34 @@ pub struct ScimToken {
     pub expires_at: Option<DateTime<Utc>>,
     pub last_used_at: Option<DateTime<Utc>>,
     pub created_by: Option<String>,
+}
+
+/// SCIM Token returned in API responses (hash excluded)
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct ScimToken {
+    pub id: String,
+    pub tenant_id: String,
+    pub name: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub last_used_at: Option<DateTime<Utc>>,
+    pub created_by: Option<String>,
+}
+
+impl From<ScimTokenRecord> for ScimToken {
+    fn from(record: ScimTokenRecord) -> Self {
+        Self {
+            id: record.id,
+            tenant_id: record.tenant_id,
+            name: record.name,
+            status: record.status,
+            created_at: record.created_at,
+            expires_at: record.expires_at,
+            last_used_at: record.last_used_at,
+            created_by: record.created_by,
+        }
+    }
 }
 
 /// SCIM Token with the actual token value (only returned once at creation)
@@ -74,10 +102,18 @@ pub fn generate_scim_token() -> String {
     format!("scim_{}_{}", part1, part2)
 }
 
+/// Generate random hex string
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating SCIM tokens.
+/// SCIM tokens grant administrative access to identity management operations,
+/// so they must be cryptographically secure and unpredictable.
 fn generate_random_hex(length: usize) -> String {
     use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut bytes = vec![0u8; length / 2];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
 }
 
@@ -109,7 +145,7 @@ pub async fn create_scim_token(
         r#"
         INSERT INTO scim_tokens (id, tenant_id, token_hash, name, status, created_at, expires_at, created_by)
         VALUES ($1, $2, $3, $4, 'active', NOW(), $5, $6)
-        RETURNING id, tenant_id, token_hash, name, status, created_at, expires_at, last_used_at, created_by
+        RETURNING id, tenant_id, name, status, created_at, expires_at, last_used_at, created_by
         "#
     )
     .bind(&id)
@@ -132,7 +168,7 @@ pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimTo
     let token_hash = hash_token(token);
 
     // Look up the token
-    let result = sqlx::query_as::<_, ScimToken>(
+    let result = sqlx::query_as::<_, ScimTokenRecord>(
         r#"
         SELECT id, tenant_id, token_hash, name, status, created_at, expires_at, last_used_at, created_by
         FROM get_scim_token_by_hash($1)
@@ -150,7 +186,7 @@ pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimTo
                     return None;
                 }
             }
-            Some(token)
+            Some(token.into())
         }
         _ => None,
     }
@@ -211,7 +247,7 @@ pub async fn list_scim_tokens(state: &AppState, tenant_id: &str) -> anyhow::Resu
 
     let tokens = sqlx::query_as::<_, ScimToken>(
         r#"
-        SELECT id, tenant_id, token_hash, name, status, created_at, expires_at, last_used_at, created_by
+        SELECT id, tenant_id, name, status, created_at, expires_at, last_used_at, created_by
         FROM scim_tokens
         WHERE tenant_id = $1 AND status = 'active'
         ORDER BY created_at DESC
@@ -322,6 +358,7 @@ pub async fn scim_auth_middleware(
 
     // Also set request context for RLS
     let ctx = vault_core::db::RequestContext {
+        tenant_id: Some(scim_token.tenant_id.clone()),
         user_id: None,
         role: Some("scim".to_string()),
     };
@@ -365,6 +402,7 @@ pub async fn optional_scim_auth_middleware(mut request: Request, next: Next) -> 
             });
 
             let ctx = vault_core::db::RequestContext {
+                tenant_id: Some(scim_token.tenant_id.clone()),
                 user_id: None,
                 role: Some("scim".to_string()),
             };

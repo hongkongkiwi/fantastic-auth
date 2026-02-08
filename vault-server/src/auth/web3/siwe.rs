@@ -504,9 +504,16 @@ pub fn validate_evm_address(address: &str) -> Result<(), SiweError> {
 }
 
 /// Generate a cryptographically secure nonce
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating SIWE nonces.
+/// Nonces must be unpredictable to prevent replay attacks in Sign-In with Ethereum.
+/// Each nonce should be unique per authentication attempt and session-bound.
 pub fn generate_nonce() -> String {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    use rand_core::OsRng;
+    
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     let nonce: String = (0..16)
         .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
         .collect();

@@ -102,6 +102,7 @@ async fn test_user_rls_self_only() {
         .unwrap();
 
     let member_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("member".to_string()),
     };
@@ -113,6 +114,7 @@ async fn test_user_rls_self_only() {
     .await;
 
     let admin_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("admin".to_string()),
     };
@@ -162,6 +164,7 @@ async fn test_org_rls_membership() {
         .unwrap();
 
     let admin_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("admin".to_string()),
     };
@@ -207,6 +210,7 @@ async fn test_org_rls_membership() {
     .await;
 
     let member_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("member".to_string()),
     };
@@ -222,6 +226,7 @@ async fn test_org_rls_membership() {
     .await;
 
     let other_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user2.id.clone()),
         role: Some("member".to_string()),
     };
@@ -275,11 +280,13 @@ async fn test_admin_only_tables() {
         .unwrap();
 
     let admin_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(admin_user.id.clone()),
         role: Some("admin".to_string()),
     };
 
     let member_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(member_user.id.clone()),
         role: Some("member".to_string()),
     };
@@ -293,7 +300,7 @@ async fn test_admin_only_tables() {
     with_request_context(member_ctx.clone(), async {
         let mut conn = db.pool().acquire().await.unwrap();
         set_connection_context(&mut conn, &tenant_id).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admin_webhook_endpoints")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM webhook_endpoints")
             .fetch_one(&mut *conn)
             .await
             .unwrap();
@@ -304,13 +311,13 @@ async fn test_admin_only_tables() {
     with_request_context(admin_ctx, async {
         let mut conn = db.pool().acquire().await.unwrap();
         set_connection_context(&mut conn, &tenant_id).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admin_webhook_endpoints")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM webhook_endpoints")
             .fetch_one(&mut *conn)
             .await
             .unwrap();
         assert!(count >= 1, "admin should read webhook endpoints");
 
-        let billing_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admin_subscriptions")
+        let billing_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions")
             .fetch_one(&mut *conn)
             .await
             .unwrap();
@@ -357,6 +364,7 @@ async fn test_token_tables_self_only() {
         .unwrap();
 
     let admin_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("admin".to_string()),
     };
@@ -396,6 +404,7 @@ async fn test_token_tables_self_only() {
     }).await;
 
     let user2_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user2.id.clone()),
         role: Some("member".to_string()),
     };
@@ -403,7 +412,7 @@ async fn test_token_tables_self_only() {
     with_request_context(user2_ctx, async {
         let mut conn = db.pool().acquire().await.unwrap();
         set_connection_context(&mut conn, &tenant_id).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admin_refresh_tokens")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refresh_tokens")
             .fetch_one(&mut *conn)
             .await
             .unwrap();
@@ -412,6 +421,7 @@ async fn test_token_tables_self_only() {
     .await;
 
     let user1_ctx = RequestContext {
+        tenant_id: Some(tenant_id.clone()),
         user_id: Some(user1.id.clone()),
         role: Some("member".to_string()),
     };
@@ -419,7 +429,7 @@ async fn test_token_tables_self_only() {
     with_request_context(user1_ctx, async {
         let mut conn = db.pool().acquire().await.unwrap();
         set_connection_context(&mut conn, &tenant_id).await.unwrap();
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admin_refresh_tokens")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refresh_tokens")
             .fetch_one(&mut *conn)
             .await
             .unwrap();

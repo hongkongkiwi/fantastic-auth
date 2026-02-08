@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -95,14 +95,103 @@ export function BotProtectionSettings() {
   const [isLoading, setIsLoading] = useState(false)
   const [showSecret, setShowSecret] = useState(false)
   const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [secretSet, setSecretSet] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadConfig() {
+      const endpoints = ['/api/v1/admin/advanced', '/api/v1/admin/settings/advanced']
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, { credentials: 'include' })
+          if (!response.ok) continue
+          const payload = await response.json() as {
+            settings?: { feature_flags?: Record<string, boolean>; jwt_claims?: Record<string, unknown> }
+          }
+          if (cancelled) return
+          const featureFlags = payload.settings?.feature_flags || {}
+          const claims = payload.settings?.jwt_claims || {}
+          setConfig((prev) => ({
+            ...prev,
+            enabled: featureFlags.bot_protection_enabled ?? prev.enabled,
+            captcha: {
+              ...prev.captcha,
+              provider: (claims.bot_captcha_provider as BotProtectionConfig['captcha']['provider']) ?? prev.captcha.provider,
+              v3ScoreThreshold: Number(claims.bot_v3_threshold ?? prev.captcha.v3ScoreThreshold),
+            },
+          }))
+          return
+        } catch {
+          // try fallback endpoint
+        }
+      }
+    }
+    void loadConfig()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Check which providers are enabled via env vars
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      // TODO: Implement save API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const endpoints = ['/api/v1/admin/advanced', '/api/v1/admin/settings/advanced']
+      let saved = false
+      for (const endpoint of endpoints) {
+        try {
+          const getResponse = await fetch(endpoint, { credentials: 'include' })
+          if (!getResponse.ok) continue
+          const current = await getResponse.json() as {
+            settings?: Record<string, unknown>
+          }
+          const settings = (current.settings || {}) as Record<string, unknown>
+          const featureFlags = (settings.feature_flags as Record<string, boolean> | undefined) || {}
+          const jwtClaims = (settings.jwt_claims as Record<string, unknown> | undefined) || {}
+
+          const nextSettings = {
+            ...settings,
+            feature_flags: {
+              ...featureFlags,
+              bot_protection_enabled: config.enabled,
+              bot_fingerprint_enabled: config.fingerprinting.enabled,
+            },
+            jwt_claims: {
+              ...jwtClaims,
+              bot_captcha_provider: config.captcha.provider,
+              bot_v3_threshold: config.captcha.v3ScoreThreshold,
+              bot_block_headless: config.rules.blockHeadlessBrowsers,
+              bot_block_datacenter: config.rules.blockDataCenterIps,
+            },
+          }
+
+          const patchResponse = await fetch(endpoint, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(nextSettings),
+          })
+          if (!patchResponse.ok) {
+            continue
+          }
+          saved = true
+          break
+        } catch {
+          // try fallback endpoint
+        }
+      }
+      if (!saved) {
+        throw new Error('Failed to save bot protection settings')
+      }
+      setSaveError(null)
+      if (config.captcha.secretKey?.trim()) {
+        setSecretSet(true)
+        updateConfig('captcha.secretKey', '')
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save bot protection settings')
     } finally {
       setIsLoading(false)
     }
@@ -111,8 +200,10 @@ export function BotProtectionSettings() {
   const handleTest = async () => {
     setTestStatus('idle')
     try {
-      // TODO: Implement test API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      const response = await fetch('/api/v1/auth/captcha-site-key')
+      if (!response.ok) {
+        throw new Error('CAPTCHA endpoint unavailable')
+      }
       setTestStatus('success')
     } catch {
       setTestStatus('error')
@@ -152,6 +243,11 @@ export function BotProtectionSettings() {
           </span>
         </div>
       </div>
+      {saveError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {saveError}
+        </div>
+      )}
 
       <Tabs defaultValue="captcha" className="space-y-4">
         <TabsList>
@@ -275,12 +371,17 @@ export function BotProtectionSettings() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="secret-key">Secret Key</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium" htmlFor="secret-key">Secret Key</label>
+                        {secretSet && !config.captcha.secretKey && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <div className="flex gap-2">
                         <Input
                           id="secret-key"
                           type={showSecret ? 'text' : 'password'}
-                          placeholder="Enter your secret key"
+                          placeholder={secretSet && !config.captcha.secretKey ? '******** (set)' : 'Enter your secret key'}
                           value={config.captcha.secretKey}
                           onChange={(e) => updateConfig('captcha.secretKey', e.target.value)}
                         />

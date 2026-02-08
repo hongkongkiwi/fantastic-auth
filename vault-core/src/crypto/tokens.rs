@@ -271,12 +271,19 @@ impl OtpCode {
     }
 
     /// Generate numeric OTP code
+    /// 
+    /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+    /// random digit generation. This prevents predictability of OTP codes which could
+    /// allow attackers to bypass MFA authentication.
     fn generate_code(length: usize) -> String {
-        let mut rng = rand::thread_rng();
+        use rand::Rng;
+        use rand_core::OsRng;
+        
+        let mut rng = OsRng;
         let mut code = String::with_capacity(length);
 
         for _ in 0..length {
-            let digit = rand::Rng::gen_range(&mut rng, 0..10);
+            let digit = rng.gen_range(0..10);
             code.push(char::from_digit(digit, 10).unwrap());
         }
 

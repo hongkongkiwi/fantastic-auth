@@ -8,6 +8,7 @@ use tracing::info;
 mod analytics;
 mod audit_prune;
 mod audit_rotation;
+mod audit_retention;
 mod data_encryption_migration;
 mod log_streams;
 pub mod webhook_worker;
@@ -24,6 +25,13 @@ pub fn start(config: &Config, _db: &Database, state: &AppState) {
     if let Some(ref prune) = config.background_jobs.audit_log_prune {
         audit_prune::spawn(prune.clone());
         info!(path = prune.path.as_str(), "Audit log prune enabled");
+    }
+    if let Some(ref retention) = config.background_jobs.audit_log_retention {
+        audit_retention::spawn(state.clone(), Duration::from_secs(retention.interval_minutes * 60));
+        info!(
+            interval_minutes = retention.interval_minutes,
+            "Audit retention cleanup enabled"
+        );
     }
 
     // Start analytics aggregation worker

@@ -355,6 +355,8 @@ impl ImportProcessor {
 
     /// Process an import job
     pub async fn process(&self, job: &mut BulkImportJob) -> anyhow::Result<()> {
+        use crate::middleware::security::{validate_file_path, validate_file_size, FileOperation};
+
         info!(
             job_id = %job.id,
             tenant_id = %job.tenant_id,
@@ -370,7 +372,24 @@ impl ImportProcessor {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No file path specified"))?;
 
+        // SECURITY: Validate file path before reading
+        let path_str = file_path.to_string_lossy();
+        if let Some(filename) = file_path.file_name().and_then(|n| n.to_str()) {
+            if !validate_file_path(filename) {
+                anyhow::bail!("Invalid file path: security violation");
+            }
+        }
+
         let data = tokio::fs::read(file_path).await?;
+
+        // SECURITY: Validate file size based on format
+        let max_size = match job.format {
+            super::FileFormat::Csv => FileOperation::CsvImport,
+            super::FileFormat::Json => FileOperation::JsonImport,
+        };
+        if !validate_file_size(data.len(), max_size) {
+            anyhow::bail!("File size exceeds maximum allowed for this format");
+        }
 
         // Parse the file
         let parse_result = parse_file(&data, job.format)?;
@@ -497,15 +516,15 @@ impl ImportProcessor {
         let password_hash = if let Some(ref pwd) = record.password {
             if pwd == "AutoGenerate" {
                 let generated = generate_temporary_password();
-                VaultPasswordHasher::hash_password(&generated)?
+                Some(VaultPasswordHasher::hash(&generated)?)
             } else {
-                VaultPasswordHasher::hash_password(pwd)?
+                Some(VaultPasswordHasher::hash(pwd)?)
             }
         } else if job.options.auto_generate_password {
             let generated = generate_temporary_password();
-            VaultPasswordHasher::hash_password(&generated)?
+            Some(VaultPasswordHasher::hash(&generated)?)
         } else if let Some(ref default_pwd) = job.options.default_password {
-            VaultPasswordHasher::hash_password(default_pwd)?
+            Some(VaultPasswordHasher::hash(default_pwd)?)
         } else {
             // No password - user will need to set via password reset
             None
@@ -542,6 +561,7 @@ impl ImportProcessor {
         // Add to organization if specified
         if let Some(ref org_id) = record
             .organization_id
+            .clone()
             .or_else(|| job.options.organization_id.clone())
         {
             let role = record
@@ -574,7 +594,7 @@ impl ImportProcessor {
         let org = self
             .db
             .organizations()
-            .find_by_id(tenant_id, org_id)
+            .get_by_id(tenant_id, org_id)
             .await?;
 
         if org.is_none() {
@@ -652,8 +672,13 @@ impl ImportProcessor {
 }
 
 /// Generate a temporary password
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// password generation. Temporary passwords grant account access and must be
+/// unpredictable to prevent unauthorized access to imported accounts.
 fn generate_temporary_password() -> String {
     use rand::Rng;
+    use rand_core::OsRng;
 
     const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
                             abcdefghijklmnopqrstuvwxyz\
@@ -661,7 +686,8 @@ fn generate_temporary_password() -> String {
                             !@#$%^&*";
     const LEN: usize = 16;
 
-    let mut rng = rand::thread_rng();
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     let password: String = (0..LEN)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());

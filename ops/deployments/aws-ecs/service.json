@@ -1,0 +1,20 @@
+{
+  "serviceName": "vault",
+  "cluster": "vault-cluster",
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["subnet-aaa", "subnet-bbb"],
+      "securityGroups": ["sg-aaa"],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/vault/abc",
+      "containerName": "vault",
+      "containerPort": 3000
+    }
+  ]
+}

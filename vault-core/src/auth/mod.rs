@@ -38,6 +38,11 @@ pub trait DataKeyResolver: Send + Sync {
     async fn resolve_key(&self, tenant_id: &str) -> Result<Vec<u8>>;
 }
 
+#[async_trait]
+pub trait SmsServiceResolver: Send + Sync {
+    async fn resolve_sms_service(&self, tenant_id: &str) -> Option<Arc<SmsService>>;
+}
+
 pub use biometric::{
     BiometricChallenge, BiometricError, BiometricKey, BiometricType,
     ChallengeStore, BiometricKeyStore, BiometricAuthSuccess, RegisterBiometricKeyRequest,
@@ -60,6 +65,7 @@ pub struct LoginCredentials {
 /// Email payload for sending
 #[derive(Debug, Clone)]
 pub struct EmailPayload {
+    pub tenant_id: String,
     pub to: String,
     pub subject: String,
     pub html_body: String,
@@ -94,6 +100,8 @@ pub struct AuthService {
     data_key_resolver: Option<Arc<dyn DataKeyResolver>>,
     /// Optional SMS service for MFA
     sms_service: Option<Arc<SmsService>>,
+    /// Optional SMS service resolver (per-tenant)
+    sms_service_resolver: Option<Arc<dyn SmsServiceResolver>>,
 }
 
 impl AuthService {
@@ -117,6 +125,7 @@ impl AuthService {
             data_encryption_key: None,
             data_key_resolver: None,
             sms_service: None,
+            sms_service_resolver: None,
         }
     }
 
@@ -147,6 +156,7 @@ impl AuthService {
             data_encryption_key: None,
             data_key_resolver: None,
             sms_service: None,
+            sms_service_resolver: None,
         })
     }
 
@@ -171,6 +181,7 @@ impl AuthService {
             data_encryption_key: None,
             data_key_resolver: None,
             sms_service: None,
+            sms_service_resolver: None,
         }
     }
 
@@ -189,6 +200,11 @@ impl AuthService {
     /// Set SMS service for MFA
     pub fn with_sms_service(mut self, sms_service: Arc<SmsService>) -> Self {
         self.sms_service = Some(sms_service);
+        self
+    }
+
+    pub fn with_sms_service_resolver(mut self, resolver: Arc<dyn SmsServiceResolver>) -> Self {
+        self.sms_service_resolver = Some(resolver);
         self
     }
 
@@ -289,6 +305,7 @@ impl AuthService {
 
         let _ = self
             .send_email(EmailPayload {
+                tenant_id: tenant_id.clone(),
                 to: user.email.clone(),
                 subject: template.subject(),
                 html_body: template.render_html_simple(),
@@ -564,6 +581,7 @@ impl AuthService {
 
             let _ = self
                 .send_email(EmailPayload {
+                    tenant_id: tenant_id.clone(),
                     to: user.email.clone(),
                     subject: template.subject(),
                     html_body: template.render_html_simple(),
@@ -688,6 +706,7 @@ impl AuthService {
 
             let _ = self
                 .send_email(EmailPayload {
+                    tenant_id: tenant_id.clone(),
                     to: user.email.clone(),
                     subject: template.subject(),
                     html_body: template.render_html_simple(),
@@ -1116,7 +1135,13 @@ impl AuthService {
                 }
                 MfaMethod::Sms => {
                     // Prefer SMS service verification if configured
-                    if let Some(service) = &self.sms_service {
+                    let resolved_service = if let Some(resolver) = &self.sms_service_resolver {
+                        resolver.resolve_sms_service(&tenant_id).await
+                    } else {
+                        self.sms_service.clone()
+                    };
+
+                    if let Some(service) = resolved_service {
                         if let Ok(Some(phone)) = self
                             .db
                             .mfa()

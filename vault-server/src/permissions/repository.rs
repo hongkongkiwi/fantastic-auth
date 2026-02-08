@@ -455,9 +455,29 @@ impl PermissionRepository {
 
     /// Get all roles for a user
     pub async fn get_user_roles(&self, user_id: Uuid) -> anyhow::Result<Vec<(Role, Option<Uuid>)>> {
-        let rows = sqlx::query_as::<_, (Role, Option<Uuid>)>(
+        #[derive(sqlx::FromRow)]
+        struct RoleWithOrgRow {
+            id: Uuid,
+            tenant_id: Option<Uuid>,
+            name: String,
+            description: Option<String>,
+            is_system_role: bool,
+            created_at: DateTime<Utc>,
+            updated_at: DateTime<Utc>,
+            organization_id: Option<Uuid>,
+        }
+
+        let rows = sqlx::query_as::<_, RoleWithOrgRow>(
             r#"
-            SELECT r.*, ur.organization_id 
+            SELECT 
+                r.id,
+                r.tenant_id,
+                r.name,
+                r.description,
+                r.is_system_role,
+                r.created_at,
+                r.updated_at,
+                ur.organization_id
             FROM roles r
             INNER JOIN user_roles ur ON r.id = ur.role_id
             WHERE ur.user_id = $1
@@ -468,7 +488,25 @@ impl PermissionRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows)
+        let roles = rows
+            .into_iter()
+            .map(|row| {
+                (
+                    Role {
+                        id: row.id,
+                        tenant_id: row.tenant_id,
+                        name: row.name,
+                        description: row.description,
+                        is_system_role: row.is_system_role,
+                        created_at: row.created_at,
+                        updated_at: row.updated_at,
+                    },
+                    row.organization_id,
+                )
+            })
+            .collect();
+
+        Ok(roles)
     }
 
     /// Get all users with a specific role

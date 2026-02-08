@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-#[cfg(any(feature = "aws-kms", feature = "azure-kv"))]
 use base64::Engine;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -21,6 +20,9 @@ pub enum KmsProviderKind {
     Local,
     AwsKms,
     AzureKv,
+    GcpKms,
+    AlicloudKms,
+    OracleKms,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +66,10 @@ impl KmsRegistry {
             .get(&kind)
             .cloned()
             .ok_or(TenantKeyError::ProviderUnavailable(kind))
+    }
+
+    pub fn supported_providers(&self) -> Vec<KmsProviderKind> {
+        self.providers.keys().copied().collect()
     }
 }
 
@@ -399,18 +405,157 @@ impl KmsProvider for AzureKeyVaultProvider {
     }
 }
 
+#[cfg(feature = "gcp-kms")]
+pub struct GcpKmsProvider {
+    key_name: String,
+    tenant_context_key: String,
+    auth: gcp_auth::AuthenticationManager,
+}
+
+#[cfg(feature = "gcp-kms")]
+impl GcpKmsProvider {
+    pub async fn new(key_name: String, tenant_context_key: String) -> Result<Self, TenantKeyError> {
+        let auth = gcp_auth::AuthenticationManager::new()
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP auth init failed: {}", e)))?;
+        Ok(Self {
+            key_name,
+            tenant_context_key,
+            auth,
+        })
+    }
+
+    async fn token(&self) -> Result<String, TenantKeyError> {
+        let token = self
+            .auth
+            .get_token(&["https://www.googleapis.com/auth/cloud-platform"])
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP token error: {}", e)))?;
+        Ok(token.as_str().to_string())
+    }
+}
+
+#[cfg(feature = "gcp-kms")]
+#[async_trait]
+impl KmsProvider for GcpKmsProvider {
+    fn kind(&self) -> KmsProviderKind {
+        KmsProviderKind::GcpKms
+    }
+
+    async fn wrap_key(&self, tenant_id: &str, plaintext: &[u8]) -> Result<WrappedKey, TenantKeyError> {
+        let token = self.token().await?;
+        let url = format!(
+            "https://cloudkms.googleapis.com/v1/{}:encrypt",
+            self.key_name
+        );
+
+        let aad = base64::engine::general_purpose::STANDARD.encode(tenant_id.as_bytes());
+        let body = serde_json::json!({
+            "plaintext": base64::engine::general_purpose::STANDARD.encode(plaintext),
+            "additionalAuthenticatedData": aad,
+        });
+
+        let resp = reqwest::Client::new()
+            .post(url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP encrypt failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(TenantKeyError::External(format!(
+                "GCP encrypt failed: {} {}",
+                status, text
+            )));
+        }
+
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP encrypt response invalid: {}", e)))?;
+
+        let ciphertext_b64 = json
+            .get("ciphertext")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| TenantKeyError::External("GCP encrypt missing ciphertext".to_string()))?
+            .to_string();
+
+        Ok(WrappedKey {
+            ciphertext_b64,
+            provider_key_id: Some(self.key_name.clone()),
+            metadata: serde_json::json!({
+                "provider": "gcp_kms",
+                "context_key": self.tenant_context_key,
+            }),
+        })
+    }
+
+    async fn unwrap_key(&self, tenant_id: &str, wrapped: &WrappedKey) -> Result<Vec<u8>, TenantKeyError> {
+        let token = self.token().await?;
+        let url = format!(
+            "https://cloudkms.googleapis.com/v1/{}:decrypt",
+            self.key_name
+        );
+        let aad = base64::engine::general_purpose::STANDARD.encode(tenant_id.as_bytes());
+        let body = serde_json::json!({
+            "ciphertext": wrapped.ciphertext_b64,
+            "additionalAuthenticatedData": aad,
+        });
+
+        let resp = reqwest::Client::new()
+            .post(url)
+            .bearer_auth(token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP decrypt failed: {}", e)))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let text = resp.text().await.unwrap_or_default();
+            return Err(TenantKeyError::External(format!(
+                "GCP decrypt failed: {} {}",
+                status, text
+            )));
+        }
+
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| TenantKeyError::External(format!("GCP decrypt response invalid: {}", e)))?;
+
+        let plaintext_b64 = json
+            .get("plaintext")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| TenantKeyError::External("GCP decrypt missing plaintext".to_string()))?;
+
+        let plaintext = base64::engine::general_purpose::STANDARD
+            .decode(plaintext_b64)
+            .map_err(|e| TenantKeyError::External(format!("Invalid plaintext: {}", e)))?;
+
+        Ok(plaintext)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct CachedKey {
     dek: Vec<u8>,
     version: i32,
     provider: KmsProviderKind,
+    cached_at: std::time::Instant,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct TenantKeyService {
     db: Database,
     registry: Arc<KmsRegistry>,
     cache: DashMap<String, CachedKey>,
+    cache_ttl: std::time::Duration,
+    redis: Option<redis::aio::ConnectionManager>,
+    platform_key: Arc<Vec<u8>>,
 }
 
 #[derive(Debug, Clone)]
@@ -422,17 +567,42 @@ pub struct TenantKeyInfo {
 }
 
 impl TenantKeyService {
-    pub fn new(db: Database, registry: Arc<KmsRegistry>) -> Self {
+    pub fn new(
+        db: Database,
+        registry: Arc<KmsRegistry>,
+        cache_ttl: std::time::Duration,
+        redis: Option<redis::aio::ConnectionManager>,
+        platform_key: Arc<Vec<u8>>,
+    ) -> Self {
         Self {
             db,
             registry,
             cache: DashMap::new(),
+            cache_ttl,
+            redis,
+            platform_key,
         }
     }
 
     pub async fn get_data_key(&self, tenant_id: &str) -> Result<Vec<u8>, TenantKeyError> {
         if let Some(entry) = self.cache.get(tenant_id) {
-            return Ok(entry.dek.clone());
+            if entry.cached_at.elapsed() < self.cache_ttl {
+                return Ok(entry.dek.clone());
+            }
+            self.cache.remove(tenant_id);
+        }
+
+        if let Some(dek) = self.load_dek_from_redis(tenant_id).await? {
+            self.cache.insert(
+                tenant_id.to_string(),
+                CachedKey {
+                    dek: dek.clone(),
+                    version: 0,
+                    provider: self.registry.default_provider(),
+                    cached_at: std::time::Instant::now(),
+                },
+            );
+            return Ok(dek);
         }
 
         let record = self.fetch_active_key(tenant_id).await?;
@@ -463,8 +633,10 @@ impl TenantKeyService {
                 dek: dek.clone(),
                 version,
                 provider,
+                cached_at: std::time::Instant::now(),
             },
         );
+        let _ = self.store_dek_in_redis(tenant_id, &dek).await;
 
         Ok(dek)
     }
@@ -480,6 +652,7 @@ impl TenantKeyService {
         self.rotate_key_with_wrapped(tenant_id, new_provider, &wrapped)
             .await?;
         self.cache.remove(tenant_id);
+        let _ = self.delete_dek_from_redis(tenant_id).await;
         Ok(())
     }
 
@@ -493,11 +666,68 @@ impl TenantKeyService {
         }))
     }
 
+    pub fn supported_providers(&self) -> Vec<KmsProviderKind> {
+        self.registry.supported_providers()
+    }
+
+    async fn load_dek_from_redis(&self, tenant_id: &str) -> Result<Option<Vec<u8>>, TenantKeyError> {
+        let Some(redis) = &self.redis else {
+            return Ok(None);
+        };
+        let mut conn = redis.clone();
+        let key = format!("tenant:dek:{}", tenant_id);
+        let value: Option<String> = redis::cmd("GET").arg(&key).query_async(&mut conn).await?;
+        if let Some(encoded) = value {
+            let bytes = crate::security::encryption::decrypt_from_base64(
+                self.platform_key.as_slice(),
+                &encoded,
+            )
+            .map_err(|e| TenantKeyError::External(format!("Invalid cached DEK: {}", e)))?;
+            return Ok(Some(bytes));
+        }
+        Ok(None)
+    }
+
+    async fn store_dek_in_redis(&self, tenant_id: &str, dek: &[u8]) -> Result<(), TenantKeyError> {
+        let Some(redis) = &self.redis else {
+            return Ok(());
+        };
+        let mut conn = redis.clone();
+        let key = format!("tenant:dek:{}", tenant_id);
+        let value = crate::security::encryption::encrypt_to_base64(
+            self.platform_key.as_slice(),
+            dek,
+        )?;
+        let ttl_secs = self.cache_ttl.as_secs().max(60);
+        redis::cmd("SET")
+            .arg(&key)
+            .arg(value)
+            .arg("EX")
+            .arg(ttl_secs as usize)
+            .query_async(&mut conn)
+            .await?;
+        Ok(())
+    }
+
+    async fn delete_dek_from_redis(&self, tenant_id: &str) -> Result<(), TenantKeyError> {
+        let Some(redis) = &self.redis else {
+            return Ok(());
+        };
+        let mut conn = redis.clone();
+        let key = format!("tenant:dek:{}", tenant_id);
+        let _: () = redis::cmd("DEL").arg(&key).query_async(&mut conn).await?;
+        Ok(())
+    }
+
     async fn fetch_active_key(
         &self,
         tenant_id: &str,
     ) -> Result<Option<TenantKeyRow>, TenantKeyError> {
-        let mut conn = self.db.acquire().await?;
+        let mut conn = self
+            .db
+            .acquire()
+            .await
+            .map_err(|e| TenantKeyError::External(e.to_string()))?;
         set_connection_context(&mut conn, tenant_id).await?;
 
         let row = sqlx::query_as::<_, TenantKeyRow>(
@@ -521,7 +751,11 @@ impl TenantKeyService {
         provider: KmsProviderKind,
         wrapped: &WrappedKey,
     ) -> Result<i32, TenantKeyError> {
-        let mut conn = self.db.acquire().await?;
+        let mut conn = self
+            .db
+            .acquire()
+            .await
+            .map_err(|e| TenantKeyError::External(e.to_string()))?;
         set_connection_context(&mut conn, tenant_id).await?;
 
         let row: (i32,) = sqlx::query_as(
@@ -547,7 +781,11 @@ impl TenantKeyService {
         provider: KmsProviderKind,
         wrapped: &WrappedKey,
     ) -> Result<i32, TenantKeyError> {
-        let mut conn = self.db.acquire().await?;
+        let mut conn = self
+            .db
+            .acquire()
+            .await
+            .map_err(|e| TenantKeyError::External(e.to_string()))?;
         set_connection_context(&mut conn, tenant_id).await?;
 
         let current_version: Option<(i32,)> = sqlx::query_as(
@@ -621,6 +859,8 @@ pub enum TenantKeyError {
     ProviderUnavailable(KmsProviderKind),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("redis error: {0}")]
+    Redis(#[from] redis::RedisError),
     #[error("crypto error: {0}")]
     Crypto(#[from] vault_core::error::VaultError),
     #[error("encryption error: {0}")]

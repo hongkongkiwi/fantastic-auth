@@ -85,6 +85,10 @@ export function PaymentSettings() {
   const [config, setConfig] = useState<PaymentConfig>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState({
+    paddleApiKey: false,
+    paddlePublicKey: false,
+  })
 
   const hasAnyProviderEnabled = paymentProviders.some(isProviderEnabled)
 
@@ -92,6 +96,12 @@ export function PaymentSettings() {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        paddleApiKey: prev.paddleApiKey || Boolean(config.paddleApiKey?.trim()),
+        paddlePublicKey: prev.paddlePublicKey || Boolean(config.paddlePublicKey?.trim()),
+      }))
+      if (config.paddleApiKey?.trim()) updateConfig('paddleApiKey', '')
+      if (config.paddlePublicKey?.trim()) updateConfig('paddlePublicKey', '')
     } finally {
       setIsLoading(false)
     }
@@ -278,26 +288,38 @@ export function PaymentSettings() {
                   </div>
 
                   <div className="space-y-2">
-                    <label htmlFor="paddle-api" className="text-sm font-medium leading-none">
-                      API Key
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="paddle-api" className="text-sm font-medium leading-none">
+                        API Key
+                      </label>
+                      {secretState.paddleApiKey && !config.paddleApiKey && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="paddle-api"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.paddleApiKey}
                       onChange={(e) => updateConfig('paddleApiKey', e.target.value)}
+                      placeholder={secretState.paddleApiKey && !config.paddleApiKey ? '******** (set)' : '••••••••'}
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label htmlFor="paddle-pk" className="text-sm font-medium leading-none">
-                      Public Key
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="paddle-pk" className="text-sm font-medium leading-none">
+                        Public Key
+                      </label>
+                      {secretState.paddlePublicKey && !config.paddlePublicKey && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="paddle-pk"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.paddlePublicKey}
                       onChange={(e) => updateConfig('paddlePublicKey', e.target.value)}
+                      placeholder={secretState.paddlePublicKey && !config.paddlePublicKey ? '******** (set)' : '••••••••'}
                     />
                   </div>
                 </div>

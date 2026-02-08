@@ -467,7 +467,7 @@ pub struct VelocityRiskFactor {
 }
 
 #[derive(Debug, Clone)]
-struct VelocityCacheEntry {
+pub struct VelocityCacheEntry {
     count: u32,
     first_attempt: DateTime<Utc>,
     last_attempt: DateTime<Utc>,

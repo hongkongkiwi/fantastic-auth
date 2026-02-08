@@ -6,7 +6,8 @@
 //! - Weekly/Monthly rollup for trend analysis
 //! - Cleanup of old raw events
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike, Utc};
+use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::time::{interval, sleep};
@@ -311,7 +312,7 @@ impl AnalyticsAggregationWorker {
                LIMIT 1"#,
         )
         .bind(&job_type_str)
-        .fetch_optional(self.repository.repository())
+        .fetch_optional(self.repository.pool())
         .await?;
 
         if let Some(row) = row {

@@ -18,8 +18,8 @@
 use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, post, put},
-    Extension as _, Json, Router,
+    routing::{get, post, put},
+    Json, Router,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -448,9 +448,7 @@ async fn update_api_key(
         return Err(ApiError::NotFound);
     }
 
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    
+    // Apply updates
     if let Some(name) = req.name {
         sqlx::query("UPDATE admin_api_keys SET name = $1 WHERE id = $2::uuid")
             .bind(name)

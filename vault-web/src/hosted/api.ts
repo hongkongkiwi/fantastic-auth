@@ -22,9 +22,11 @@ import type {
 import { env } from '../env/server'
 import { createSession, getSessionCookieName, getSessionTtlSeconds } from '../server/session'
 
-const DEFAULT_BASE_URL = 'http://localhost:8080/api/v1'
+const DEFAULT_BASE_URL = 'http://localhost:8080'
 
-const getBaseUrl = () => env.INTERNAL_API_BASE_URL || DEFAULT_BASE_URL
+const getBaseUrl = () => (env.INTERNAL_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '')
+const getClientApiBase = () => `${getBaseUrl()}/api/v1`
+const getHostedApiBase = () => `${getBaseUrl()}/hosted/api`
 
 /**
  * Fetch hosted UI configuration for a tenant
@@ -32,33 +34,59 @@ const getBaseUrl = () => env.INTERNAL_API_BASE_URL || DEFAULT_BASE_URL
 export const getHostedConfig = createServerFn({ method: 'GET' })
   .inputValidator((input: { tenantId: string }) => input)
   .handler(async ({ data }): Promise<HostedUIConfig> => {
-    const baseUrl = getBaseUrl()
-    
-    // In production, this would fetch from the vault-server API
-    // For now, we return a mock config based on tenant
-    const response = await fetch(`${baseUrl}/hosted/config?tenant_id=${data.tenantId}`)
-    
-    if (response.ok) {
-      return response.json() as Promise<HostedUIConfig>
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/config?tenant_id=${encodeURIComponent(data.tenantId)}`)
+    if (!response.ok) {
+      throw new Error('Failed to load hosted configuration')
     }
-    
-    // Fallback mock config for development
+
+    const result = await response.json() as {
+      tenant_id: string
+      company_name: string
+      logo_url?: string
+      favicon_url?: string
+      primary_color?: string
+      background_color?: string
+      sign_in_title?: string
+      sign_up_title?: string
+      oauth_providers: HostedUIConfig['oauthProviders']
+      show_magic_link: boolean
+      show_web_authn: boolean
+      require_email_verification: boolean
+      allow_sign_up: boolean
+      after_sign_in_url: string
+      after_sign_up_url: string
+      after_sign_out_url: string
+      terms_url?: string
+      privacy_url?: string
+      custom_css?: string
+      custom_js?: string
+      allowed_redirect_urls: string[]
+    }
+
     return {
-      tenantId: data.tenantId,
-      companyName: 'Vault',
-      signInTitle: 'Sign in to your account',
-      signUpTitle: 'Create your account',
-      oauthProviders: ['google', 'github'],
-      showMagicLink: true,
-      showWebAuthn: true,
-      requireEmailVerification: true,
-      allowSignUp: true,
-      afterSignInUrl: '/dashboard',
-      afterSignUpUrl: '/welcome',
-      afterSignOutUrl: '/hosted/sign-in',
-      allowedRedirectUrls: ['http://localhost:3000', 'http://localhost:8080'],
-      termsUrl: '/terms',
-      privacyUrl: '/privacy',
+      tenantId: result.tenant_id,
+      companyName: result.company_name,
+      logoUrl: result.logo_url,
+      faviconUrl: result.favicon_url,
+      primaryColor: result.primary_color,
+      backgroundColor: result.background_color,
+      signInTitle: result.sign_in_title,
+      signUpTitle: result.sign_up_title,
+      oauthProviders: result.oauth_providers,
+      showMagicLink: result.show_magic_link,
+      showWebAuthn: result.show_web_authn,
+      requireEmailVerification: result.require_email_verification,
+      allowSignUp: result.allow_sign_up,
+      afterSignInUrl: result.after_sign_in_url,
+      afterSignUpUrl: result.after_sign_up_url,
+      afterSignOutUrl: result.after_sign_out_url,
+      termsUrl: result.terms_url,
+      privacyUrl: result.privacy_url,
+      customCss: result.custom_css,
+      customJs: result.custom_js,
+      allowedRedirectUrls: result.allowed_redirect_urls,
     }
   })
 
@@ -66,17 +94,19 @@ export const getHostedConfig = createServerFn({ method: 'GET' })
  * Sign in with email and password
  */
 export const hostedSignIn = createServerFn({ method: 'POST' })
-  .inputValidator((input: HostedSignInInput & { redirectUrl?: string }) => input)
+  .inputValidator((input: HostedSignInInput & { redirectUrl?: string; mfaCode?: string }) => input)
   .handler(async ({ data }): Promise<HostedAuthResponse> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/signin`, {
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/auth/signin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: data.email,
         password: data.password,
         tenant_id: data.tenantId,
+        mfa_code: data.mfaCode,
+        redirect_url: data.redirectUrl,
       }),
     })
     
@@ -85,7 +115,13 @@ export const hostedSignIn = createServerFn({ method: 'POST' })
       throw new Error(error.message || 'Invalid credentials')
     }
     
-    const result = await response.json()
+    const result = await response.json() as {
+      session_token: string
+      user: HostedAuthResponse['user']
+      redirect_url: string
+      requires_mfa?: boolean
+      mfa_token?: string
+    }
     
     // Create session cookie
     const session = createSession()
@@ -105,9 +141,9 @@ export const hostedSignIn = createServerFn({ method: 'POST' })
     return {
       sessionToken: session.token,
       user: result.user,
-      redirectUrl: data.redirectUrl || '/dashboard',
-      requiresMfa: result.requiresMfa,
-      mfaToken: result.mfaToken,
+      redirectUrl: result.redirect_url || data.redirectUrl || '/dashboard',
+      requiresMfa: result.requires_mfa,
+      mfaToken: result.mfa_token,
     }
   })
 
@@ -117,9 +153,9 @@ export const hostedSignIn = createServerFn({ method: 'POST' })
 export const hostedSignUp = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedSignUpInput & { redirectUrl?: string }) => input)
   .handler(async ({ data }): Promise<HostedAuthResponse> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/signup`, {
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -127,6 +163,7 @@ export const hostedSignUp = createServerFn({ method: 'POST' })
         password: data.password,
         name: data.name,
         tenant_id: data.tenantId,
+        redirect_url: data.redirectUrl,
       }),
     })
     
@@ -135,12 +172,17 @@ export const hostedSignUp = createServerFn({ method: 'POST' })
       throw new Error(error.message || 'Could not create account')
     }
     
-    const result = await response.json()
+    const result = await response.json() as {
+      session_token: string
+      user: HostedAuthResponse['user']
+      redirect_url: string
+      requires_email_verification?: boolean
+    }
     
     return {
-      sessionToken: result.sessionToken || '',
+      sessionToken: result.session_token || '',
       user: result.user,
-      redirectUrl: data.redirectUrl || '/welcome',
+      redirectUrl: result.redirect_url || data.redirectUrl || '/welcome',
     }
   })
 
@@ -150,15 +192,15 @@ export const hostedSignUp = createServerFn({ method: 'POST' })
 export const hostedOAuthStart = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedOAuthStartInput) => input)
   .handler(async ({ data }): Promise<{ authUrl: string; state: string }> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/oauth/${data.provider}/start`, {
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/auth/oauth/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        provider: data.provider,
         tenant_id: data.tenantId,
-        redirect_uri: `${baseUrl}/hosted/oauth-callback`,
-        state: data.state,
+        redirect_url: data.redirectUrl,
       }),
     })
     
@@ -166,7 +208,8 @@ export const hostedOAuthStart = createServerFn({ method: 'POST' })
       throw new Error('Failed to start OAuth flow')
     }
     
-    return response.json()
+    const result = await response.json() as { auth_url: string; state: string }
+    return { authUrl: result.auth_url, state: result.state }
   })
 
 /**
@@ -175,15 +218,16 @@ export const hostedOAuthStart = createServerFn({ method: 'POST' })
 export const hostedOAuthCallback = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedOAuthCallbackInput & { redirectUrl?: string }) => input)
   .handler(async ({ data }): Promise<HostedAuthResponse> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/oauth/callback`, {
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/auth/oauth/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code: data.code,
         state: data.state,
         tenant_id: data.tenantId,
+        redirect_url: data.redirectUrl,
       }),
     })
     
@@ -192,12 +236,20 @@ export const hostedOAuthCallback = createServerFn({ method: 'POST' })
       throw new Error(error.message || 'OAuth authentication failed')
     }
     
-    const result = await response.json()
+    const result = await response.json() as {
+      session_token: string
+      user: HostedAuthResponse['user']
+      redirect_url: string
+      requires_mfa?: boolean
+      mfa_token?: string
+    }
     
     return {
-      sessionToken: result.sessionToken,
+      sessionToken: result.session_token,
       user: result.user,
-      redirectUrl: data.redirectUrl || '/dashboard',
+      redirectUrl: result.redirect_url || data.redirectUrl || '/dashboard',
+      requiresMfa: result.requires_mfa,
+      mfaToken: result.mfa_token,
     }
   })
 
@@ -207,15 +259,17 @@ export const hostedOAuthCallback = createServerFn({ method: 'POST' })
 export const hostedSendMagicLink = createServerFn({ method: 'POST' })
   .inputValidator((input: { email: string; tenantId: string; redirectUrl?: string }) => input)
   .handler(async ({ data }): Promise<{ success: boolean }> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/auth/magic-link`, {
+    const response = await fetch(`${clientApiBase}/auth/magic-link`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-ID': data.tenantId,
+      },
       body: JSON.stringify({
         email: data.email,
-        tenant_id: data.tenantId,
-        redirect_url: data.redirectUrl,
+        redirectUri: data.redirectUrl,
       }),
     })
     
@@ -233,9 +287,9 @@ export const hostedSendMagicLink = createServerFn({ method: 'POST' })
 export const hostedRequestPasswordReset = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedPasswordResetInput) => input)
   .handler(async ({ data }): Promise<{ success: boolean }> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/password-reset-request`, {
+    const hostedApiBase = getHostedApiBase()
+
+    const response = await fetch(`${hostedApiBase}/auth/password-reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -258,14 +312,16 @@ export const hostedRequestPasswordReset = createServerFn({ method: 'POST' })
 export const hostedVerifyEmail = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedVerifyEmailInput) => input)
   .handler(async ({ data }): Promise<{ success: boolean; redirectUrl: string }> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/auth/verify-email`, {
+    const response = await fetch(`${clientApiBase}/auth/verify-email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-ID': data.tenantId,
+      },
       body: JSON.stringify({
         token: data.token,
-        tenant_id: data.tenantId,
       }),
     })
     
@@ -283,31 +339,7 @@ export const hostedVerifyEmail = createServerFn({ method: 'POST' })
 export const hostedVerifyMfa = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedMfaVerifyInput & { redirectUrl?: string }) => input)
   .handler(async ({ data }): Promise<HostedAuthResponse> => {
-    const baseUrl = getBaseUrl()
-    
-    const response = await fetch(`${baseUrl}/auth/mfa/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code: data.code,
-        method: data.method,
-        mfa_token: data.mfaToken,
-        tenant_id: data.tenantId,
-      }),
-    })
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Invalid MFA code' }))
-      throw new Error(error.message)
-    }
-    
-    const result = await response.json()
-    
-    return {
-      sessionToken: result.sessionToken,
-      user: result.user,
-      redirectUrl: data.redirectUrl || '/dashboard',
-    }
+    throw new Error('Hosted MFA token verification is not available in this build')
   })
 
 /**
@@ -316,9 +348,9 @@ export const hostedVerifyMfa = createServerFn({ method: 'POST' })
 export const hostedListOrganizations = createServerFn({ method: 'GET' })
   .inputValidator((input: { tenantId: string; sessionToken: string }) => input)
   .handler(async ({ data }): Promise<{ organizations: Organization[] }> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/organizations`, {
+    const response = await fetch(`${clientApiBase}/organizations`, {
       headers: {
         'Authorization': `Bearer ${data.sessionToken}`,
         'X-Tenant-ID': data.tenantId,
@@ -338,9 +370,9 @@ export const hostedListOrganizations = createServerFn({ method: 'GET' })
 export const hostedSwitchOrganization = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedSwitchOrgInput & { sessionToken: string }) => input)
   .handler(async ({ data }): Promise<{ success: boolean; redirectUrl: string }> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/organizations/switch`, {
+    const response = await fetch(`${clientApiBase}/organizations/switch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -365,9 +397,9 @@ export const hostedSwitchOrganization = createServerFn({ method: 'POST' })
 export const hostedCreateOrganization = createServerFn({ method: 'POST' })
   .inputValidator((input: HostedCreateOrgInput & { sessionToken: string }) => input)
   .handler(async ({ data }): Promise<Organization> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/organizations`, {
+    const response = await fetch(`${clientApiBase}/organizations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -394,14 +426,15 @@ export const hostedCreateOrganization = createServerFn({ method: 'POST' })
 export const hostedWebAuthnChallenge = createServerFn({ method: 'POST' })
   .inputValidator((input: { tenantId: string }) => input)
   .handler(async ({ data }): Promise<{ challenge: string; options: {} }> => {
-    const baseUrl = getBaseUrl()
+    const clientApiBase = getClientApiBase()
     
-    const response = await fetch(`${baseUrl}/auth/webauthn/challenge`, {
+    const response = await fetch(`${clientApiBase}/auth/webauthn/authenticate/begin`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenant_id: data.tenantId,
-      }),
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Tenant-ID': data.tenantId,
+      },
+      body: JSON.stringify({}),
     })
     
     if (!response.ok) {

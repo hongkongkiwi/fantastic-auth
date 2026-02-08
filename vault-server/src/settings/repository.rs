@@ -41,6 +41,7 @@ impl SettingsRepository {
                 org_settings,
                 branding_settings,
                 email_settings,
+                sms_settings,
                 oauth_settings,
                 localization_settings,
                 webhook_settings,
@@ -60,6 +61,7 @@ impl SettingsRepository {
             org: serde_json::from_value(row.get("org_settings"))?,
             branding: serde_json::from_value(row.get("branding_settings"))?,
             email: serde_json::from_value(row.get("email_settings"))?,
+            sms: serde_json::from_value(row.get("sms_settings"))?,
             oauth: serde_json::from_value(row.get("oauth_settings"))?,
             localization: serde_json::from_value(row.get("localization_settings"))?,
             webhook: serde_json::from_value(row.get("webhook_settings"))?,
@@ -81,6 +83,7 @@ impl SettingsRepository {
                 org_settings,
                 branding_settings,
                 email_settings,
+                sms_settings,
                 oauth_settings,
                 localization_settings,
                 webhook_settings,
@@ -98,6 +101,24 @@ impl SettingsRepository {
         .await?;
 
         Ok(row)
+    }
+
+    /// List retention settings for all tenants
+    pub async fn list_privacy_retention(&self) -> Result<Vec<(String, i64)>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT tenant_id::text as tenant_id,
+                   COALESCE((privacy_settings->>'data_retention_days')::int, 365) as retention_days
+            FROM tenant_settings
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.get::<String, _>("tenant_id"), row.get::<i32, _>("retention_days") as i64))
+            .collect())
     }
 
     /// Update authentication settings
@@ -214,6 +235,31 @@ impl SettingsRepository {
             r#"
             SELECT update_tenant_setting($1, 'email', $2, $3, $4)
             "#
+        )
+        .bind(tenant_id)
+        .bind(json)
+        .bind(changed_by)
+        .bind(reason)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    /// Update SMS settings
+    pub async fn update_sms_settings(
+        &self,
+        tenant_id: &str,
+        settings: &SmsSettings,
+        changed_by: Option<&str>,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        let json = serde_json::to_value(settings)?;
+
+        sqlx::query(
+            r#"
+            SELECT update_tenant_setting($1, 'sms', $2, $3, $4)
+            "#,
         )
         .bind(tenant_id)
         .bind(json)

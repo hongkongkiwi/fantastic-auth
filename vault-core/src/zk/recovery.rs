@@ -249,7 +249,11 @@ mod sss {
 
         // Generate random coefficients for the polynomial
         // For each byte of the secret, we create a polynomial
-        let mut rng = rand::thread_rng();
+        // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+        // Secret shares must be unpredictable to prevent reconstruction by attackers
+        use rand::RngCore;
+        use rand_core::OsRng;
+        let mut rng = OsRng;
 
         for share_index in 1..=total_shares {
             let x = share_index as u8;

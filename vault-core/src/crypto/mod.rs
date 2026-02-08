@@ -99,9 +99,13 @@ pub struct HybridVerifyingKey {
 
 impl HybridSigningKey {
     /// Generate a new hybrid key pair
+    /// 
+    /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+    /// random number generation. Never use thread_rng() for key generation as it
+    /// may not provide sufficient entropy for cryptographic purposes.
     pub fn generate() -> (Self, HybridVerifyingKey) {
-        // Generate Ed25519 key pair
-        let ed25519_signing = SigningKey::generate(&mut rand::thread_rng());
+        // Generate Ed25519 key pair using cryptographically secure RNG
+        let ed25519_signing = SigningKey::generate(&mut OsRng);
         let ed25519_verifying = ed25519_signing.verifying_key();
 
         // Generate ML-DSA-65 key pair using pqcrypto
@@ -312,22 +316,34 @@ impl VaultPasswordHasher {
 }
 
 /// Generate a cryptographically secure random string
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// random number generation. Uses base64 encoding to avoid modulo bias that would
+/// occur with charset-based encoding.
+/// 
+/// Note: The output string length will be longer than the requested byte length
+/// due to base64 encoding overhead (4/3x). For a specific output length, adjust
+/// the input length accordingly (output_len = ceil(length * 4/3)).
 pub fn generate_secure_random(length: usize) -> String {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
+    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+    
+    // Generate random bytes using cryptographically secure RNG
     let mut bytes = vec![0u8; length];
-    rng.fill_bytes(&mut bytes);
-
-    bytes
-        .iter()
-        .map(|b| CHARSET[(b % CHARSET.len() as u8) as usize] as char)
-        .collect()
+    OsRng.fill_bytes(&mut bytes);
+    
+    // Use URL-safe base64 encoding to avoid modulo bias
+    // This provides uniform distribution across the character set
+    URL_SAFE_NO_PAD.encode(&bytes)
 }
 
 /// Generate a cryptographically secure random byte array
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// random number generation. Suitable for key material, nonces, and other 
+/// cryptographic purposes.
 pub fn generate_random_bytes(length: usize) -> Vec<u8> {
     let mut bytes = vec![0u8; length];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    OsRng.fill_bytes(&mut bytes);
     bytes
 }
 

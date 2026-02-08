@@ -181,15 +181,30 @@ impl AesGcmEncryption {
 }
 
 /// Generate a random Data Encryption Key
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating DEKs.
+/// Data Encryption Keys are used to encrypt sensitive data and must be
+/// cryptographically secure to maintain data confidentiality.
 pub fn generate_dek() -> DataEncryptionKey {
+    use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut dek = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut dek);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut dek);
     dek
 }
 
 /// Wrap DEK with RSA public key using OAEP-SHA256
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for RSA-OAEP encryption.
+/// OAEP requires random padding for semantic security - using a predictable
+/// RNG would compromise the encryption's security.
 pub fn wrap_dek(dek: &DataEncryptionKey, public_key: &RsaPublicKey) -> Result<WrappedDek, ZkError> {
-    let mut rng = rand::thread_rng();
+    use rand::RngCore;
+    
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = rand_core::OsRng;
     let padding = Oaep::new::<Sha256>();
 
     let ciphertext = public_key

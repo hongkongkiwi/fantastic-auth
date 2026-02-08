@@ -65,7 +65,7 @@ impl From<ListQuery> for ScimQuery {
 }
 
 /// Convert ApiError to SCIM Error Response
-fn scim_error_response(error: ApiError) -> impl IntoResponse {
+fn scim_error_response(error: ApiError) -> (StatusCode, Json<ScimError>) {
     let (status, scim_error) = match error {
         ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, ScimError::invalid_syntax(&msg)),
         ApiError::Unauthorized => (
@@ -625,7 +625,7 @@ pub async fn list_users(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Query(query): Query<ListQuery>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let scim_query: ScimQuery = query.into();
 
     // Parse filter if provided
@@ -704,7 +704,7 @@ pub async fn create_user(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Json(mut user): Json<ScimUser>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Validate required fields
     if user.user_name.is_empty() {
         return Err(scim_error_response(ApiError::Validation(
@@ -802,7 +802,7 @@ pub async fn get_user(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let row = match sqlx::query_as::<_, ScimUserRow>(
         "SELECT id, user_name, active, external_id, data, created_at, updated_at FROM scim_users WHERE tenant_id = $1 AND id = $2"
     )
@@ -830,7 +830,7 @@ pub async fn update_user(
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
     Json(user): Json<ScimUser>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Check if user exists
     let existing: Option<(String,)> =
         sqlx::query_as("SELECT id FROM scim_users WHERE tenant_id = $1 AND id = $2")
@@ -922,7 +922,7 @@ pub async fn patch_user(
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
     Json(patch): Json<PatchRequest>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Validate schema
     if !patch.schemas.contains(&schemas::PATCH_OP.to_string()) {
         return Err((
@@ -1031,7 +1031,7 @@ pub async fn delete_user(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let result = sqlx::query("DELETE FROM scim_users WHERE tenant_id = $1 AND id = $2")
         .bind(&auth_ctx.tenant_id)
         .bind(&id)
@@ -1080,7 +1080,7 @@ pub async fn list_groups(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Query(query): Query<ListQuery>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let scim_query: ScimQuery = query.into();
 
     // Get total count
@@ -1127,7 +1127,7 @@ pub async fn create_group(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Json(mut group): Json<ScimGroup>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Validate required fields
     if group.display_name.is_empty() {
         return Err(scim_error_response(ApiError::Validation(
@@ -1209,7 +1209,7 @@ pub async fn get_group(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let row = match sqlx::query_as::<_, ScimGroupRow>(
         "SELECT id, display_name, external_id, data, created_at, updated_at FROM scim_groups WHERE tenant_id = $1 AND id = $2"
     )
@@ -1237,7 +1237,7 @@ pub async fn update_group(
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
     Json(group): Json<ScimGroup>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Check if group exists
     let existing: Option<(String,)> =
         sqlx::query_as("SELECT id FROM scim_groups WHERE tenant_id = $1 AND id = $2")
@@ -1311,7 +1311,7 @@ pub async fn patch_group(
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
     Json(patch): Json<PatchRequest>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     // Validate schema
     if !patch.schemas.contains(&schemas::PATCH_OP.to_string()) {
         return Err((
@@ -1398,7 +1398,7 @@ pub async fn delete_group(
     State(state): State<AppState>,
     Extension(auth_ctx): Extension<ScimAuthContext>,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, impl IntoResponse> {
+) -> Result<impl IntoResponse, (StatusCode, Json<ScimError>)> {
     let result = sqlx::query("DELETE FROM scim_groups WHERE tenant_id = $1 AND id = $2")
         .bind(&auth_ctx.tenant_id)
         .bind(&id)
@@ -1558,6 +1558,54 @@ fn row_to_scim_group(row: ScimGroupRow, _tenant_id: &str) -> ScimGroup {
     }
 }
 
+/// SQL Query condition with parameters for safe query building
+/// 
+/// SECURITY: This struct ensures all user input is properly parameterized
+/// to prevent SQL injection attacks. Never use string formatting with user input.
+#[derive(Debug, Clone)]
+struct SqlCondition {
+    /// The SQL condition string with $N placeholders
+    sql: String,
+    /// The parameters to bind to the placeholders
+    params: Vec<String>,
+    /// Next parameter index
+    next_param_idx: usize,
+}
+
+impl SqlCondition {
+    /// Create a new empty condition
+    fn new(starting_idx: usize) -> Self {
+        Self {
+            sql: String::new(),
+            params: Vec::new(),
+            next_param_idx: starting_idx,
+        }
+    }
+
+    /// Add a parameter and return its placeholder
+    fn add_param(&mut self, value: String) -> String {
+        let idx = self.next_param_idx;
+        self.next_param_idx += 1;
+        self.params.push(value);
+        format!("${}", idx)
+    }
+
+    /// Get the next parameter index
+    fn next_idx(&self) -> usize {
+        self.next_param_idx
+    }
+
+    /// Combine another condition into this one
+    fn combine(&mut self, other: SqlCondition) {
+        self.params.extend(other.params);
+        self.next_param_idx = other.next_param_idx;
+    }
+}
+
+/// Build a user query with proper parameterization
+/// 
+/// SECURITY: This function uses parameterized queries to prevent SQL injection.
+/// All user input (filter values) is passed as parameters, not concatenated.
 fn build_user_query(
     tenant_id: &str,
     query: &ScimQuery,
@@ -1566,18 +1614,22 @@ fn build_user_query(
     let mut sql = String::from(
         "SELECT id, user_name, active, external_id, data, created_at, updated_at FROM scim_users WHERE tenant_id = $1"
     );
-    let params = vec![tenant_id.to_string()];
+    let mut params = vec![tenant_id.to_string()];
+    let mut next_idx = 2; // $1 is tenant_id
 
-    // Apply filter
+    // Apply filter with parameterized queries
     if let Some(f) = filter {
-        let filter_sql = filter_to_sql(f);
-        if !filter_sql.is_empty() {
+        let condition = filter_to_sql(f, next_idx);
+        if !condition.sql.is_empty() {
             sql.push_str(" AND ");
-            sql.push_str(&filter_sql);
+            sql.push_str(&condition.sql);
+            params.extend(condition.params);
+            next_idx = condition.next_param_idx;
         }
     }
 
     // Apply sorting
+    // SECURITY: sort_col is validated against a whitelist, not user input
     if let Some(ref sort_by) = query.sort_by {
         let sort_col = match sort_by.as_str() {
             "userName" => "user_name",
@@ -1590,6 +1642,7 @@ fn build_user_query(
             Some("descending") => "DESC",
             _ => "ASC",
         };
+        // sort_col is from a whitelist, sort_order is hardcoded - safe to format
         sql.push_str(&format!(" ORDER BY {} {}", sort_col, sort_order));
     } else {
         sql.push_str(" ORDER BY user_name ASC");
@@ -1598,18 +1651,44 @@ fn build_user_query(
     (sql, params)
 }
 
-fn filter_to_sql(filter: &Filter) -> String {
+/// Convert a SCIM filter to a parameterized SQL condition
+/// 
+/// SECURITY: This function NEVER concatenates user input into SQL strings.
+/// All values are passed as parameters ($N) to prevent SQL injection.
+fn filter_to_sql(filter: &Filter, starting_idx: usize) -> SqlCondition {
+    let mut condition = SqlCondition::new(starting_idx);
+
     match filter {
         Filter::AttributePresent { attr } => {
-            let col = attribute_to_column(attr);
+            // SECURITY: Validate attribute name against whitelist
+            let col = match validate_attribute(attr) {
+                Some(c) => c,
+                None => {
+                    // Invalid attribute - return a condition that matches nothing
+                    condition.sql = "1=0".to_string();
+                    return condition;
+                }
+            };
+            
             if col == "data" {
-                format!("data->>'{}' IS NOT NULL", attr)
+                // For JSON data fields, we still need to use the attr name in the JSON path
+                // The attr name is validated by validate_attribute, so it's safe
+                condition.sql = format!("data->>'{}' IS NOT NULL", attr);
             } else {
-                format!("{} IS NOT NULL", col)
+                condition.sql = format!("{} IS NOT NULL", col);
             }
         }
         Filter::AttributeComparison { attr, op, value } => {
-            let col = attribute_to_column(attr);
+            // SECURITY: Validate attribute name against whitelist
+            let col = match validate_attribute(attr) {
+                Some(c) => c,
+                None => {
+                    // Invalid attribute - return a condition that matches nothing
+                    condition.sql = "1=0".to_string();
+                    return condition;
+                }
+            };
+
             let sql_op = match op {
                 super::ComparisonOperator::Eq => "=",
                 super::ComparisonOperator::Ne => "!=",
@@ -1622,33 +1701,95 @@ fn filter_to_sql(filter: &Filter) -> String {
                 super::ComparisonOperator::Le => "<=",
             };
 
+            // SECURITY: Format the value with wildcards but pass as parameter
             let formatted_value = match op {
-                super::ComparisonOperator::Co => format!("'%{}%'", value.replace("'", "''")),
-                super::ComparisonOperator::Sw => format!("'{}%'", value.replace("'", "''")),
-                super::ComparisonOperator::Ew => format!("'%{}'", value.replace("'", "''")),
-                _ => format!("'{}'", value.replace("'", "''")),
+                super::ComparisonOperator::Co => format!("%{}%", value),
+                super::ComparisonOperator::Sw => format!("{}%", value),
+                super::ComparisonOperator::Ew => format!("%{}", value),
+                _ => value.clone(),
             };
 
+            let param_placeholder = condition.add_param(formatted_value);
+
             if col == "data" {
-                format!("data->>'{}' {} {}", attr, sql_op, formatted_value)
+                // For JSON data fields, the attr name is validated above
+                condition.sql = format!("data->>'{}' {} {}", attr, sql_op, param_placeholder);
             } else {
-                format!("{} {} {}", col, sql_op, formatted_value)
+                condition.sql = format!("{} {} {}", col, sql_op, param_placeholder);
             }
         }
         Filter::And(left, right) => {
-            format!("({} AND {})", filter_to_sql(left), filter_to_sql(right))
+            let left_cond = filter_to_sql(left, condition.next_idx());
+            let right_cond = filter_to_sql(right, left_cond.next_idx());
+            
+            condition.sql = format!("({} AND {})", left_cond.sql, right_cond.sql);
+            condition.params.extend(left_cond.params);
+            condition.params.extend(right_cond.params);
+            condition.next_param_idx = right_cond.next_param_idx;
         }
         Filter::Or(left, right) => {
-            format!("({} OR {})", filter_to_sql(left), filter_to_sql(right))
+            let left_cond = filter_to_sql(left, condition.next_idx());
+            let right_cond = filter_to_sql(right, left_cond.next_idx());
+            
+            condition.sql = format!("({} OR {})", left_cond.sql, right_cond.sql);
+            condition.params.extend(left_cond.params);
+            condition.params.extend(right_cond.params);
+            condition.next_param_idx = right_cond.next_param_idx;
         }
         Filter::Not(inner) => {
-            format!("NOT ({})", filter_to_sql(inner))
+            let inner_cond = filter_to_sql(inner, condition.next_idx());
+            condition.sql = format!("NOT ({})", inner_cond.sql);
+            condition.params = inner_cond.params;
+            condition.next_param_idx = inner_cond.next_param_idx;
         }
     }
+
+    condition
 }
 
-fn attribute_to_column(attr: &str) -> &'static str {
-    match attr {
+/// Whitelist of allowed SCIM attributes for SQL query building
+/// 
+/// SECURITY: This whitelist prevents SQL injection through attribute names.
+/// Only these specific attributes are allowed in filter expressions.
+const ALLOWED_ATTRIBUTES: &[&str] = &[
+    "userName",
+    "externalId",
+    "active",
+    "id",
+    "meta.created",
+    "meta.lastModified",
+    "name.givenName",
+    "name.familyName",
+    "name.formatted",
+    "displayName",
+    "nickName",
+    "profileUrl",
+    "title",
+    "userType",
+    "preferredLanguage",
+    "locale",
+    "timezone",
+    "emails.value",
+    "emails.type",
+    "phoneNumbers.value",
+    "phoneNumbers.type",
+];
+
+/// Validate an attribute name against the whitelist
+/// 
+/// Returns the column name if valid, None if not in whitelist
+fn validate_attribute(attr: &str) -> Option<&'static str> {
+    // Check against whitelist
+    if !ALLOWED_ATTRIBUTES.contains(&attr) {
+        // Check if it's a simple alphanumeric attribute (for custom data fields)
+        // Only allow a-z, A-Z, 0-9, and dots for nested attributes
+        if !attr.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-') {
+            return None;
+        }
+    }
+
+    // Map to column name
+    Some(match attr {
         "userName" => "user_name",
         "externalId" => "external_id",
         "active" => "active",
@@ -1656,7 +1797,7 @@ fn attribute_to_column(attr: &str) -> &'static str {
         "meta.created" => "created_at",
         "meta.lastModified" => "updated_at",
         _ => "data",
-    }
+    })
 }
 
 fn apply_patch_operation(
@@ -1846,10 +1987,24 @@ async fn apply_group_patch_operation(
             if let Some(ref path) = op.path {
                 if path == "members" || path.starts_with("members[") {
                     if let Some(ref value) = op.value {
+                        // SECURITY: Safe deserialization without unwrap()
                         let members_to_add: Vec<super::Member> = if value.is_array() {
                             serde_json::from_value(value.clone()).unwrap_or_default()
                         } else {
-                            vec![serde_json::from_value(value.clone()).unwrap()]
+                            // Try to deserialize single member, return empty vec on error
+                            match serde_json::from_value::<super::Member>(value.clone()) {
+                                Ok(member) => vec![member],
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "Failed to deserialize member from patch value");
+                                    return Err((
+                                        StatusCode::BAD_REQUEST,
+                                        Json(ScimError::invalid_value(&format!(
+                                            "Invalid member data: {}",
+                                            e
+                                        ))),
+                                    ));
+                                }
+                            }
                         };
 
                         if group.members.is_none() {

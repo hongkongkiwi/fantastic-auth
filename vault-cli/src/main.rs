@@ -98,11 +98,9 @@ enum Commands {
         command: PluginCommands,
     },
 
-    /// Migration tools
-    Migrate {
-        #[command(subcommand)]
-        command: MigrateCommands,
-    },
+    /// Migration tools for importing users from external providers
+    #[command(subcommand)]
+    Migrate(MigrateCommands),
 
     /// Configuration commands
     Config {
@@ -385,19 +383,10 @@ enum PluginTypeArg {
 #[derive(Subcommand)]
 #[clap(rename_all = "kebab-case")]
 enum MigrateCommands {
-    /// Import users from CSV or JSON
-    ImportUsers {
-        /// Path to import file
-        file: PathBuf,
-        /// File format (auto-detected if not specified)
-        #[arg(short, long)]
-        format: Option<ImportFormat>,
-        /// Dry run (validate without importing)
-        #[arg(long)]
-        dry_run: bool,
-    },
+    /// Import users from CSV or JSON file
+    Csv(crate::commands::migrate::csv::MigrateCsvArgs),
     /// Export users to file
-    ExportUsers {
+    Export {
         /// Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
@@ -409,26 +398,11 @@ enum MigrateCommands {
         status: Option<String>,
     },
     /// Import users from Auth0
-    FromAuth0 {
-        /// Auth0 domain
-        #[arg(short, long)]
-        domain: String,
-        /// Auth0 management API token
-        #[arg(short, long)]
-        token: String,
-        /// Connection ID (optional)
-        #[arg(short, long)]
-        connection: Option<String>,
-    },
-    /// Import users from Firebase
-    FromFirebase {
-        /// Path to Firebase credentials JSON
-        #[arg(short, long)]
-        credentials: PathBuf,
-        /// Dry run (validate without importing)
-        #[arg(long)]
-        dry_run: bool,
-    },
+    Auth0(crate::commands::migrate::auth0::MigrateAuth0Args),
+    /// Import users from Clerk
+    Clerk(crate::commands::migrate::clerk::MigrateClerkArgs),
+    /// Import users from Firebase Authentication
+    Firebase(crate::commands::migrate::firebase::MigrateFirebaseArgs),
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -521,13 +495,13 @@ async fn main() -> Result<()> {
                 commands::auth::logout()?;
             }
             AuthCommands::Whoami => {
-                let token = config.token.as_deref().context("Not logged in")?;
+                let token = config.token()?.context("Not logged in")?;
                 commands::auth::whoami(&api_url, token, format).await?;
             }
         },
 
         Commands::Users { command } => {
-            let token = config.token.as_deref().context("Not logged in")?;
+            let token = config.token()?.context("Not logged in")?;
 
             match command {
                 UserCommands::List {
@@ -594,7 +568,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::Orgs { command } => {
-            let token = config.token.as_deref().context("Not logged in")?;
+            let token = config.token()?.context("Not logged in")?;
 
             match command {
                 OrgCommands::List {
@@ -656,7 +630,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::Sessions { command } => {
-            let token = config.token.as_deref().context("Not logged in")?;
+            let token = config.token()?.context("Not logged in")?;
 
             match command {
                 SessionCommands::List { user_id } => {
@@ -686,7 +660,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::Plugins { command } => {
-            let token = config.token.as_deref().context("Not logged in")?;
+            let _token = config.token()?.context("Not logged in")?;
 
             match command {
                 PluginCommands::List { detailed } => {
@@ -752,25 +726,14 @@ async fn main() -> Result<()> {
             }
         }
 
-        Commands::Migrate { command } => {
-            let token = config.token.as_deref().context("Not logged in")?;
+        Commands::Migrate(command) => {
+            let token = config.token()?.context("Not logged in")?;
 
             match command {
-                MigrateCommands::ImportUsers { file, format, dry_run } => {
-                    commands::migrate::import_users(
-                        &api_url,
-                        token,
-                        &tenant_id,
-                        &file,
-                        format.map(|f| match f {
-                            ImportFormat::Csv => commands::migrate::ImportFormat::Csv,
-                            ImportFormat::Json => commands::migrate::ImportFormat::Json,
-                        }),
-                        dry_run,
-                    )
-                    .await?;
+                MigrateCommands::Csv(args) => {
+                    commands::migrate::csv::execute(&api_url, token, &tenant_id, args).await?;
                 }
-                MigrateCommands::ExportUsers { output, format, status } => {
+                MigrateCommands::Export { output, format, status } => {
                     commands::migrate::export_users(
                         &api_url,
                         token,
@@ -785,26 +748,14 @@ async fn main() -> Result<()> {
                     )
                     .await?;
                 }
-                MigrateCommands::FromAuth0 { domain, token: auth0_token, connection } => {
-                    commands::migrate::import_from_auth0(
-                        &api_url,
-                        token,
-                        &tenant_id,
-                        &domain,
-                        &auth0_token,
-                        connection.as_deref(),
-                    )
-                    .await?;
+                MigrateCommands::Auth0(args) => {
+                    commands::migrate::auth0::execute(&api_url, token, &tenant_id, args).await?;
                 }
-                MigrateCommands::FromFirebase { credentials, dry_run } => {
-                    commands::migrate::import_from_firebase(
-                        &api_url,
-                        token,
-                        &tenant_id,
-                        &credentials,
-                        dry_run,
-                    )
-                    .await?;
+                MigrateCommands::Clerk(args) => {
+                    commands::migrate::clerk::execute(&api_url, token, &tenant_id, args).await?;
+                }
+                MigrateCommands::Firebase(args) => {
+                    commands::migrate::firebase::execute(&api_url, token, &tenant_id, args).await?;
                 }
             }
         }

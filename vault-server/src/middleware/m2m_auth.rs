@@ -194,13 +194,15 @@ pub async fn optional_m2m_auth_middleware(
 
     // Try to extract credential
     if let Some(credential) = extract_credential(&request) {
-        let result = if is_api_key(credential) {
-            validate_api_key(&state, &tenant_id, credential).await
-        } else {
-            validate_m2m_token(&state, credential).await
-        };
+        if is_api_key(credential) {
+            if let Ok(service_context) = validate_api_key(&state, &tenant_id, credential).await {
+                // Set tenant context (best effort)
+                let _ = state.set_tenant_context(&service_context.tenant_id).await;
 
-        if let Ok(service_context) = result {
+                // Add service account context to request extensions
+                request.extensions_mut().insert(service_context);
+            }
+        } else if let Ok(service_context) = validate_m2m_token(&state, credential).await {
             // Set tenant context (best effort)
             let _ = state.set_tenant_context(&service_context.tenant_id).await;
 

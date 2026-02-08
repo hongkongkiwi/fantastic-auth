@@ -445,10 +445,17 @@ impl WebhookService {
 }
 
 /// Generate a random secret for webhook signing
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating webhook secrets.
+/// Webhook secrets are used to sign and verify webhook payloads, preventing attackers
+/// from sending forged webhook events to your application.
 fn generate_secret() -> String {
     use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut bytes);
     base64::encode(bytes)
 }
 
@@ -470,9 +477,12 @@ fn compute_retry_delay(
     let jitter = retry_jitter.clamp(0.0, 1.0) as f64;
     if jitter > 0.0 {
         use rand::Rng;
+        use rand_core::OsRng;
+        // SECURITY: Using OsRng for jitter calculation ensures consistent
+        // security practices, even though jitter is not cryptographically critical
         let min = (delay as f64) * (1.0 - jitter);
         let max = (delay as f64) * (1.0 + jitter);
-        delay = rand::thread_rng().gen_range(min..=max).round() as u64;
+        delay = OsRng.gen_range(min..=max).round() as u64;
     }
 
     delay

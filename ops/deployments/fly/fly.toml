@@ -1,0 +1,25 @@
+app = "vault"
+primary_region = "iad"
+
+[build]
+  image = "ghcr.io/your-org/vault-server:latest"
+
+[env]
+  VAULT_HOST = "0.0.0.0"
+  VAULT_PORT = "3000"
+  VAULT_METRICS_PORT = "9090"
+  VAULT_LOG_LEVEL = "info"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  min_machines_running = 1
+  auto_start_machines = true
+  auto_stop_machines = true
+
+[[services]]
+  internal_port = 9090
+  protocol = "tcp"
+  [[services.ports]]
+    port = 9090
+

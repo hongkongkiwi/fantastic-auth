@@ -4,7 +4,7 @@ use axum::{
     extract::{Request, State},
     http::header::{HeaderValue, ACCEPT_LANGUAGE},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::sync::Arc;
 

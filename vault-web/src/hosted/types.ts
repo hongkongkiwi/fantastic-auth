@@ -55,6 +55,7 @@ export interface HostedSignInInput {
   email: string
   password: string
   tenantId: string
+  mfaCode?: string
 }
 
 export interface HostedSignUpInput {

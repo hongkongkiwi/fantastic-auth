@@ -64,11 +64,8 @@ impl ConsentManager {
             .await?;
 
         // Check consent validity
-        check_consent(
-            user_consent.as_ref().map(|c| &c.clone().into()),
-            requirement,
-            &version.version,
-        )
+        let consent_record = user_consent.clone().map(Into::into);
+        check_consent(consent_record.as_ref(), requirement, &version.version)
     }
 
     /// Submit user consent

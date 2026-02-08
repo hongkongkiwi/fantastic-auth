@@ -91,9 +91,17 @@ pub fn generate_password_commitment(password: &str, salt: &[u8]) -> [u8; COMMITM
 }
 
 /// Generate a random challenge
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating challenges.
+/// Challenges must be unpredictable to prevent replay attacks and ensure the
+/// zero-knowledge property of the proof system.
 pub fn generate_challenge() -> [u8; CHALLENGE_SIZE] {
+    use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut challenge = [0u8; CHALLENGE_SIZE];
-    rand::thread_rng().fill_bytes(&mut challenge);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut challenge);
     challenge
 }
 
@@ -116,8 +124,12 @@ impl ZkPasswordProver {
         let challenge = challenge.unwrap_or_else(generate_challenge);
 
         // Generate random blinding factor
+        // SECURITY: Uses OsRng (operating system's CSPRNG) for generating blinding factors.
+        // The blinding factor must be unpredictable to maintain the zero-knowledge property.
         let mut blinding_factor = [0u8; 32];
-        rand::thread_rng().fill_bytes(&mut blinding_factor);
+        use rand::RngCore;
+        use rand_core::OsRng;
+        OsRng.fill_bytes(&mut blinding_factor);
 
         // Compute blinded commitment: Hash(blinding_factor || challenge)
         let blinded_commitment = {

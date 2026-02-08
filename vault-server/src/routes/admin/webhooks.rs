@@ -504,10 +504,12 @@ async fn rotate_secret(
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    // Generate new secret
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    // Webhook secrets are used to sign and verify webhook payloads
     use rand::RngCore;
+    use rand_core::OsRng;
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    OsRng.fill_bytes(&mut bytes);
     let new_secret = hex::encode(bytes);
 
     // Update endpoint with new secret

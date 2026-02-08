@@ -13,6 +13,8 @@ use std::net::SocketAddr;
 use crate::db::{AuditRepository, CreateAuditLogRequest};
 use crate::state::{AppState, CurrentUser};
 
+const PLATFORM_TENANT_ID: &str = "00000000-0000-0000-0000-000000000001";
+
 /// Audit logging configuration
 #[derive(Debug, Clone)]
 pub struct AuditConfig {
@@ -130,7 +132,7 @@ pub async fn audit_middleware(
     let tenant_id = user_info
         .as_ref()
         .map(|u| u.tenant_id.clone())
-        .unwrap_or_else(|| "system".to_string());
+        .unwrap_or_else(|| PLATFORM_TENANT_ID.to_string());
 
     log_action(
         &state.db.audit(),

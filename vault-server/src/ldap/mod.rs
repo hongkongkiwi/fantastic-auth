@@ -520,7 +520,7 @@ impl LdapConnection {
 
     /// Parse an LDAP entry into an LdapUser
     fn parse_user_entry(&self, entry: &ldap3::ResultEntry) -> Result<LdapUser, LdapError> {
-        let entry = ldap3::SearchEntry::from(entry.clone());
+        let entry = ldap3::SearchEntry::construct(entry.clone());
         let attrs = &entry.attrs;
 
         let get_attr =
@@ -571,7 +571,7 @@ impl LdapConnection {
 
     /// Parse an LDAP entry into an LdapGroup
     fn parse_group_entry(&self, entry: &ldap3::ResultEntry) -> Result<LdapGroup, LdapError> {
-        let entry = ldap3::SearchEntry::from(entry.clone());
+        let entry = ldap3::SearchEntry::construct(entry.clone());
         let attrs = &entry.attrs;
 
         let get_attr =

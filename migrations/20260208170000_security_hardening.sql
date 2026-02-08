@@ -20,6 +20,29 @@ DECLARE
     vname TEXT;
 BEGIN
     FOR vname IN SELECT unnest(ARRAY[
+        'admin_webhook_endpoints',
+        'admin_webhook_deliveries',
+        'admin_mfa_credentials',
+        'admin_mfa_backup_codes',
+        'admin_oauth_connections',
+        'admin_refresh_tokens',
+        'admin_magic_links',
+        'admin_email_verifications',
+        'admin_password_resets',
+        'admin_subscriptions',
+        'admin_payment_methods',
+        'admin_invoices',
+        'admin_usage_records',
+        'admin_billing_events',
+        'admin_sso_connections',
+        'admin_sso_domains',
+        'admin_org_sso_settings',
+        'admin_organization_domains',
+        'admin_organization_roles',
+        'admin_tenant_branding',
+        'admin_tenant_themes',
+        'admin_scim_tokens',
+        'admin_scim_mappings',
         'admin_scim_users',
         'admin_scim_groups',
         'admin_audit_exports',
@@ -129,6 +152,50 @@ CREATE POLICY actions_admin_all ON actions
     USING (tenant_id = current_tenant_id() AND is_admin())
     WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
 
+-- Webhooks (admin-only)
+DROP POLICY IF EXISTS tenant_isolation_webhook_endpoints ON webhook_endpoints;
+CREATE POLICY webhook_endpoints_admin_all ON webhook_endpoints
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+DROP POLICY IF EXISTS tenant_isolation_webhook_deliveries ON webhook_deliveries;
+CREATE POLICY webhook_deliveries_admin_all ON webhook_deliveries
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+-- Billing (admin-only)
+DROP POLICY IF EXISTS tenant_isolation_subscriptions ON subscriptions;
+CREATE POLICY subscriptions_admin_all ON subscriptions
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+DROP POLICY IF EXISTS tenant_isolation_payment_methods ON payment_methods;
+CREATE POLICY payment_methods_admin_all ON payment_methods
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+DROP POLICY IF EXISTS tenant_isolation_invoices ON invoices;
+CREATE POLICY invoices_admin_all ON invoices
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+DROP POLICY IF EXISTS tenant_isolation_usage_records ON usage_records;
+CREATE POLICY usage_records_admin_all ON usage_records
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
+DROP POLICY IF EXISTS tenant_isolation_billing_events ON billing_events;
+CREATE POLICY billing_events_admin_all ON billing_events
+    FOR ALL TO vault_app
+    USING (tenant_id = current_tenant_id() AND is_admin())
+    WITH CHECK (tenant_id = current_tenant_id() AND is_admin());
+
 DROP POLICY IF EXISTS action_execs_isolation ON action_executions;
 CREATE POLICY action_execs_admin_all ON action_executions
     FOR ALL TO vault_app
@@ -147,6 +214,8 @@ CREATE POLICY scim_tokens_privileged_all ON scim_tokens
         tenant_id = current_tenant_id()
         AND (is_admin() OR current_setting('app.current_user_role', true) = 'scim')
     );
+
+REVOKE SELECT (token_hash) ON scim_tokens FROM vault_app, vault_readonly;
 
 DROP POLICY IF EXISTS tenant_isolation_scim_mappings ON scim_mappings;
 CREATE POLICY scim_mappings_privileged_all ON scim_mappings

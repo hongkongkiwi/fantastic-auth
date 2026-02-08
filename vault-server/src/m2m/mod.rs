@@ -134,8 +134,8 @@ impl M2mAuthService {
         .bind(&request.description)
         .bind(&client_id)
         .bind(&client_secret_hash)
-        .bind(&request.scopes.unwrap_or_default())
-        .bind(&request.permissions.unwrap_or_default())
+        .bind(&request.scopes.clone().unwrap_or_default())
+        .bind(&request.permissions.clone().unwrap_or_default())
         .bind(request.rate_limit_rps.map(|v| v as i32))
         .bind(request.rate_limit_burst.map(|v| v as i32))
         .bind(request.expires_at)
@@ -251,19 +251,19 @@ impl M2mAuthService {
         let mut params: Vec<Box<dyn sqlx::Encode<'static, sqlx::Postgres> + Send>> = Vec::new();
         let mut param_idx = 1;
 
-        if let Some(name) = request.name {
+        if request.name.is_some() {
             updates.push(format!("name = ${}", param_idx));
             param_idx += 1;
         }
-        if let Some(description) = request.description {
+        if request.description.is_some() {
             updates.push(format!("description = ${}", param_idx));
             param_idx += 1;
         }
-        if let Some(scopes) = request.scopes {
+        if request.scopes.is_some() {
             updates.push(format!("scopes = ${}", param_idx));
             param_idx += 1;
         }
-        if let Some(permissions) = request.permissions {
+        if request.permissions.is_some() {
             updates.push(format!("permissions = ${}", param_idx));
             param_idx += 1;
         }
@@ -324,8 +324,8 @@ impl M2mAuthService {
         let description = request.description.or(current.description);
         let scopes = request.scopes.unwrap_or(current.scopes);
         let permissions = request.permissions.unwrap_or(current.permissions);
-        let rate_limit_rps = request.rate_limit_rps.or(current.rate_limit.map(|r| r.requests_per_second));
-        let rate_limit_burst = request.rate_limit_burst.or(current.rate_limit.map(|r| r.burst));
+        let rate_limit_rps = request.rate_limit_rps.or_else(|| current.rate_limit.as_ref().map(|r| r.requests_per_second));
+        let rate_limit_burst = request.rate_limit_burst.or_else(|| current.rate_limit.as_ref().map(|r| r.burst));
         let expires_at = request.expires_at.or(current.expires_at);
         let is_active = request.is_active.unwrap_or(current.is_active);
 
@@ -412,9 +412,17 @@ impl M2mAuthService {
 }
 
 /// Generate a new client ID
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating client IDs.
+/// While client IDs are not secrets, using a secure RNG ensures they are
+/// unpredictable and prevents enumeration attacks.
 fn generate_client_id() -> String {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    
     let prefix = "vault_sa_";
-    let random: String = rand::thread_rng()
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let random: String = rand_core::OsRng
         .sample_iter(&Alphanumeric)
         .take(24)
         .map(char::from)
@@ -423,9 +431,17 @@ fn generate_client_id() -> String {
 }
 
 /// Generate a new client secret
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating client secrets.
+/// Client secrets are credentials for machine-to-machine authentication and must be
+/// cryptographically secure to prevent unauthorized API access.
 fn generate_client_secret() -> String {
-    // Generate a secure random secret (64 chars)
-    let random: String = rand::thread_rng()
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    // Client secrets must be unpredictable to prevent credential stuffing attacks
+    let random: String = rand_core::OsRng
         .sample_iter(&Alphanumeric)
         .take(64)
         .map(char::from)

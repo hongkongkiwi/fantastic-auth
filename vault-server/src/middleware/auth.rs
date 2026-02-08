@@ -4,10 +4,10 @@ use axum::{
     extract::{ConnectInfo, Request, State},
     http::{header, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use std::net::SocketAddr;
-use vault_core::crypto::{HybridJwt, TokenType};
+use vault_core::crypto::{Claims, HybridJwt, TokenType};
 
 use crate::audit::{AuditLogger, RequestContext};
 use crate::security::{
@@ -17,16 +17,41 @@ use crate::security::{
 use crate::state::{AppState, CurrentUser};
 
 /// Extract JWT token from Authorization header
+/// 
+/// SECURITY: Uses constant-time prefix comparison to prevent timing attacks.
+/// Standard string comparison (`starts_with`) can leak information about the
+/// prefix through timing side channels. This implementation compares all bytes
+/// regardless of mismatches to ensure constant-time execution.
 fn extract_token(request: &Request) -> Option<&str> {
+    use subtle::ConstantTimeEq;
+    
     let auth_header = request
         .headers()
         .get(header::AUTHORIZATION)?
         .to_str()
         .ok()?;
 
-    // Check for Bearer token
-    if auth_header.starts_with("Bearer ") {
-        Some(&auth_header[7..])
+    // SECURITY: Constant-time Bearer prefix check to prevent timing attacks
+    // that could reveal information about the expected header format.
+    const BEARER_PREFIX: &str = "Bearer ";
+    const PREFIX_LEN: usize = BEARER_PREFIX.len();
+    
+    // Check if header is long enough to contain a token
+    if auth_header.len() <= PREFIX_LEN {
+        return None;
+    }
+    
+    // Constant-time comparison of the "Bearer " prefix
+    let header_prefix = &auth_header.as_bytes()[..PREFIX_LEN.min(auth_header.len())];
+    let expected_prefix = BEARER_PREFIX.as_bytes();
+    
+    // Use subtle crate for constant-time comparison
+    let prefix_matches = header_prefix.ct_eq(expected_prefix).into();
+    
+    if prefix_matches {
+        // SECURITY: After constant-time prefix check, extract token
+        // The token portion is returned only after successful prefix validation
+        Some(&auth_header[PREFIX_LEN..])
     } else {
         None
     }
@@ -148,8 +173,8 @@ pub async fn auth_middleware(
                     crate::audit::AuditAction::SessionValidationFailed,
                     crate::audit::ResourceType::Session,
                     session_id,
-                    Some(&current_user.user_id),
-                    Some(session_id),
+                    Some(current_user.user_id.clone()),
+                    Some(session_id.clone()),
                     Some(context.clone()),
                     false,
                     Some("Session binding violation".to_string()),
@@ -170,8 +195,9 @@ pub async fn auth_middleware(
                 );
             }
             Err(e) => {
-                // Error during binding check - log but don't fail
-                tracing::warn!("Session binding check error: {}", e);
+                // Error during binding check - fail securely
+                tracing::error!("Session binding check error: {}", e);
+                return Err(StatusCode::UNAUTHORIZED);
             }
         }
     }
@@ -202,6 +228,7 @@ pub async fn auth_middleware(
     });
 
     let ctx = vault_core::db::RequestContext {
+        tenant_id: Some(current_user.tenant_id.clone()),
         user_id: Some(current_user.user_id.clone()),
         role,
     };
@@ -262,6 +289,7 @@ pub async fn optional_auth_middleware(
             });
 
             let ctx = vault_core::db::RequestContext {
+                tenant_id: Some(current_user.tenant_id.clone()),
                 user_id: Some(current_user.user_id.clone()),
                 role,
             };
@@ -416,6 +444,148 @@ pub async fn superadmin_middleware(
     }
 
     Ok(next.run(request).await)
+}
+
+/// Internal API authentication middleware
+///
+/// Accepts either:
+/// - `X-API-Key` header matching `internal_api_key`
+/// - `Authorization: Bearer <token>` with `superadmin` role
+///
+/// Injects a CurrentUser into extensions and sets request context.
+pub async fn internal_auth_middleware(mut request: Request, next: Next) -> Response {
+    let state = match request.extensions().get::<AppState>().cloned() {
+        Some(state) => state,
+        None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+
+    let addr = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
+
+    // API key auth (preferred for internal UI)
+    if let Some(api_key_header) = request.headers().get("X-API-Key") {
+        let required_key = match &state.config.internal_api_key {
+            Some(key) => key.as_bytes(),
+            None => return StatusCode::UNAUTHORIZED.into_response(),
+        };
+
+        if let Ok(provided) = api_key_header.to_str() {
+            use subtle::ConstantTimeEq;
+            if provided.as_bytes().ct_eq(required_key).into() {
+                let tenant_id = match &state.config.internal_admin_tenant_id {
+                    Some(id) => id.clone(),
+                    None => return StatusCode::UNAUTHORIZED.into_response(),
+                };
+
+                let mut claims = Claims::new(
+                    "internal-api-key",
+                    tenant_id.clone(),
+                    TokenType::ApiKey,
+                    state.config.jwt.issuer.clone(),
+                    state.config.jwt.audience.clone(),
+                );
+                claims.roles = Some(vec!["superadmin".to_string()]);
+                claims.mfa_authenticated = Some(true);
+
+                let current_user = CurrentUser {
+                    user_id: claims.sub.clone(),
+                    tenant_id: tenant_id.clone(),
+                    session_id: None,
+                    email: String::new(),
+                    email_verified: false,
+                    mfa_authenticated: true,
+                    claims: claims.clone(),
+                    impersonator_id: None,
+                    is_impersonation: false,
+                };
+
+                let audit = AuditLogger::new(state.db.clone());
+                audit.log_superadmin_access(&tenant_id, &current_user.user_id, true);
+
+                request.extensions_mut().insert(current_user);
+
+                let ctx = vault_core::db::RequestContext {
+                    tenant_id: Some(tenant_id),
+                    user_id: Some(claims.sub),
+                    role: Some("superadmin".to_string()),
+                };
+
+                return vault_core::db::with_request_context(ctx, next.run(request)).await;
+            }
+        }
+
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // Bearer token auth
+    if let Some(token) = extract_token(&request) {
+        if let Ok(claims) = HybridJwt::decode(token, state.auth_service.verifying_key()) {
+            if !matches!(claims.token_type, TokenType::Access | TokenType::ApiKey) {
+                return StatusCode::UNAUTHORIZED.into_response();
+            }
+            let is_superadmin = claims
+                .roles
+                .as_ref()
+                .map(|roles| roles.iter().any(|r| r == "superadmin"))
+                .unwrap_or(false);
+
+            if !is_superadmin {
+                let audit = AuditLogger::new(state.db.clone());
+                audit.log_superadmin_access(&claims.tenant_id, &claims.sub, false);
+                return StatusCode::FORBIDDEN.into_response();
+            }
+
+            let current_user = CurrentUser {
+                user_id: claims.sub.clone(),
+                tenant_id: claims.tenant_id.clone(),
+                session_id: claims.session_id.clone(),
+                email: claims.email.clone().unwrap_or_default(),
+                email_verified: claims.email_verified.unwrap_or(false),
+                mfa_authenticated: claims.mfa_authenticated.unwrap_or(false),
+                claims: claims.clone(),
+                impersonator_id: claims
+                    .custom
+                    .get("impersonator_id")
+                    .and_then(|v| v.as_str().map(|s| s.to_string())),
+                is_impersonation: claims
+                    .custom
+                    .get("is_impersonation")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false),
+            };
+
+            let audit = AuditLogger::new(state.db.clone());
+            audit.log_superadmin_access(&current_user.tenant_id, &current_user.user_id, true);
+
+            request.extensions_mut().insert(current_user.clone());
+
+            let role = current_user
+                .claims
+                .roles
+                .as_ref()
+                .and_then(|roles| {
+                    if roles.iter().any(|r| r == "superadmin") {
+                        Some("superadmin".to_string())
+                    } else {
+                        None
+                    }
+                });
+
+            let ctx = vault_core::db::RequestContext {
+                tenant_id: Some(current_user.tenant_id),
+                user_id: Some(current_user.user_id),
+                role,
+            };
+
+            return vault_core::db::with_request_context(ctx, next.run(request)).await;
+        }
+    }
+
+    tracing::warn!("Internal auth failed from {}", addr);
+    StatusCode::UNAUTHORIZED.into_response()
 }
 
 /// Check session binding for potential hijacking

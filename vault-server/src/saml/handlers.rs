@@ -9,11 +9,14 @@
 
 use axum::{
     extract::{Form, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Router,
 };
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -31,6 +34,10 @@ use super::{
 pub struct SamlLoginQuery {
     /// Connection ID (for multi-tenant setups)
     pub connection_id: Option<String>,
+    /// Tenant ID
+    pub tenant_id: Option<String>,
+    /// Tenant slug
+    pub tenant_slug: Option<String>,
     /// Relay state
     pub relay_state: Option<String>,
 }
@@ -85,8 +92,14 @@ async fn saml_login(
     State(state): State<AppState>,
     Query(query): Query<SamlLoginQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    // Get tenant ID from headers or query
-    let tenant_id = query.connection_id.clone().unwrap_or_else(|| "default".to_string());
+    let identifier = query
+        .tenant_id
+        .clone()
+        .or(query.tenant_slug.clone())
+        .or(query.connection_id.clone())
+        .ok_or_else(|| ApiError::BadRequest("tenant_id is required".to_string()))?;
+
+    let tenant_id = resolve_tenant_id(&state, &identifier).await?;
     
     // Load SAML configuration for tenant
     let saml_config = load_saml_config(&state, &tenant_id).await?;
@@ -126,9 +139,18 @@ async fn saml_acs(
     State(state): State<AppState>,
     Form(form): Form<SamlResponseForm>,
 ) -> Result<impl IntoResponse, ApiError> {
-    // Decode the SAML response to extract issuer for routing
-    // In production, parse the XML to get the Issuer
-    let tenant_id = "default".to_string(); // TODO: Extract from SAML response
+    let tenant_id = if let Some(ref relay_state) = form.relay_state {
+        if let Some(tenant_id) = take_relay_state_tenant(&state, relay_state).await? {
+            tenant_id
+        } else {
+            resolve_tenant_id_from_relay_state(relay_state)
+                .ok_or(ApiError::Unauthorized)?
+        }
+    } else {
+        let issuer = extract_issuer_from_response(&form.saml_response)
+            .ok_or(ApiError::Unauthorized)?;
+        resolve_tenant_id_by_issuer(&state, &issuer).await?
+    };
     
     // Load SAML configuration
     let saml_config = load_saml_config(&state, &tenant_id).await?;
@@ -144,10 +166,7 @@ async fn saml_acs(
             ApiError::Unauthorized
         })?;
     
-    // Validate relay state
-    if let Some(ref relay_state) = form.relay_state {
-        validate_relay_state(&state, relay_state).await?;
-    }
+    // Relay state has already been validated/consumed above if present
     
     // Extract user attributes from assertion
     let user_attributes = extract_user_attributes(&saml_response)?;
@@ -203,8 +222,18 @@ async fn saml_slo_post(
 /// Returns the Service Provider metadata XML.
 async fn saml_metadata(
     State(state): State<AppState>,
+    Query(query): Query<SamlLoginQuery>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = "default".to_string(); // TODO: Extract from request
+    let identifier = query
+        .tenant_id
+        .clone()
+        .or(query.tenant_slug.clone())
+        .or(query.connection_id.clone())
+        .or_else(|| headers.get("X-Tenant-ID").and_then(|v| v.to_str().ok()).map(|v| v.to_string()))
+        .ok_or_else(|| ApiError::BadRequest("tenant_id is required".to_string()))?;
+
+    let tenant_id = resolve_tenant_id(&state, &identifier).await?;
     
     // Load SAML configuration
     let saml_config = load_saml_config(&state, &tenant_id).await?;
@@ -231,7 +260,16 @@ async fn handle_logout_request(
     saml_request: &str,
     relay_state: Option<&str>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = "default".to_string(); // TODO: Extract from request
+    let tenant_id = if let Some(relay_state) = relay_state {
+        if let Some(tenant_id) = take_relay_state_tenant(state, relay_state).await? {
+            tenant_id
+        } else {
+            resolve_tenant_id_from_relay_state(relay_state)
+                .ok_or(ApiError::Unauthorized)?
+        }
+    } else {
+        return Err(ApiError::BadRequest("relay_state is required".to_string()));
+    };
     
     // Load SAML configuration
     let saml_config = load_saml_config(state, &tenant_id).await?;
@@ -404,32 +442,132 @@ async fn store_relay_state(
     Ok(())
 }
 
-/// Validate relay state
-async fn validate_relay_state(
+/// Consume relay state and return associated tenant ID (if stored)
+async fn take_relay_state_tenant(
     state: &AppState,
     relay_state: &str,
-) -> Result<(), ApiError> {
+) -> Result<Option<String>, ApiError> {
     if let Some(ref redis) = state.redis {
         let key = format!("saml:relay_state:{}", relay_state);
-        let exists: bool = redis::cmd("EXISTS")
+        let value: Option<String> = redis::cmd("GET")
             .arg(&key)
             .query_async(&mut redis.clone())
             .await
             .map_err(|_| ApiError::Internal)?;
-        
-        if !exists {
-            return Err(ApiError::Unauthorized);
+
+        if value.is_none() {
+            return Ok(None);
         }
-        
-        // Delete the relay state after use
+
         let _: () = redis::cmd("DEL")
             .arg(&key)
             .query_async(&mut redis.clone())
             .await
             .map_err(|_| ApiError::Internal)?;
+
+        return Ok(value);
     }
     
-    Ok(())
+    Ok(None)
+}
+
+fn resolve_tenant_id_from_relay_state(relay_state: &str) -> Option<String> {
+    relay_state.split(':').next().map(|s| s.to_string())
+}
+
+fn extract_issuer_from_response(saml_response_b64: &str) -> Option<String> {
+    let decoded = BASE64_STANDARD.decode(saml_response_b64).ok()?;
+    let xml = String::from_utf8_lossy(&decoded);
+    let start = xml.find("<Issuer")?;
+    let close = xml[start..].find('>')? + start;
+    let end = xml[close + 1..].find("</Issuer>")? + close + 1;
+    Some(xml[close + 1..end].trim().to_string())
+}
+
+async fn resolve_tenant_id_by_issuer(state: &AppState, issuer: &str) -> Result<String, ApiError> {
+    let row: Option<(String,)> = sqlx::query_as(
+        r#"
+        SELECT tenant_id::text
+        FROM saml_connections
+        WHERE idp_entity_id = $1 AND status = 'active'
+        LIMIT 1
+        "#,
+    )
+    .bind(issuer)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to resolve tenant by issuer: {}", e);
+        ApiError::Internal
+    })?;
+
+    row.map(|r| r.0).ok_or(ApiError::Unauthorized)
+}
+
+async fn resolve_tenant_id(state: &AppState, identifier: &str) -> Result<String, ApiError> {
+    if identifier.is_empty() {
+        return Err(ApiError::BadRequest("tenant_id is required".to_string()));
+    }
+
+    if let Ok(uuid) = uuid::Uuid::parse_str(identifier) {
+        let row: Option<(String,)> = sqlx::query_as(
+            r#"
+            SELECT id::text
+            FROM tenants
+            WHERE id = $1 AND deleted_at IS NULL AND status = 'active'
+            LIMIT 1
+            "#,
+        )
+        .bind(uuid)
+        .fetch_optional(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to resolve tenant by id: {}", e);
+            ApiError::Internal
+        })?;
+
+        if let Some((tenant_id,)) = row {
+            return Ok(tenant_id);
+        }
+
+        let row: Option<(String,)> = sqlx::query_as(
+            r#"
+            SELECT tenant_id::text
+            FROM saml_connections
+            WHERE id = $1 AND status = 'active'
+            LIMIT 1
+            "#,
+        )
+        .bind(uuid)
+        .fetch_optional(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to resolve tenant by connection id: {}", e);
+            ApiError::Internal
+        })?;
+
+        if let Some((tenant_id,)) = row {
+            return Ok(tenant_id);
+        }
+    }
+
+    let row: Option<(String,)> = sqlx::query_as(
+        r#"
+        SELECT id::text
+        FROM tenants
+        WHERE slug = $1 AND deleted_at IS NULL AND status = 'active'
+        LIMIT 1
+        "#,
+    )
+    .bind(identifier)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to resolve tenant by slug: {}", e);
+        ApiError::Internal
+    })?;
+
+    row.map(|r| r.0).ok_or(ApiError::Unauthorized)
 }
 
 /// User attributes extracted from SAML assertion

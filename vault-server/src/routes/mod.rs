@@ -5,9 +5,22 @@
 //! - `/api/v1/admin/*` - Admin API (admin operations within a tenant)
 //! - `/api/v1/internal/*` - Internal API (cross-tenant platform operations)
 //! - `/scim/v2/*` - SCIM 2.0 API (RFC 7644 protocol endpoints)
+//!
+//! SECURITY NOTES:
+//! - All error responses are sanitized to prevent information leakage
+//! - Internal errors are logged but generic messages are returned to clients
+//! - Authentication is required for all sensitive endpoints
+//! - UUID validation is performed at the middleware layer
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json, Router};
+use axum::{
+    extract::{ConnectInfo, Request, State},
+    http::StatusCode,
+    middleware,
+    response::{IntoResponse, Response},
+    Json, Router,
+};
 use serde::Serialize;
+use std::net::SocketAddr;
 
 pub mod admin;
 pub mod client;
@@ -18,6 +31,7 @@ pub mod oidc;
 
 use crate::state::AppState;
 use crate::i18n::{Language, t};
+use crate::middleware::auth::auth_middleware;
 
 /// Session limit reached error details
 #[derive(Debug, Clone)]
@@ -105,51 +119,77 @@ impl IntoResponse for ApiError {
                 (StatusCode::TOO_MANY_REQUESTS, body).into_response()
             }
             _ => {
-                let (status, code, message) = match &self {
+                // SECURITY: Sanitize error messages to prevent information leakage
+                // Internal errors and sensitive details are logged but not returned to clients.
+                // This prevents attackers from gaining insights into system internals,
+                // database structure, or file paths through error messages.
+                let (status, code, message, should_log) = match &self {
+                    // Client errors: Safe to return message as-is
                     ApiError::BadRequest(msg) => {
-                        (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone())
+                        (StatusCode::BAD_REQUEST, "BAD_REQUEST", msg.clone(), false)
                     }
                     ApiError::Unauthorized => (
                         StatusCode::UNAUTHORIZED,
                         "UNAUTHORIZED",
                         "Authentication required".to_string(),
+                        false,
                     ),
                     ApiError::Forbidden => (
                         StatusCode::FORBIDDEN,
                         "FORBIDDEN",
                         "Access denied".to_string(),
+                        false,
                     ),
                     ApiError::NotFound => (
                         StatusCode::NOT_FOUND,
                         "NOT_FOUND",
                         "Resource not found".to_string(),
+                        false,
                     ),
-                    ApiError::Conflict(msg) => (StatusCode::CONFLICT, "CONFLICT", msg.clone()),
-                    ApiError::Validation(msg) => {
-                        (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone())
+                    ApiError::Conflict(msg) => {
+                        (StatusCode::CONFLICT, "CONFLICT", msg.clone(), false)
                     }
-                    ApiError::Internal => (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "INTERNAL_ERROR",
-                        "An internal error occurred".to_string(),
-                    ),
+                    ApiError::Validation(msg) => {
+                        (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", msg.clone(), false)
+                    }
+                    ApiError::TooManyRequests(msg) => {
+                        (StatusCode::TOO_MANY_REQUESTS, "TOO_MANY_REQUESTS", msg.clone(), false)
+                    }
+                    ApiError::MfaRequired(msg) => {
+                        (StatusCode::UNAUTHORIZED, "MFA_REQUIRED", msg.clone(), false)
+                    }
                     ApiError::NotImplemented => (
                         StatusCode::NOT_IMPLEMENTED,
                         "NOT_IMPLEMENTED",
                         "This feature is not yet implemented".to_string(),
+                        false,
                     ),
+                    // SECURITY: Internal errors - sanitize message before returning
+                    // Never expose internal details, database errors, or stack traces
+                    ApiError::Internal => {
+                        // Log the internal error for debugging but return generic message
+                        tracing::error!(
+                            error_type = "internal_error",
+                            "Internal server error occurred"
+                        );
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "INTERNAL_ERROR",
+                            "An internal error occurred".to_string(),
+                            true,
+                        )
+                    }
                     ApiError::SessionLimitReached(_) => unreachable!(),
-                    ApiError::TooManyRequests(msg) => (
-                        StatusCode::TOO_MANY_REQUESTS,
-                        "TOO_MANY_REQUESTS",
-                        msg.clone(),
-                    ),
-                    ApiError::MfaRequired(msg) => (
-                        StatusCode::UNAUTHORIZED,
-                        "MFA_REQUIRED",
-                        msg.clone(),
-                    ),
                 };
+
+                // Log security-relevant errors for monitoring
+                if should_log {
+                    tracing::error!(
+                        error_code = %code,
+                        status = %status.as_u16(),
+                        "Security-relevant error occurred"
+                    );
+                }
 
                 let body = Json(serde_json::json!({
                     "error": {
@@ -236,10 +276,30 @@ pub async fn metrics_handler() -> impl IntoResponse {
 /// - `/api/v1/admin/*` - Admin API  
 /// - `/api/v1/internal/*` - Internal/Privileged API (superadmin only)
 pub fn api_routes() -> Router<AppState> {
+    let admin_routes = admin::routes()
+        .layer(middleware::from_fn(admin_auth_middleware));
+
     Router::new()
         .merge(client::routes())
-        .nest("/admin", admin::routes())
+        .nest("/admin", admin_routes)
         .nest("/internal", internal::routes())
+}
+
+async fn admin_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+    let state = match request.extensions().get::<AppState>().cloned() {
+        Some(state) => state,
+        None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    let addr = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
+
+    match auth_middleware(State(state), ConnectInfo(addr), request, next).await {
+        Ok(response) => response,
+        Err(status) => status.into_response(),
+    }
 }
 
 /// Create SCIM 2.0 API routes

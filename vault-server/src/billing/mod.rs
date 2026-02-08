@@ -249,21 +249,6 @@ pub struct WebhookResult {
     pub processed: bool,
 }
 
-/// Checkout session for Stripe
-#[derive(Debug, Clone, Serialize)]
-pub struct CheckoutSession {
-    pub id: String,
-    pub url: String,
-    pub customer_id: Option<String>,
-    pub subscription_id: Option<String>,
-}
-
-/// Customer portal session
-#[derive(Debug, Clone, Serialize)]
-pub struct PortalSession {
-    pub url: String,
-}
-
 /// Billing error types
 #[derive(Debug, thiserror::Error)]
 pub enum BillingError {
@@ -284,6 +269,9 @@ pub enum BillingError {
 
     #[error("Invalid webhook signature")]
     InvalidWebhookSignature,
+
+    #[error("Invalid request: {0}")]
+    InvalidRequest(String),
 
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),

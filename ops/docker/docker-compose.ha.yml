@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: vault-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-vault}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vault}
+      POSTGRES_DB: ${DB_NAME:-vault}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-vault}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vault-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: vault-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vault-network
+
+  vault-1:
+    build:
+      context: .
+      dockerfile: vault-server/Dockerfile
+    container_name: vault-server-1
+    environment:
+      VAULT_DATABASE_URL: postgres://${DB_USER:-vault}:${DB_PASSWORD:-vault}@postgres:5432/${DB_NAME:-vault}
+      VAULT_REDIS_URL: redis://redis:6379
+      VAULT_JWT_SECRET: ${VAULT_JWT_SECRET:-dev-secret-do-not-use-in-production}
+      VAULT_HOST: 0.0.0.0
+      VAULT_PORT: 3000
+      VAULT_METRICS_PORT: 9090
+      VAULT_LOG_LEVEL: ${VAULT_LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vault-network
+
+  vault-2:
+    build:
+      context: .
+      dockerfile: vault-server/Dockerfile
+    container_name: vault-server-2
+    environment:
+      VAULT_DATABASE_URL: postgres://${DB_USER:-vault}:${DB_PASSWORD:-vault}@postgres:5432/${DB_NAME:-vault}
+      VAULT_REDIS_URL: redis://redis:6379
+      VAULT_JWT_SECRET: ${VAULT_JWT_SECRET:-dev-secret-do-not-use-in-production}
+      VAULT_HOST: 0.0.0.0
+      VAULT_PORT: 3000
+      VAULT_METRICS_PORT: 9090
+      VAULT_LOG_LEVEL: ${VAULT_LOG_LEVEL:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vault-network
+
+  vault-lb:
+    image: nginx:alpine
+    container_name: vault-lb
+    volumes:
+      - ./ops/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - vault-1
+      - vault-2
+    networks:
+      - vault-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  vault-network:
+    driver: bridge

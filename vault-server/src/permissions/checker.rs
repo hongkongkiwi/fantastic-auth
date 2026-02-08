@@ -9,6 +9,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use sqlx::PgPool;
 use tracing::{debug, instrument, warn};
@@ -416,15 +417,41 @@ impl PermissionChecker {
     ) -> anyhow::Result<Vec<(Role, Vec<Permission>)>> {
         let user_uuid = Uuid::parse_str(user_id)?;
         
-        let rows = sqlx::query_as::<_, (Role, Permission)>(
+        #[derive(sqlx::FromRow)]
+        struct RolePermissionRow {
+            role_id: Uuid,
+            role_tenant_id: Option<Uuid>,
+            role_name: String,
+            role_description: Option<String>,
+            role_is_system_role: bool,
+            role_created_at: DateTime<Utc>,
+            role_updated_at: DateTime<Utc>,
+            permission_id: Option<Uuid>,
+            permission_tenant_id: Option<Uuid>,
+            permission_name: Option<String>,
+            permission_description: Option<String>,
+            permission_resource_type: Option<String>,
+            permission_action: Option<String>,
+            permission_created_at: Option<DateTime<Utc>>,
+        }
+
+        let rows = sqlx::query_as::<_, RolePermissionRow>(
             r#"
             SELECT 
-                r.id as "r.id", r.tenant_id as "r.tenant_id", r.name as "r.name",
-                r.description as "r.description", r.is_system_role as "r.is_system_role",
-                r.created_at as "r.created_at", r.updated_at as "r.updated_at",
-                p.id as "p.id", p.tenant_id as "p.tenant_id", p.name as "p.name",
-                p.description as "p.description", p.resource_type as "p.resource_type",
-                p.action as "p.action", p.created_at as "p.created_at"
+                r.id as role_id,
+                r.tenant_id as role_tenant_id,
+                r.name as role_name,
+                r.description as role_description,
+                r.is_system_role as role_is_system_role,
+                r.created_at as role_created_at,
+                r.updated_at as role_updated_at,
+                p.id as permission_id,
+                p.tenant_id as permission_tenant_id,
+                p.name as permission_name,
+                p.description as permission_description,
+                p.resource_type as permission_resource_type,
+                p.action as permission_action,
+                p.created_at as permission_created_at
             FROM roles r
             INNER JOIN user_roles ur ON r.id = ur.role_id
             LEFT JOIN role_permissions rp ON r.id = rp.role_id
@@ -439,10 +466,36 @@ impl PermissionChecker {
         // Group permissions by role
         use std::collections::HashMap;
         let mut role_map: HashMap<Uuid, (Role, Vec<Permission>)> = HashMap::new();
-        
-        for (role, permission) in rows {
+
+        for row in rows {
+            let role = Role {
+                id: row.role_id,
+                tenant_id: row.role_tenant_id,
+                name: row.role_name,
+                description: row.role_description,
+                is_system_role: row.role_is_system_role,
+                created_at: row.role_created_at,
+                updated_at: row.role_updated_at,
+            };
+
             let entry = role_map.entry(role.id).or_insert_with(|| (role, Vec::new()));
-            entry.1.push(permission);
+
+            if let Some(permission_id) = row.permission_id {
+                let permission = Permission {
+                    id: permission_id,
+                    tenant_id: row.permission_tenant_id,
+                    name: row.permission_name.unwrap_or_else(|| "unknown".to_string()),
+                    description: row.permission_description,
+                    resource_type: row
+                        .permission_resource_type
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    action: row.permission_action.unwrap_or_else(|| "unknown".to_string()),
+                    created_at: row
+                        .permission_created_at
+                        .unwrap_or_else(|| chrono::Utc::now()),
+                };
+                entry.1.push(permission);
+            }
         }
         
         Ok(role_map.into_values().collect())

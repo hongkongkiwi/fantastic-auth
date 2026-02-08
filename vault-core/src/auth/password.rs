@@ -285,15 +285,21 @@ pub fn calculate_strength(password: &str) -> PasswordStrength {
 }
 
 /// Generate a strong password
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// password generation. This ensures passwords are unpredictable and resistant to
+/// brute-force attacks. Character selection uses uniform distribution to avoid bias.
 pub fn generate_password(length: usize) -> String {
     use rand::Rng;
+    use rand_core::OsRng;
 
     const UPPERCASE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const LOWERCASE: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
     const DIGITS: &[u8] = b"0123456789";
     const SPECIAL: &[u8] = b"!@#$%^&*()_+-=[]{}|;:,.<>?";
 
-    let mut rng = rand::thread_rng();
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     let mut password = Vec::with_capacity(length);
 
     // Ensure at least one of each character class
@@ -309,13 +315,13 @@ pub fn generate_password(length: usize) -> String {
         password.push(all[rng.gen_range(0..all.len())]);
     }
 
-    // Shuffle
+    // Shuffle using Fisher-Yates with secure RNG
     for i in (1..password.len()).rev() {
         let j = rng.gen_range(0..=i);
         password.swap(i, j);
     }
 
-    String::from_utf8(password).unwrap()
+    String::from_utf8(password).expect("Password contains only valid UTF-8 characters")
 }
 
 #[cfg(test)]

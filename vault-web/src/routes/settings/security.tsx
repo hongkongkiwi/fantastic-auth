@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { 
   Shield, 
   Key, 
@@ -48,11 +48,30 @@ interface MfaMethod {
   created_at: string
 }
 
+interface DataEncryptionProvidersResponse {
+  supported: string[]
+  default: string
+  tenant_id: string
+}
+
+interface DataEncryptionStatusResponse {
+  provider: string
+  version: number | null
+  providerKeyId?: string | null
+  providerMetadata?: Record<string, unknown> | null
+  initialized: boolean
+}
+
 function SecuritySettingsPage() {
   const [activeTab, setActiveTab] = useState('mfa')
   const [isEnrollOpen, setIsEnrollOpen] = useState(false)
   const [enrollMethod, setEnrollMethod] = useState<'totp' | 'email' | 'sms'>('totp')
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [providers, setProviders] = useState<DataEncryptionProvidersResponse | null>(null)
+  const [providerStatus, setProviderStatus] = useState<DataEncryptionStatusResponse | null>(null)
+  const [providersError, setProvidersError] = useState<string | null>(null)
 
   const passwordForm = useForm({
     defaultValues: {
@@ -60,10 +79,32 @@ function SecuritySettingsPage() {
       newPassword: '',
       confirmPassword: '',
     },
-    onSubmit: async () => {
+    onSubmit: async ({ value }) => {
+      if (value.newPassword !== value.confirmPassword) {
+        setPasswordError('Passwords do not match')
+        return
+      }
       setIsUpdatingPassword(true)
+      setPasswordError(null)
+      setPasswordMessage(null)
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        const response = await fetch('/api/v1/users/me/password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            current_password: value.currentPassword,
+            new_password: value.newPassword,
+          }),
+        })
+        if (!response.ok) {
+          throw new Error('Failed to update password. Step-up authentication may be required.')
+        }
+        setPasswordMessage('Password updated successfully')
+      } catch (err) {
+        setPasswordError(err instanceof Error ? err.message : 'Failed to update password')
       } finally {
         setIsUpdatingPassword(false)
       }
@@ -74,6 +115,35 @@ function SecuritySettingsPage() {
   const mfaMethods: MfaMethod[] = [
     { type: 'totp', name: 'Authenticator App', enabled: true, created_at: '2024-01-15' },
   ]
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadProviders() {
+      try {
+        const [providersRes, statusRes] = await Promise.all([
+          fetch('/api/v1/admin/security/data-encryption/providers'),
+          fetch('/api/v1/admin/security/data-encryption'),
+        ])
+        if (!providersRes.ok || !statusRes.ok) {
+          throw new Error('Failed to load providers')
+        }
+        const providersData = (await providersRes.json()) as DataEncryptionProvidersResponse
+        const statusData = (await statusRes.json()) as DataEncryptionStatusResponse
+        if (!cancelled) {
+          setProviders(providersData)
+          setProviderStatus(statusData)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProvidersError('Unable to load data encryption providers')
+        }
+      }
+    }
+    void loadProviders()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -216,6 +286,12 @@ function SecuritySettingsPage() {
         <TabsContent value="password">
           <Card className="p-6">
             <h3 className="text-lg font-medium mb-4">Change Password</h3>
+            {passwordError && (
+              <p className="mb-3 text-sm text-destructive">{passwordError}</p>
+            )}
+            {passwordMessage && (
+              <p className="mb-3 text-sm text-green-600">{passwordMessage}</p>
+            )}
             <form
               onSubmit={(event) => {
                 event.preventDefault()
@@ -321,6 +397,48 @@ function SecuritySettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Card className="p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-medium">Data Encryption Providers</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Available KMS backends are determined by the current build
+            </p>
+          </div>
+          {providerStatus?.initialized ? (
+            <Badge variant="success">Initialized</Badge>
+          ) : (
+            <Badge variant="warning">Not Initialized</Badge>
+          )}
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {providersError && (
+            <p className="text-sm text-destructive">{providersError}</p>
+          )}
+          {!providers && !providersError && <Skeleton className="h-20 w-full" />}
+          {providers && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {providers.supported.map((provider) => (
+                  <Badge key={provider} variant="outline">
+                    {provider.replace('_', ' ').toUpperCase()}
+                  </Badge>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Default provider: <span className="font-medium">{providers.default}</span>
+              </p>
+              {providerStatus && (
+                <p className="text-sm text-muted-foreground">
+                  Active provider: <span className="font-medium">{providerStatus.provider}</span>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </Card>
 
       {/* MFA Enrollment Dialog */}
       <Dialog open={isEnrollOpen} onOpenChange={setIsEnrollOpen}>

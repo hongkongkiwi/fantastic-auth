@@ -19,6 +19,7 @@ pub struct TenantSettings {
     pub org: OrgSettings,
     pub branding: BrandingSettings,
     pub email: EmailSettings,
+    pub sms: SmsSettings,
     pub oauth: OAuthSettings,
     pub localization: LocalizationSettings,
     pub webhook: WebhookSettings,
@@ -35,6 +36,7 @@ pub struct TenantSettingsRow {
     pub org_settings: serde_json::Value,
     pub branding_settings: serde_json::Value,
     pub email_settings: serde_json::Value,
+    pub sms_settings: serde_json::Value,
     pub oauth_settings: serde_json::Value,
     pub localization_settings: serde_json::Value,
     pub webhook_settings: serde_json::Value,
@@ -136,6 +138,8 @@ pub struct SecuritySettings {
     pub mfa_settings: MfaSettings,
     /// Account lockout policy
     pub lockout_policy: LockoutPolicy,
+    /// Security notifications (user/admin)
+    pub notifications: SecurityNotificationSettings,
 }
 
 impl Default for SecuritySettings {
@@ -146,6 +150,88 @@ impl Default for SecuritySettings {
             session_limits: SessionLimits::default(),
             mfa_settings: MfaSettings::default(),
             lockout_policy: LockoutPolicy::default(),
+            notifications: SecurityNotificationSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationChannel {
+    Email,
+    Sms,
+    Whatsapp,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SecurityNotificationEvent {
+    LoginFailed,
+    LoginBlockedRisk,
+    PasswordChanged,
+    PasswordReset,
+    MfaEnabled,
+    MfaDisabled,
+    SuspiciousLogin,
+    AccountLocked,
+    ImpersonationStarted,
+    SecurityPolicyUpdated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SecurityNotificationAudience {
+    pub enabled: bool,
+    pub events: Vec<SecurityNotificationEvent>,
+    pub channels: Vec<NotificationChannel>,
+}
+
+impl Default for SecurityNotificationAudience {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            events: vec![
+                SecurityNotificationEvent::LoginFailed,
+                SecurityNotificationEvent::LoginBlockedRisk,
+                SecurityNotificationEvent::PasswordChanged,
+                SecurityNotificationEvent::PasswordReset,
+                SecurityNotificationEvent::MfaEnabled,
+                SecurityNotificationEvent::MfaDisabled,
+            ],
+            channels: vec![NotificationChannel::Email],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SecurityNotificationSettings {
+    pub user: SecurityNotificationAudience,
+    pub admin: SecurityNotificationAudience,
+    /// Tenant admin roles to notify (owner/admin)
+    pub admin_roles: Vec<String>,
+    /// Optional WhatsApp template name for security alerts (must be pre-approved)
+    pub whatsapp_template_name: Option<String>,
+}
+
+impl Default for SecurityNotificationSettings {
+    fn default() -> Self {
+        Self {
+            user: SecurityNotificationAudience::default(),
+            admin: SecurityNotificationAudience {
+                enabled: true,
+                events: vec![
+                    SecurityNotificationEvent::LoginBlockedRisk,
+                    SecurityNotificationEvent::SuspiciousLogin,
+                    SecurityNotificationEvent::AccountLocked,
+                    SecurityNotificationEvent::MfaDisabled,
+                    SecurityNotificationEvent::SecurityPolicyUpdated,
+                    SecurityNotificationEvent::ImpersonationStarted,
+                ],
+                channels: vec![NotificationChannel::Email],
+            },
+            admin_roles: vec!["owner".to_string(), "admin".to_string()],
+            whatsapp_template_name: None,
         }
     }
 }
@@ -188,6 +274,33 @@ impl Default for TenantPasswordPolicy {
             enforcement_mode: EnforcementMode::Block,
             min_entropy: 50.0,
             prevent_user_info: true,
+        }
+    }
+}
+
+impl TenantPasswordPolicy {
+    /// Convert to the security module's PasswordPolicy
+    pub fn to_security_policy(&self) -> crate::security::PasswordPolicy {
+        crate::security::PasswordPolicy {
+            min_length: self.min_length,
+            max_length: self.max_length,
+            require_uppercase: self.require_uppercase,
+            require_lowercase: self.require_lowercase,
+            require_numbers: self.require_numbers,
+            require_special_chars: self.require_special,
+            special_chars: self.special_chars.clone(),
+            max_consecutive_chars: self.max_consecutive_chars,
+            prevent_common_passwords: self.prevent_common_passwords,
+            password_history_count: self.history_count,
+            expiry_days: self.expiry_days,
+            check_breach_database: self.check_breach,
+            enforcement_mode: match self.enforcement_mode {
+                EnforcementMode::Block => crate::security::EnforcementMode::Block,
+                EnforcementMode::Warn => crate::security::EnforcementMode::Warn,
+                EnforcementMode::Audit => crate::security::EnforcementMode::Audit,
+            },
+            min_entropy: self.min_entropy,
+            prevent_user_info: self.prevent_user_info,
         }
     }
 }
@@ -490,6 +603,87 @@ pub struct CustomSmtpConfig {
 }
 
 // ============================================
+// 6. SMS & WhatsApp Settings
+// ============================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SmsProviderType {
+    Disabled,
+    Twilio,
+    AwsSns,
+    Mock,
+}
+
+impl Default for SmsProviderType {
+    fn default() -> Self {
+        SmsProviderType::Disabled
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SmsSettings {
+    /// Override provider (None = inherit platform)
+    pub provider: Option<SmsProviderType>,
+    /// Twilio account SID
+    pub twilio_account_sid: Option<String>,
+    /// Twilio auth token (encrypted)
+    pub twilio_auth_token_encrypted: Option<String>,
+    /// Twilio from phone number
+    pub twilio_from_number: Option<String>,
+    /// Override rate limiting (None = inherit)
+    pub max_sends_per_phone: Option<u32>,
+    pub rate_limit_window_secs: Option<u64>,
+    pub code_expiry_minutes: Option<i64>,
+    pub code_length: Option<usize>,
+    /// WhatsApp overrides (None = inherit platform)
+    pub whatsapp: Option<WhatsAppSettings>,
+}
+
+impl Default for SmsSettings {
+    fn default() -> Self {
+        Self {
+            provider: None,
+            twilio_account_sid: None,
+            twilio_auth_token_encrypted: None,
+            twilio_from_number: None,
+            max_sends_per_phone: None,
+            rate_limit_window_secs: None,
+            code_expiry_minutes: None,
+            code_length: None,
+            whatsapp: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WhatsAppSettings {
+    pub enabled: Option<bool>,
+    pub phone_number_id: Option<String>,
+    pub access_token_encrypted: Option<String>,
+    pub api_version: Option<String>,
+    pub template_name: Option<String>,
+    pub language_code: Option<String>,
+    pub fallback_to_sms: Option<bool>,
+}
+
+impl Default for WhatsAppSettings {
+    fn default() -> Self {
+        Self {
+            enabled: None,
+            phone_number_id: None,
+            access_token_encrypted: None,
+            api_version: None,
+            template_name: None,
+            language_code: None,
+            fallback_to_sms: None,
+        }
+    }
+}
+
+// ============================================
 // 6. OAuth & SSO Settings
 // ============================================
 
@@ -735,7 +929,7 @@ impl Default for PrivacySettings {
             session_recording: false,
             consent_required: true,
             consent_types: vec!["tos".to_string(), "privacy".to_string()],
-            data_retention_days: 90,
+            data_retention_days: 365,
             anonymize_ip: false,
             allow_data_export: true,
             allow_account_deletion: true,
@@ -777,6 +971,8 @@ pub struct AdvancedSettings {
     pub api_version: String,
     /// Strict mode (reject unknown fields)
     pub strict_mode: bool,
+    /// Enable log streaming for tenant
+    pub log_streaming_enabled: bool,
 }
 
 impl Default for AdvancedSettings {
@@ -794,6 +990,7 @@ impl Default for AdvancedSettings {
             feature_flags: HashMap::new(),
             api_version: "v1".to_string(),
             strict_mode: false,
+            log_streaming_enabled: true,
         }
     }
 }
@@ -867,6 +1064,7 @@ pub enum UpdateSettingsRequest {
     Org { settings: OrgSettings },
     Branding { settings: BrandingSettings },
     Email { settings: EmailSettings },
+    Sms { settings: SmsSettings },
     Oauth { settings: OAuthSettings },
     Localization { settings: LocalizationSettings },
     Webhook { settings: WebhookSettings },

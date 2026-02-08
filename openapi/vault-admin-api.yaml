@@ -74,7 +74,7 @@ tags:
 
 paths:
   # ============ DASHBOARD ============
-  /dashboard:
+  /:
     get:
       summary: Get admin dashboard stats
       operationId: getDashboard
@@ -93,7 +93,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
-  /dashboard/metrics:
+  /analytics/dashboard:
     get:
       summary: Get detailed metrics
       operationId: getMetrics
@@ -171,12 +171,16 @@ paths:
               schema:
                 type: object
                 properties:
-                  data:
+                  users:
                     type: array
                     items:
                       $ref: '#/components/schemas/AdminUserResponse'
-                  pagination:
-                    $ref: '#/components/schemas/PaginationResponse'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  per_page:
+                    type: integer
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -380,9 +384,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AdminSessionResponse'
+                $ref: '#/components/schemas/AdminSessionListResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2259,6 +2261,90 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /settings/security:
+    get:
+      summary: Get security settings (v2)
+      operationId: getSecuritySettings
+      tags: [Tenant Settings]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Security settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecuritySettingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      summary: Update security settings (v2)
+      operationId: updateSecuritySettings
+      tags: [Tenant Settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SecuritySettings'
+      responses:
+        '200':
+          description: Security settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecuritySettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /settings/privacy:
+    get:
+      summary: Get privacy settings (v2)
+      operationId: getPrivacySettings
+      tags: [Tenant Settings]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Privacy settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettingsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      summary: Update privacy settings (v2)
+      operationId: updatePrivacySettings
+      tags: [Tenant Settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivacySettings'
+      responses:
+        '200':
+          description: Privacy settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivacySettings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ============ SYSTEM ============
   /system/health:
     get:
@@ -2344,15 +2430,13 @@ components:
     DashboardResponse:
       type: object
       properties:
-        totalUsers: { type: integer }
-        activeUsers: { type: integer }
-        newUsersToday: { type: integer }
-        totalOrganizations: { type: integer }
-        activeSessions: { type: integer }
-        pendingInvitations: { type: integer }
-        recentActivity:
-          type: array
-          items: { $ref: '#/components/schemas/ActivitySummary' }
+        stats:
+          type: object
+          properties:
+            total_users: { type: integer }
+            active_users: { type: integer }
+            pending_users: { type: integer }
+            total_organizations: { type: integer }
 
     ActivitySummary:
       type: object
@@ -2386,13 +2470,11 @@ components:
     # User Management
     CreateUserRequest:
       type: object
-      required: [email]
+      required: [email, name]
       properties:
         email: { type: string, format: email }
-        password: { type: string, minLength: 12 }
         name: { type: string }
         emailVerified: { type: boolean }
-        status: { type: string, enum: [active, pending, suspended] }
 
     UpdateUserRequest:
       type: object
@@ -2406,16 +2488,12 @@ components:
       properties:
         id: { type: string }
         email: { type: string }
-        emailVerified: { type: boolean }
+        email_verified: { type: boolean }
         name: { type: string, nullable: true }
         status: { type: string }
-        mfaEnabled: { type: boolean }
-        lastLoginAt: { type: string, format: date-time, nullable: true }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        failedLoginAttempts: { type: integer }
-        lockedUntil: { type: string, format: date-time, nullable: true }
-        organizationCount: { type: integer }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        organization_count: { type: integer }
 
     AdminSessionResponse:
       type: object
@@ -2430,6 +2508,15 @@ components:
         lastActivityAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
         status: { type: string }
+
+    AdminSessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items: { $ref: '#/components/schemas/AdminSessionResponse' }
+        currentSessions: { type: integer }
+        maxSessions: { type: integer }
 
     # Organization Management
     UpdateOrgRequest:
@@ -2537,6 +2624,132 @@ components:
           items: { type: string }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    SecuritySettingsResponse:
+      type: object
+      properties:
+        tenant_id: { type: string }
+        category: { type: string }
+        settings:
+          $ref: '#/components/schemas/SecuritySettings'
+        updated_at: { type: string, format: date-time }
+
+    PrivacySettingsResponse:
+      type: object
+      properties:
+        tenant_id: { type: string }
+        category: { type: string }
+        settings:
+          $ref: '#/components/schemas/PrivacySettings'
+        updated_at: { type: string, format: date-time }
+
+    SecuritySettings:
+      type: object
+      properties:
+        password_policy:
+          type: object
+          properties:
+            min_length: { type: integer }
+            max_length: { type: integer }
+            require_uppercase: { type: boolean }
+            require_lowercase: { type: boolean }
+            require_numbers: { type: boolean }
+            require_special: { type: boolean }
+            special_chars: { type: string }
+            max_consecutive_chars: { type: integer }
+            prevent_common_passwords: { type: boolean }
+            history_count: { type: integer }
+            expiry_days: { type: integer, nullable: true }
+            check_breach: { type: boolean }
+            enforcement_mode: { type: string, enum: [block, warn, audit] }
+            min_entropy: { type: number }
+            prevent_user_info: { type: boolean }
+        session_lifetime:
+          type: object
+          properties:
+            access_token_minutes: { type: integer }
+            refresh_token_days: { type: integer }
+            absolute_timeout_hours: { type: integer }
+            idle_timeout_minutes: { type: integer }
+        session_limits:
+          type: object
+          properties:
+            max_concurrent_sessions: { type: integer }
+            eviction_policy: { type: string }
+            enforce_for_ip: { type: boolean }
+            max_sessions_per_ip: { type: integer }
+        mfa_settings:
+          type: object
+          properties:
+            require_mfa: { type: boolean }
+            allowed_methods:
+              type: array
+              items: { type: string, enum: [totp, email, sms, webauthn] }
+            grace_period_days: { type: integer }
+            require_mfa_for_roles:
+              type: array
+              items: { type: string }
+        lockout_policy:
+          type: object
+          properties:
+            max_failed_attempts: { type: integer }
+            lockout_duration_minutes: { type: integer }
+            reset_after_minutes: { type: integer }
+        notifications:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/SecurityNotificationAudience'
+            admin:
+              $ref: '#/components/schemas/SecurityNotificationAudience'
+            admin_roles:
+              type: array
+              items: { type: string }
+            whatsapp_template_name:
+              type: string
+              nullable: true
+
+    SecurityNotificationAudience:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - login_failed
+              - login_blocked_risk
+              - password_changed
+              - password_reset
+              - mfa_enabled
+              - mfa_disabled
+              - suspicious_login
+              - account_locked
+              - impersonation_started
+              - security_policy_updated
+        channels:
+          type: array
+          items:
+            type: string
+            enum: [email, sms, whatsapp]
+
+    PrivacySettings:
+      type: object
+      properties:
+        analytics_enabled: { type: boolean }
+        session_recording: { type: boolean }
+        consent_required: { type: boolean }
+        consent_types:
+          type: array
+          items: { type: string }
+        data_retention_days: { type: integer }
+        anonymize_ip: { type: boolean }
+        allow_data_export: { type: boolean }
+        allow_account_deletion: { type: boolean }
+        deletion_grace_period_days: { type: integer }
+        cookie_consent_required: { type: boolean }
+        min_age_requirement: { type: integer }
 
     UpdateTenantSettingsRequest:
       type: object
@@ -3008,18 +3221,5 @@ components:
       type: object
       properties:
         status: { type: string }
-        timestamp: { type: string, format: date-time }
         version: { type: string }
-        services:
-          type: object
-          properties:
-            database:
-              type: object
-              properties:
-                status: { type: string }
-                latency: { type: integer }
-            redis:
-              type: object
-              properties:
-                status: { type: string }
-                latency: { type: integer }
+        database: { type: string }

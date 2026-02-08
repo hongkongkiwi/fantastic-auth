@@ -267,7 +267,7 @@ async fn count_invoices(
     apply_invoice_filters(&mut builder, filters);
     builder
         .build_query_scalar()
-        .fetch_one(&mut *conn)
+        .fetch_one(&mut **conn)
         .await
         .map_err(|_| ApiError::Internal)
 }
@@ -297,7 +297,7 @@ async fn fetch_invoices(
 
     builder
         .build_query_as::<InvoiceRow>()
-        .fetch_all(&mut *conn)
+        .fetch_all(&mut **conn)
         .await
         .map_err(|_| ApiError::Internal)
 }
@@ -306,12 +306,12 @@ async fn elevate_to_admin(
     conn: &mut sqlx::pool::PoolConnection<Postgres>,
 ) -> Result<(), ApiError> {
     sqlx::query("SET ROLE vault_admin")
-        .execute(&mut *conn)
+        .execute(&mut **conn)
         .await
         .map_err(|_| ApiError::Forbidden)?;
     Ok(())
 }
 
 async fn reset_role(conn: &mut sqlx::pool::PoolConnection<Postgres>) {
-    let _ = sqlx::query("RESET ROLE").execute(&mut *conn).await;
+    let _ = sqlx::query("RESET ROLE").execute(&mut **conn).await;
 }

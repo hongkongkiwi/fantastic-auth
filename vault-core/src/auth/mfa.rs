@@ -200,10 +200,16 @@ impl TotpConfig {
 }
 
 /// Generate backup codes
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+/// backup code generation. Backup codes are equivalent to passwords for account
+/// recovery, so they must be generated with the same security guarantees.
 pub fn generate_backup_codes(count: usize) -> Vec<String> {
     use rand::Rng;
+    use rand_core::OsRng;
 
-    let mut rng = rand::thread_rng();
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    let mut rng = OsRng;
     let mut codes = Vec::with_capacity(count);
 
     for _ in 0..count {

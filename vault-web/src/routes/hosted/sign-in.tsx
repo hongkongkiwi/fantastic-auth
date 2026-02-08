@@ -48,11 +48,13 @@ function SignInContent() {
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('password')
   const [oauthLoading, setOauthLoading] = useState<string | null>(null)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [requiresMfaStep, setRequiresMfaStep] = useState(false)
 
   const passwordForm = useForm({
     defaultValues: {
       email: '',
       password: '',
+      mfaCode: '',
     },
     onSubmit: async ({ value }) => {
       if (!tenantId) return
@@ -65,6 +67,7 @@ function SignInContent() {
           data: {
             email: value.email,
             password: value.password,
+            mfaCode: requiresMfaStep ? value.mfaCode : undefined,
             tenantId,
             redirectUrl: redirectUrl || undefined,
           },
@@ -80,6 +83,11 @@ function SignInContent() {
               redirect_url: redirectUrl || undefined,
             } as any,
           })
+          return
+        }
+        if (result.requiresMfa) {
+          setRequiresMfaStep(true)
+          setError('Enter your MFA code to continue')
           return
         }
         
@@ -227,6 +235,7 @@ function SignInContent() {
                 setShowPassword={setShowPassword}
                 isLoading={isLoading}
                 config={config}
+                requiresMfaStep={requiresMfaStep}
               />
             </TabsContent>
 
@@ -247,6 +256,7 @@ function SignInContent() {
             setShowPassword={setShowPassword}
             isLoading={isLoading}
             config={config}
+            requiresMfaStep={requiresMfaStep}
           />
         )}
 
@@ -296,9 +306,17 @@ interface PasswordFormProps {
   setShowPassword: (value: boolean) => void
   isLoading: boolean
   config: { companyName: string }
+  requiresMfaStep: boolean
 }
 
-function PasswordForm({ form, showPassword, setShowPassword, isLoading, config }: PasswordFormProps) {
+function PasswordForm({
+  form,
+  showPassword,
+  setShowPassword,
+  isLoading,
+  config,
+  requiresMfaStep,
+}: PasswordFormProps) {
   return (
     <form
       onSubmit={(e) => {
@@ -338,6 +356,35 @@ function PasswordForm({ form, showPassword, setShowPassword, isLoading, config }
           />
         )}
       </form.Field>
+
+      {requiresMfaStep && (
+        <form.Field
+          name="mfaCode"
+          validators={{
+            onChange: ({ value }: { value: string }) => {
+              if (!value || value.trim().length < 6) return 'MFA code is required'
+              return undefined
+            },
+          }}
+        >
+          {(field: any) => (
+            <Input
+              label="MFA Code"
+              type="text"
+              placeholder="123456"
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              onBlur={field.handleBlur}
+              error={field.state.meta.isTouched ? field.state.meta.errors[0] : undefined}
+              leftIcon={<Fingerprint className="h-4 w-4 text-muted-foreground" />}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              disabled={isLoading}
+            />
+          )}
+        </form.Field>
+      )}
 
       <form.Field
         name="password"
@@ -386,7 +433,7 @@ function PasswordForm({ form, showPassword, setShowPassword, isLoading, config }
         isLoading={isLoading}
         rightIcon={<ArrowRight className="h-4 w-4" />}
       >
-        Sign In
+        {requiresMfaStep ? 'Verify MFA' : 'Sign In'}
       </Button>
     </form>
   )

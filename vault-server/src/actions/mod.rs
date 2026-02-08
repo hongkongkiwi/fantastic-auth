@@ -103,13 +103,14 @@ async fn execute_wasm_action(
 ) -> Result<String, anyhow::Error> {
     let payload = payload.to_string();
     let timeout = Duration::from_millis(timeout_ms as u64);
+    let code = code.to_vec(); // Clone to move into closure
 
-    let result = tokio::time::timeout(timeout, tokio::task::spawn_blocking(move || {
+    tokio::time::timeout(timeout, tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
         use wasmtime::{Engine, Linker, Module, Store};
         use wasmtime_wasi::WasiCtxBuilder;
 
         let engine = Engine::default();
-        let module = Module::from_binary(&engine, code)?;
+        let module = Module::from_binary(&engine, &code)?;
 
         let wasi = WasiCtxBuilder::new()
             .env("VAULT_ACTION_PAYLOAD", &payload)?
@@ -128,9 +129,9 @@ async fn execute_wasm_action(
         }
 
         // Note: stdout capture temporarily disabled due to wasmtime API changes
-        Ok::<String, anyhow::Error>("Action executed successfully".to_string())
+        Ok("Action executed successfully".to_string())
     }))
-    .await?;
-
-    result
+    .await
+    .map_err(|_| anyhow::anyhow!("Action execution timed out"))?
+    .map_err(|e| anyhow::anyhow!("Action execution failed: {}", e))?
 }

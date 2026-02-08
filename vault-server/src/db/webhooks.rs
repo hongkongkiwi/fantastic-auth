@@ -127,7 +127,7 @@ impl WebhookRepository {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let row = sqlx::query_as::<_, WebhookEndpointRow>(
             r#"SELECT id, tenant_id, name, url, secret, events, active, description, headers, max_retries, created_at, updated_at
-               FROM admin_webhook_endpoints 
+               FROM webhook_endpoints 
                WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL"#
         )
         .bind(endpoint_id)
@@ -151,7 +151,7 @@ impl WebhookRepository {
         let mut conn = self.tenant_conn(tenant_id).await?;
 
         let total: i64 = sqlx::query_scalar(
-            r#"SELECT COUNT(*) FROM admin_webhook_endpoints WHERE tenant_id = $1 AND deleted_at IS NULL"#
+            r#"SELECT COUNT(*) FROM webhook_endpoints WHERE tenant_id = $1 AND deleted_at IS NULL"#
         )
         .bind(tenant_id)
         .fetch_one(&mut *conn)
@@ -159,7 +159,7 @@ impl WebhookRepository {
 
         let rows = sqlx::query_as::<_, WebhookEndpointRow>(
             r#"SELECT id, tenant_id, name, url, secret, events, active, description, headers, max_retries, created_at, updated_at
-               FROM admin_webhook_endpoints 
+               FROM webhook_endpoints 
                WHERE tenant_id = $1 AND deleted_at IS NULL
                ORDER BY created_at DESC
                LIMIT $2 OFFSET $3"#
@@ -184,7 +184,7 @@ impl WebhookRepository {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let rows = sqlx::query_as::<_, WebhookEndpointRow>(
             r#"SELECT id, tenant_id, name, url, secret, events, active, description, headers, max_retries, created_at, updated_at
-               FROM admin_webhook_endpoints 
+               FROM webhook_endpoints 
                WHERE tenant_id = $1 AND active = TRUE AND deleted_at IS NULL
                AND events @> $2::jsonb"#
         )
@@ -236,7 +236,7 @@ impl WebhookRepository {
             r#"SELECT id, endpoint_id, tenant_id, event_type, payload, payload_size, attempt_number, status,
                       http_status_code, response_body, response_headers, error_message, duration_ms,
                       scheduled_at, delivered_at, created_at
-               FROM admin_webhook_deliveries 
+               FROM webhook_deliveries 
                WHERE id = $1 AND tenant_id = $2"#
         )
         .bind(delivery_id)
@@ -258,7 +258,7 @@ impl WebhookRepository {
             r#"SELECT id, endpoint_id, tenant_id, event_type, payload, payload_size, attempt_number, status,
                       http_status_code, response_body, response_headers, error_message, duration_ms,
                       scheduled_at, delivered_at, created_at
-               FROM admin_webhook_deliveries 
+               FROM webhook_deliveries 
                WHERE tenant_id = $1 AND status = 'pending' AND scheduled_at <= NOW()
                ORDER BY created_at ASC
                LIMIT $2"#
@@ -390,7 +390,7 @@ impl WebhookRepository {
         let mut conn = self.tenant_conn(tenant_id).await?;
 
         let total: i64 = sqlx::query_scalar(
-            r#"SELECT COUNT(*) FROM admin_webhook_deliveries WHERE tenant_id = $1 AND endpoint_id = $2"#
+            r#"SELECT COUNT(*) FROM webhook_deliveries WHERE tenant_id = $1 AND endpoint_id = $2"#
         )
         .bind(tenant_id)
         .bind(endpoint_id)
@@ -401,7 +401,7 @@ impl WebhookRepository {
             r#"SELECT id, endpoint_id, tenant_id, event_type, payload, payload_size, attempt_number, status,
                       http_status_code, response_body, response_headers, error_message, duration_ms,
                       scheduled_at, delivered_at, created_at
-               FROM admin_webhook_deliveries 
+               FROM webhook_deliveries 
                WHERE tenant_id = $1 AND endpoint_id = $2
                ORDER BY created_at DESC
                LIMIT $3 OFFSET $4"#
@@ -422,28 +422,28 @@ impl WebhookRepository {
     pub async fn get_delivery_stats(&self, tenant_id: &str) -> anyhow::Result<WebhookQueueStats> {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let pending: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM admin_webhook_deliveries WHERE tenant_id = $1 AND status = 'pending'"
+            "SELECT COUNT(*) FROM webhook_deliveries WHERE tenant_id = $1 AND status = 'pending'"
         )
         .bind(tenant_id)
         .fetch_one(&mut *conn)
         .await?;
 
         let delivered: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM admin_webhook_deliveries WHERE tenant_id = $1 AND status = 'delivered'"
+            "SELECT COUNT(*) FROM webhook_deliveries WHERE tenant_id = $1 AND status = 'delivered'"
         )
         .bind(tenant_id)
         .fetch_one(&mut *conn)
         .await?;
 
         let failed: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM admin_webhook_deliveries WHERE tenant_id = $1 AND status = 'failed'"
+            "SELECT COUNT(*) FROM webhook_deliveries WHERE tenant_id = $1 AND status = 'failed'"
         )
         .bind(tenant_id)
         .fetch_one(&mut *conn)
         .await?;
 
         let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM admin_webhook_deliveries WHERE tenant_id = $1",
+            "SELECT COUNT(*) FROM webhook_deliveries WHERE tenant_id = $1",
         )
         .bind(tenant_id)
         .fetch_one(&mut *conn)

@@ -441,10 +441,17 @@ impl WebhookService {
 }
 
 /// Generate a random webhook secret
+/// 
+/// SECURITY: Uses OsRng (operating system's CSPRNG) for generating webhook secrets.
+/// Webhook secrets are used to cryptographically sign webhook payloads, preventing
+/// attackers from sending forged webhook events to your application endpoints.
 fn generate_webhook_secret() -> String {
     use rand::RngCore;
+    use rand_core::OsRng;
+    
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+    OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
 }
 

@@ -8,7 +8,7 @@ use crate::bulk::{
     UserExportRecord,
 };
 use crate::db::Database;
-use futures::{Stream, StreamExt};
+use futures::{Future, Stream, StreamExt};
 use serde::Serialize;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -51,7 +51,9 @@ impl ExportProcessor {
         let mut file = tokio::fs::File::create(&output_path).await?;
 
         // Get user stream
-        let mut user_stream = self.stream_users(&job.tenant_id, &job.options);
+        let tenant_id = job.tenant_id.clone();
+        let options = job.options.clone();
+        let mut user_stream = self.stream_users(&tenant_id, &options);
 
         match job.format {
             FileFormat::Csv => {
@@ -430,7 +432,7 @@ pub async fn export_users_to_csv(
     tenant_id: &str,
     options: &ExportOptions,
 ) -> anyhow::Result<String> {
-    let mut records = Vec::new();
+    let mut records: Vec<UserExportRecord> = Vec::new();
 
     // Build query
     let mut query = String::from(

@@ -1,34 +1,54 @@
 //! OAuth2/OIDC Authorization Server (IdP) - MVP
 
 use axum::{
-    extract::{Form, Query, State},
+    extract::{ConnectInfo, Form, Query, Request, State},
     http::{HeaderMap, StatusCode},
     middleware,
-    response::{IntoResponse, Redirect},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
+use uuid::Uuid;
 
 use crate::middleware::auth::auth_middleware;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 use crate::actions;
 use vault_core::crypto::{generate_secure_random, Claims, HybridJwt, TokenType, VaultPasswordHasher};
+use vault_core::db::set_connection_context;
 
 pub fn routes() -> Router<AppState> {
     let auth_routes = Router::new().route("/oauth/authorize", get(authorize));
 
     Router::new()
         .route("/oauth/token", post(token))
+        .route("/oauth/device/authorize", post(device_authorize))
         .route("/oauth/introspect", post(introspect))
         .route("/oauth/revoke", post(revoke))
         .route("/.well-known/openid-configuration", get(discovery))
         .route("/.well-known/jwks.json", get(jwks))
-        .merge(auth_routes.layer(middleware::from_fn(auth_middleware)))
+        .merge(auth_routes.layer(middleware::from_fn(oidc_auth_middleware)))
+}
+
+async fn oidc_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+    let state = match request.extensions().get::<AppState>().cloned() {
+        Some(state) => state,
+        None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    let addr = request
+        .extensions()
+        .get::<ConnectInfo<std::net::SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| std::net::SocketAddr::from(([0, 0, 0, 0], 0)));
+
+    match auth_middleware(State(state), ConnectInfo(addr), request, next).await {
+        Ok(response) => response,
+        Err(status) => status.into_response(),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +71,27 @@ struct TokenRequest {
     client_id: Option<String>,
     code_verifier: Option<String>,
     refresh_token: Option<String>,
+    device_code: Option<String>,
+    subject_token: Option<String>,
+    audience: Option<String>,
+    scope: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceAuthorizeRequest {
+    client_id: String,
+    scope: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct DeviceAuthorizeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    #[serde(rename = "verification_uri_complete")]
+    verification_uri_complete: String,
+    expires_in: i64,
+    interval: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -196,6 +237,59 @@ async fn authorize(
     Ok(Redirect::to(&redirect_url))
 }
 
+async fn device_authorize(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Form(req): Form<DeviceAuthorizeRequest>,
+) -> Result<Json<DeviceAuthorizeResponse>, ApiError> {
+    let tenant_id = extract_tenant_id(&headers);
+
+    // Ensure client exists
+    let client = state
+        .auth_service
+        .db()
+        .oidc()
+        .get_client(&tenant_id, &req.client_id)
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .ok_or(ApiError::BadRequest("Invalid client".to_string()))?;
+
+    let device_code = generate_secure_random(32);
+    let user_code = generate_secure_random(8).to_uppercase();
+    let verification_uri = format!("{}/device", state.config.base_url);
+    let verification_uri_complete = format!("{}?user_code={}", verification_uri, user_code);
+    let expires_at = Utc::now() + Duration::minutes(15);
+
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    set_connection_context(&mut conn, &tenant_id)
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    sqlx::query(
+        r#"INSERT INTO oauth_device_codes (tenant_id, client_id, device_code, user_code, verification_uri, expires_at, interval_seconds)
+           VALUES ($1::uuid, $2, $3, $4, $5, $6, $7)"#,
+    )
+    .bind(&tenant_id)
+    .bind(&client.client_id)
+    .bind(&device_code)
+    .bind(&user_code)
+    .bind(&verification_uri)
+    .bind(expires_at)
+    .bind(5i32)
+    .execute(&mut *conn)
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    Ok(Json(DeviceAuthorizeResponse {
+        device_code,
+        user_code,
+        verification_uri,
+        verification_uri_complete,
+        expires_in: 900,
+        interval: 5,
+    }))
+}
+
 async fn token(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -230,6 +324,12 @@ async fn token(
         "authorization_code" => token_authorization_code(&state, &tenant_id, &client, req).await,
         "refresh_token" => token_refresh(&state, &tenant_id, &client, req).await,
         "client_credentials" => token_client_credentials(&state, &tenant_id, &client_id).await,
+        "urn:ietf:params:oauth:grant-type:device_code" => {
+            token_device_code(&state, &tenant_id, &client, req).await
+        }
+        "urn:ietf:params:oauth:grant-type:token-exchange" => {
+            token_exchange(&state, &tenant_id, &client, req).await
+        }
         _ => Err(ApiError::BadRequest("Unsupported grant_type".to_string())),
     }
 }
@@ -524,6 +624,142 @@ async fn token_client_credentials(
         id_token: None,
         refresh_token: None,
         scope: None,
+    }))
+}
+
+async fn token_device_code(
+    state: &AppState,
+    tenant_id: &str,
+    client: &vault_core::db::oidc::OauthClient,
+    req: TokenRequest,
+) -> Result<Json<TokenResponse>, ApiError> {
+    let device_code = req
+        .device_code
+        .ok_or(ApiError::BadRequest("Missing device_code".to_string()))?;
+
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    set_connection_context(&mut conn, tenant_id)
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    #[derive(sqlx::FromRow)]
+    struct DeviceCodeRow {
+        id: Uuid,
+        user_id: Option<Uuid>,
+        status: String,
+        expires_at: DateTime<Utc>,
+    }
+
+    let row = sqlx::query_as::<_, DeviceCodeRow>(
+        r#"SELECT id, user_id, status::text as status, expires_at
+           FROM oauth_device_codes
+           WHERE tenant_id = $1::uuid AND client_id = $2 AND device_code = $3"#,
+    )
+    .bind(tenant_id)
+    .bind(&client.client_id)
+    .bind(device_code)
+    .fetch_optional(&mut *conn)
+    .await
+    .map_err(|_| ApiError::Internal)?
+    .ok_or(ApiError::BadRequest("Invalid device_code".to_string()))?;
+
+    if row.expires_at < Utc::now() {
+        sqlx::query("UPDATE oauth_device_codes SET status = 'expired' WHERE id = $1")
+            .bind(row.id)
+            .execute(&mut *conn)
+            .await
+            .map_err(|_| ApiError::Internal)?;
+        return Err(ApiError::BadRequest("expired_token".to_string()));
+    }
+
+    match row.status.as_str() {
+        "pending" => return Err(ApiError::BadRequest("authorization_pending".to_string())),
+        "denied" => return Err(ApiError::BadRequest("access_denied".to_string())),
+        "consumed" => return Err(ApiError::BadRequest("invalid_grant".to_string())),
+        _ => {}
+    }
+
+    let user_id = row
+        .user_id
+        .ok_or(ApiError::BadRequest("authorization_pending".to_string()))?;
+
+    let user = state
+        .auth_service
+        .db()
+        .users()
+        .find_by_id(tenant_id, &user_id.to_string())
+        .await
+        .map_err(|_| ApiError::Internal)?
+        .ok_or(ApiError::BadRequest("User not found".to_string()))?;
+
+    let claims = Claims::new(
+        user.id.clone(),
+        tenant_id.to_string(),
+        TokenType::Access,
+        state.config.base_url.clone(),
+        client.client_id.clone(),
+    );
+    let access_token = HybridJwt::encode(&claims, state.auth_service.signing_key())
+        .map_err(|_| ApiError::Internal)?;
+
+    sqlx::query(
+        "UPDATE oauth_device_codes SET status = 'consumed', consumed_at = NOW() WHERE id = $1",
+    )
+    .bind(row.id)
+    .execute(&mut *conn)
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    Ok(Json(TokenResponse {
+        access_token,
+        token_type: "Bearer".to_string(),
+        expires_in: TokenType::Access.default_duration().num_seconds(),
+        id_token: None,
+        refresh_token: None,
+        scope: req.scope,
+    }))
+}
+
+async fn token_exchange(
+    state: &AppState,
+    tenant_id: &str,
+    client: &vault_core::db::oidc::OauthClient,
+    req: TokenRequest,
+) -> Result<Json<TokenResponse>, ApiError> {
+    let subject_token = req
+        .subject_token
+        .ok_or(ApiError::BadRequest("Missing subject_token".to_string()))?;
+
+    let claims = HybridJwt::decode(&subject_token, state.auth_service.verifying_key())
+        .map_err(|_| ApiError::BadRequest("Invalid subject_token".to_string()))?;
+
+    if claims.tenant_id != tenant_id {
+        return Err(ApiError::BadRequest("Tenant mismatch".to_string()));
+    }
+
+    let audience = req
+        .audience
+        .unwrap_or_else(|| client.client_id.clone());
+
+    let mut new_claims = Claims::new(
+        claims.sub.clone(),
+        claims.tenant_id.clone(),
+        TokenType::Access,
+        state.config.base_url.clone(),
+        audience,
+    );
+    new_claims.scope = req.scope.or(claims.scope);
+
+    let access_token = HybridJwt::encode(&new_claims, state.auth_service.signing_key())
+        .map_err(|_| ApiError::Internal)?;
+
+    Ok(Json(TokenResponse {
+        access_token,
+        token_type: "Bearer".to_string(),
+        expires_in: TokenType::Access.default_duration().num_seconds(),
+        id_token: None,
+        refresh_token: None,
+        scope: new_claims.scope,
     }))
 }
 

@@ -12,9 +12,9 @@ use std::collections::HashMap;
 
 use crate::i18n::{
     db::{TranslationExport, TranslationRepository},
-    Language, I18N,
+    with_i18n, Language,
 };
-use crate::state::{AppState, CurrentUser};
+use crate::state::AppState;
 
 /// Create admin routes for i18n management
 pub fn routes() -> Router<AppState> {
@@ -28,20 +28,9 @@ pub fn routes() -> Router<AppState> {
         .route("/translations/stats", get(get_translation_stats))
 }
 
-/// Admin user extractor - checks if user has admin role
-/// For now, this is a simplified version - in production, check the user's role
-async fn require_admin(
-    State(_state): State<AppState>,
-    user: CurrentUser,
-) -> Result<CurrentUser, StatusCode> {
-    // TODO: Check if user has admin role
-    // For now, allow any authenticated user
-    Ok(user)
-}
-
 /// List all supported languages
 async fn list_languages() -> impl IntoResponse {
-    let languages = I18N.supported_languages();
+    let languages = crate::i18n::with_i18n(|i18n| i18n.supported_languages());
     
     Json(serde_json::json!({
         "languages": languages,

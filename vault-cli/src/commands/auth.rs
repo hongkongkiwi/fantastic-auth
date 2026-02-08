@@ -33,12 +33,11 @@ pub async fn login(api_url: &str, email: &str, password: Option<&str>) -> Result
         .await
         .context("Login failed")?;
 
-    // Save tokens
+    // Save tokens (encrypted)
     let mut config = Config::load()?;
     config.api_url = Some(api_url.to_string());
-    config.token = Some(response.access_token);
-    config.refresh_token = Some(response.refresh_token);
-    config.save()?;
+    config.set_token(&response.access_token)?;
+    config.set_refresh_token(&response.refresh_token)?;
 
     println!("✅ Logged in successfully!");
     println!(
@@ -63,10 +62,10 @@ pub async fn login_with_api_key(api_url: &str, api_key: &str, tenant_id: &str) -
         .await
         .context("API key authentication failed")?;
 
-    // Save configuration
+    // Save configuration (token encrypted)
     let mut config = Config::load()?;
     config.api_url = Some(api_url.to_string());
-    config.token = Some(api_key.to_string());
+    config.set_token(api_key)?;
     config.tenant_id = Some(tenant_id.to_string());
     config.save()?;
 

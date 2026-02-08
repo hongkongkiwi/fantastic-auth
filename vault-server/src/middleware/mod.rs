@@ -15,6 +15,17 @@ pub mod security;
 pub mod step_up;
 pub mod tenant;
 
+// SECURITY: Re-export security utilities for easy access
+pub use security::{
+    validate_request, 
+    uuid_validation_middleware, 
+    cors_layer,
+    is_valid_uuid,
+    is_valid_email,
+    sanitize_input,
+    security_headers,
+};
+
 pub use anonymous::{
     is_anonymous_user, reject_anonymous_users, require_anonymous_user,
     anonymous_path_restrictions, is_anonymous_restricted_path,

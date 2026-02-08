@@ -1,0 +1,37 @@
+name: vault
+location: eastus
+properties:
+  managedEnvironmentId: /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg/providers/Microsoft.App/managedEnvironments/env
+  configuration:
+    ingress:
+      external: true
+      targetPort: 3000
+    secrets:
+      - name: vault-database-url
+        value: postgresql://vault:REPLACE@host:5432/vault
+      - name: vault-redis-url
+        value: redis://host:6379
+      - name: vault-jwt-secret
+        value: replace-me
+  template:
+    containers:
+      - name: vault
+        image: ghcr.io/your-org/vault-server:latest
+        env:
+          - name: VAULT_HOST
+            value: "0.0.0.0"
+          - name: VAULT_PORT
+            value: "3000"
+          - name: VAULT_METRICS_PORT
+            value: "9090"
+          - name: VAULT_LOG_LEVEL
+            value: "info"
+          - name: VAULT_DATABASE_URL
+            secretRef: vault-database-url
+          - name: VAULT_REDIS_URL
+            secretRef: vault-redis-url
+          - name: VAULT_JWT_SECRET
+            secretRef: vault-jwt-secret
+    scale:
+      minReplicas: 1
+      maxReplicas: 10

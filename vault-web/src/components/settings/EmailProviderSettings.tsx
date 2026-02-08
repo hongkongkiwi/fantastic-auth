@@ -81,11 +81,27 @@ export function EmailProviderSettings() {
   const [isTesting, setIsTesting] = useState(false)
   const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState({
+    smtpPass: false,
+    apiKey: false,
+    awsAccessKeyId: false,
+    awsSecretAccessKey: false,
+  })
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        smtpPass: prev.smtpPass || Boolean(config.smtpPass?.trim()),
+        apiKey: prev.apiKey || Boolean(config.apiKey?.trim()),
+        awsAccessKeyId: prev.awsAccessKeyId || Boolean(config.awsAccessKeyId?.trim()),
+        awsSecretAccessKey: prev.awsSecretAccessKey || Boolean(config.awsSecretAccessKey?.trim()),
+      }))
+      if (config.smtpPass?.trim()) updateConfig('smtpPass', '')
+      if (config.apiKey?.trim()) updateConfig('apiKey', '')
+      if (config.awsAccessKeyId?.trim()) updateConfig('awsAccessKeyId', '')
+      if (config.awsSecretAccessKey?.trim()) updateConfig('awsSecretAccessKey', '')
     } finally {
       setIsLoading(false)
     }
@@ -269,13 +285,19 @@ export function EmailProviderSettings() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label htmlFor="smtp-pass" className="text-sm font-medium leading-none">
-                        Password
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="smtp-pass" className="text-sm font-medium leading-none">
+                          Password
+                        </label>
+                        {secretState.smtpPass && !config.smtpPass && (
+                          <Badge variant="outline" className="text-xs">Set</Badge>
+                        )}
+                      </div>
                       <Input
                         id="smtp-pass"
                         type={showSecrets ? 'text' : 'password'}
                         value={config.smtpPass}
+                        placeholder={secretState.smtpPass && !config.smtpPass ? '******** (set)' : '••••••••'}
                         onChange={(e) => updateConfig('smtpPass', e.target.value)}
                       />
                     </div>
@@ -307,23 +329,36 @@ export function EmailProviderSettings() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="aws-access-key" className="text-sm font-medium leading-none">
-                      AWS Access Key ID
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="aws-access-key" className="text-sm font-medium leading-none">
+                        AWS Access Key ID
+                      </label>
+                      {secretState.awsAccessKeyId && !config.awsAccessKeyId && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="aws-access-key"
+                      type={showSecrets ? 'text' : 'password'}
                       value={config.awsAccessKeyId}
+                      placeholder={secretState.awsAccessKeyId && !config.awsAccessKeyId ? '******** (set)' : 'AKIA...'}
                       onChange={(e) => updateConfig('awsAccessKeyId', e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="aws-secret-key" className="text-sm font-medium leading-none">
-                      AWS Secret Access Key
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="aws-secret-key" className="text-sm font-medium leading-none">
+                        AWS Secret Access Key
+                      </label>
+                      {secretState.awsSecretAccessKey && !config.awsSecretAccessKey && (
+                        <Badge variant="outline" className="text-xs">Set</Badge>
+                      )}
+                    </div>
                     <Input
                       id="aws-secret-key"
                       type={showSecrets ? 'text' : 'password'}
                       value={config.awsSecretAccessKey}
+                      placeholder={secretState.awsSecretAccessKey && !config.awsSecretAccessKey ? '******** (set)' : '••••••••'}
                       onChange={(e) => updateConfig('awsSecretAccessKey', e.target.value)}
                     />
                   </div>
@@ -332,15 +367,20 @@ export function EmailProviderSettings() {
 
               {selectedProvider?.requiresApiKey && config.provider !== 'aws_ses' && (
                 <div className="space-y-2">
-                  <label htmlFor="api-key" className="text-sm font-medium leading-none">
-                    API Key
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="api-key" className="text-sm font-medium leading-none">
+                      API Key
+                    </label>
+                    {secretState.apiKey && !config.apiKey && (
+                      <Badge variant="outline" className="text-xs">Set</Badge>
+                    )}
+                  </div>
                   <Input
                     id="api-key"
                     type={showSecrets ? 'text' : 'password'}
                     value={config.apiKey}
                     onChange={(e) => updateConfig('apiKey', e.target.value)}
-                    placeholder={`Enter your ${selectedProvider.name} API key`}
+                    placeholder={secretState.apiKey && !config.apiKey ? '******** (set)' : `Enter your ${selectedProvider.name} API key`}
                   />
                 </div>
               )}

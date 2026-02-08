@@ -1,11 +1,11 @@
 /**
- * Vault Admin API - TypeScript Client
- * Generated from OpenAPI specification
+ * Vault Admin API types
+ * Regenerated from OpenAPI contract and server route validation.
  */
 
-// ============================================================================
-// Core Types
-// ============================================================================
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue = JsonPrimitive | JsonObject | JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
 
 export interface ErrorResponse {
   error: {
@@ -26,53 +26,35 @@ export interface PaginationResponse {
   totalPages: number;
 }
 
-// ============================================================================
-// Dashboard
-// ============================================================================
+export interface DateRangeQuery {
+  from?: string;
+  to?: string;
+}
 
-export interface ActivitySummary {
-  action: string;
-  count: number;
-  timestamp: string;
+export interface DashboardStats {
+  total_users: number;
+  active_users: number;
+  pending_users: number;
+  total_organizations: number;
 }
 
 export interface DashboardResponse {
-  totalUsers: number;
-  activeUsers: number;
-  newUsersToday: number;
-  totalOrganizations: number;
-  activeSessions: number;
-  pendingInvitations: number;
-  recentActivity: ActivitySummary[];
+  stats: DashboardStats;
 }
 
-export interface TimeSeriesPoint {
-  date: string;
-  count: number;
-}
+export interface MetricsResponse {}
 
-export interface MetricsResponse {
-  signupsOverTime: TimeSeriesPoint[];
-  loginsOverTime: TimeSeriesPoint[];
-  oauthUsage: Record<string, number>;
-}
-
-// ============================================================================
-// User Management
-// ============================================================================
+export type UserStatus = 'active' | 'pending' | 'suspended' | 'deactivated';
 
 export interface CreateUserRequest {
   email: string;
-  password?: string;
-  name?: string;
+  name: string;
   emailVerified?: boolean;
-  status?: 'active' | 'pending' | 'suspended';
 }
 
 export interface UpdateUserRequest {
-  email?: string;
   name?: string;
-  status?: 'active' | 'pending' | 'suspended' | 'deactivated';
+  status?: UserStatus;
 }
 
 export interface SuspendUserRequest {
@@ -82,39 +64,52 @@ export interface SuspendUserRequest {
 export interface AdminUserResponse {
   id: string;
   email: string;
-  emailVerified: boolean;
   name?: string;
-  status: string;
-  mfaEnabled: boolean;
+  status: UserStatus;
+  email_verified?: boolean;
+  emailVerified?: boolean;
+  created_at?: string;
+  createdAt?: string;
+  last_login_at?: string;
   lastLoginAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  failedLoginAttempts: number;
-  lockedUntil?: string;
-  organizationCount: number;
+  organization_count?: number;
+  organizationCount?: number;
+  mfaEnabled?: boolean;
 }
 
-export interface PaginatedUsersResponse {
-  data: AdminUserResponse[];
-  pagination: PaginationResponse;
+export interface ListUsersResponse {
+  users: AdminUserResponse[];
+  total: number;
+  page: number;
+  per_page: number;
 }
 
 export interface AdminSessionResponse {
   id: string;
   userId: string;
-  ipAddress?: string;
-  userAgent?: string;
-  deviceFingerprint?: string;
-  mfaVerified: boolean;
   createdAt: string;
   lastActivityAt: string;
   expiresAt: string;
+  ipAddress?: string;
+  userAgent?: string;
+  deviceInfo?: JsonObject;
+  mfaVerified: boolean;
   status: string;
 }
 
-// ============================================================================
-// Organization Management
-// ============================================================================
+export interface AdminSessionListResponse {
+  sessions: AdminSessionResponse[];
+  currentSessions: number;
+  maxSessions: number;
+}
+
+export interface ListUsersQuery {
+  page?: number;
+  perPage?: number;
+  status?: UserStatus;
+  email?: string;
+  orgId?: string;
+}
 
 export interface UpdateOrgRequest {
   name?: string;
@@ -140,7 +135,6 @@ export interface AdminOrganizationResponse {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;
-  ownerId: string;
 }
 
 export interface PaginatedOrganizationsResponse {
@@ -155,21 +149,13 @@ export interface AdminOrganizationMemberResponse {
   name?: string;
   role: string;
   status: string;
-  invitedBy?: string;
-  invitedAt?: string;
   joinedAt?: string;
-}
-
-export interface InviterResponse {
-  id: string;
-  email: string;
 }
 
 export interface InvitationResponse {
   id: string;
   email: string;
   role: string;
-  invitedBy: InviterResponse;
   expiresAt: string;
   createdAt: string;
 }
@@ -178,118 +164,29 @@ export interface UpdateMemberRequest {
   role: string;
 }
 
-// ============================================================================
-// Audit Logs
-// ============================================================================
+export interface ListOrganizationsQuery {
+  page?: number;
+  perPage?: number;
+  status?: string;
+}
 
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
-  userId?: string;
-  userEmail?: string;
-  sessionId?: string;
   action: string;
   resourceType: string;
   resourceId: string;
+  userId?: string;
+  userEmail?: string;
   ipAddress?: string;
   userAgent?: string;
   success: boolean;
-  error?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: JsonObject;
 }
 
 export interface PaginatedAuditLogResponse {
   data: AuditLogEntry[];
   pagination: PaginationResponse;
-}
-
-// ============================================================================
-// Tenant Settings
-// ============================================================================
-
-export interface PasswordPolicy {
-  minLength: number;
-  requireUppercase: boolean;
-  requireLowercase: boolean;
-  requireNumbers: boolean;
-  requireSpecial: boolean;
-}
-
-export interface MfaPolicy {
-  enabled: boolean;
-  required: boolean;
-  allowedMethods: string[];
-}
-
-export interface TenantSettings {
-  id: string;
-  slug: string;
-  name: string;
-  allowedDomains: string[];
-  passwordPolicy: PasswordPolicy;
-  mfaPolicy: MfaPolicy;
-  oauthProviders: string[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface UpdatePasswordPolicyRequest {
-  minLength?: number;
-  requireUppercase?: boolean;
-  requireLowercase?: boolean;
-  requireNumbers?: boolean;
-  requireSpecial?: boolean;
-}
-
-export interface UpdateMfaPolicyRequest {
-  enabled?: boolean;
-  required?: boolean;
-}
-
-export interface UpdateTenantSettingsRequest {
-  name?: string;
-  allowedDomains?: string[];
-  passwordPolicy?: UpdatePasswordPolicyRequest;
-  mfaPolicy?: UpdateMfaPolicyRequest;
-}
-
-// ============================================================================
-// System
-// ============================================================================
-
-export interface ServiceHealthResponse {
-  status: string;
-  latency: number;
-}
-
-export interface ServicesHealthResponse {
-  database: ServiceHealthResponse;
-  redis: ServiceHealthResponse;
-}
-
-export interface SystemHealthResponse {
-  status: string;
-  timestamp: string;
-  version: string;
-  services: ServicesHealthResponse;
-}
-
-// ============================================================================
-// Query Parameters
-// ============================================================================
-
-export interface ListUsersQuery {
-  page?: number;
-  perPage?: number;
-  status?: 'active' | 'pending' | 'suspended' | 'deactivated';
-  email?: string;
-  orgId?: string;
-}
-
-export interface ListOrganizationsQuery {
-  page?: number;
-  perPage?: number;
-  status?: string;
 }
 
 export interface QueryAuditLogsQuery {
@@ -303,7 +200,189 @@ export interface QueryAuditLogsQuery {
   success?: boolean;
 }
 
-export interface DateRangeQuery {
-  from?: string;
-  to?: string;
+export interface PasswordPolicy {
+  minLength?: number;
+  requireUppercase?: boolean;
+  requireLowercase?: boolean;
+  requireNumbers?: boolean;
+  requireSpecial?: boolean;
 }
+
+export interface MfaPolicy {
+  enabled?: boolean;
+  required?: boolean;
+  allowedMethods?: string[];
+}
+
+export interface TenantSettings {
+  id?: string;
+  slug?: string;
+  name?: string;
+  allowedDomains?: string[];
+  passwordPolicy?: PasswordPolicy;
+  mfaPolicy?: MfaPolicy;
+}
+
+export interface UpdateTenantSettingsRequest {
+  name?: string;
+  allowedDomains?: string[];
+  passwordPolicy?: JsonObject;
+  mfaPolicy?: JsonObject;
+}
+
+export interface MfaSettings {
+  required?: boolean;
+  allowedMethods?: string[];
+}
+
+export interface SystemHealthResponse {
+  status: string;
+  version: string;
+  database: string;
+}
+
+export interface SsoConnection {
+  id: string;
+  type: 'saml' | 'oidc';
+  name: string;
+  status: 'active' | 'disabled';
+  domains: string[];
+  config: JsonObject;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationSsoSettings {
+  orgId: string;
+  connectionId: string | null;
+  required: boolean;
+  jitEnabled: boolean;
+  defaultRole: string;
+}
+
+export interface OrganizationDomain {
+  id: string;
+  domain: string;
+  verificationToken: string;
+  verifiedAt: string | null;
+  createdAt: string;
+}
+
+export interface OrganizationRole {
+  id: string;
+  name: string;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BrandingSettings {
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+  productName?: string | null;
+  supportEmail?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+  customCss?: string | null;
+}
+
+export interface ThemeSettings {
+  theme: JsonObject;
+}
+
+export interface ScimListResponse {
+  schemas: string[];
+  totalResults: number;
+  startIndex: number;
+  itemsPerPage: number;
+  Resources: JsonObject[];
+}
+
+export interface ScimUser {
+  id?: string;
+  userName: string;
+  active?: boolean;
+  emails?: JsonObject[];
+  externalId?: string;
+}
+
+export interface ScimGroup {
+  id?: string;
+  displayName: string;
+  members?: JsonObject[];
+}
+
+export interface DirectoryConnection {
+  id: string;
+  type: 'ldap';
+  name: string;
+  status: 'active' | 'disabled';
+  config: JsonObject;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SecurityPolicy {
+  id: string;
+  name: string;
+  enabled: boolean;
+  conditions: JsonObject;
+  actions: JsonObject;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditExport {
+  id: string;
+  status: 'queued' | 'running' | 'complete' | 'failed';
+  format: 'json' | 'csv';
+  from: string;
+  to: string;
+  createdAt: string;
+}
+
+export interface AuditWebhook {
+  id: string;
+  url: string;
+  status: 'active' | 'disabled';
+  secretLastFour: string;
+  createdAt: string;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface OidcClient {
+  id: string;
+  clientId?: string;
+  name?: string;
+  status?: string;
+}
+
+export interface MigrationJob {
+  id: string;
+  type?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface BulkJob {
+  id: string;
+  type?: string;
+  status?: string;
+  createdAt?: string;
+}
+
+export interface ConsentPolicy {
+  id: string;
+  consentType?: string;
+  version?: string;
+  status?: string;
+}
+
+export interface AnalyticsResponse {}
+export interface SecurityResponse {}

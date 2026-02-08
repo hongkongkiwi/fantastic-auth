@@ -93,6 +93,7 @@ impl WebhookWorker {
 
         for tenant_id in tenant_ids {
             let ctx = RequestContext {
+                tenant_id: Some(tenant_id.clone()),
                 user_id: None,
                 role: Some("service".to_string()),
             };
@@ -322,6 +323,7 @@ impl WebhookWorker {
             let ctx = RequestContext {
                 user_id: None,
                 role: Some("service".to_string()),
+                tenant_id: Some(tenant_id.clone()),
             };
 
             let stats = with_request_context(ctx, async {

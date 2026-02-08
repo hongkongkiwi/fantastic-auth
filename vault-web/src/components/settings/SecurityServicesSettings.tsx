@@ -86,11 +86,21 @@ export function SecurityServicesSettings() {
   const [config, setConfig] = useState<SecurityServicesConfig>(defaultConfig)
   const [isLoading, setIsLoading] = useState(false)
   const [showSecrets, setShowSecrets] = useState(false)
+  const [secretState, setSecretState] = useState({
+    hibpApiKey: false,
+    maxmindLicenseKey: false,
+  })
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000))
+      setSecretState((prev) => ({
+        hibpApiKey: prev.hibpApiKey || Boolean(config.hibp.apiKey.trim()),
+        maxmindLicenseKey: prev.maxmindLicenseKey || Boolean(config.maxmind.licenseKey.trim()),
+      }))
+      if (config.hibp.apiKey.trim()) updateServiceConfig('hibp', 'apiKey', '')
+      if (config.maxmind.licenseKey.trim()) updateServiceConfig('maxmind', 'licenseKey', '')
     } finally {
       setIsLoading(false)
     }
@@ -184,9 +194,14 @@ export function SecurityServicesSettings() {
                               </div>
 
                               <div className="space-y-2">
-                                <label htmlFor="hibp-key" className="text-sm font-medium leading-none">
-                                  API Key
-                                </label>
+                                <div className="flex items-center justify-between">
+                                  <label htmlFor="hibp-key" className="text-sm font-medium leading-none">
+                                    API Key
+                                  </label>
+                                  {secretState.hibpApiKey && !config.hibp.apiKey && (
+                                    <Badge variant="outline" className="text-xs">Set</Badge>
+                                  )}
+                                </div>
                                 <Input
                                   id="hibp-key"
                                   type={showSecrets ? 'text' : 'password'}
@@ -194,7 +209,7 @@ export function SecurityServicesSettings() {
                                   onChange={(event) =>
                                     updateServiceConfig('hibp', 'apiKey', event.target.value)
                                   }
-                                  placeholder="Enter your HIBP API key"
+                                  placeholder={secretState.hibpApiKey && !config.hibp.apiKey ? '******** (set)' : 'Enter your HIBP API key'}
                                 />
                               </div>
 
@@ -302,9 +317,14 @@ export function SecurityServicesSettings() {
                                   />
                                 </div>
                                 <div className="space-y-2">
-                                  <label htmlFor="maxmind-key" className="text-sm font-medium leading-none">
-                                    License Key
-                                  </label>
+                                  <div className="flex items-center justify-between">
+                                    <label htmlFor="maxmind-key" className="text-sm font-medium leading-none">
+                                      License Key
+                                    </label>
+                                    {secretState.maxmindLicenseKey && !config.maxmind.licenseKey && (
+                                      <Badge variant="outline" className="text-xs">Set</Badge>
+                                    )}
+                                  </div>
                                   <Input
                                     id="maxmind-key"
                                     type={showSecrets ? 'text' : 'password'}
@@ -312,6 +332,7 @@ export function SecurityServicesSettings() {
                                     onChange={(event) =>
                                       updateServiceConfig('maxmind', 'licenseKey', event.target.value)
                                     }
+                                    placeholder={secretState.maxmindLicenseKey && !config.maxmind.licenseKey ? '******** (set)' : 'Enter license key'}
                                   />
                                 </div>
                               </div>

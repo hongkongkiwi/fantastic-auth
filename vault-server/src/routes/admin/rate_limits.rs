@@ -11,7 +11,6 @@
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    http::StatusCode,
     routing::{delete, get, post, put},
     Extension as _, Json, Router,
 };
@@ -325,17 +324,24 @@ async fn update_rate_limit_config(
         config.auto_block_duration_minutes = duration;
     }
 
-    // Save config to tenant settings
-    let config_json = serde_json::to_value(&config).map_err(|_| ApiError::Internal)?;
-
     sqlx::query(
-        r#"INSERT INTO tenant_settings (tenant_id, key, value, updated_at, updated_by)
-           VALUES ($1, 'rate_limit_config', $2, NOW(), $3)
-           ON CONFLICT (tenant_id, key) 
-           DO UPDATE SET value = $2, updated_at = NOW(), updated_by = $3"#,
+        r#"INSERT INTO tenant_rate_limit_configs
+           (tenant_id, api_per_minute, auth_per_minute, window_seconds, burst_allowance,
+            auto_block_enabled, auto_block_threshold, auto_block_duration_minutes, updated_at, updated_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), $9)
+           ON CONFLICT (tenant_id)
+           DO UPDATE SET api_per_minute = $2, auth_per_minute = $3, window_seconds = $4,
+                         burst_allowance = $5, auto_block_enabled = $6, auto_block_threshold = $7,
+                         auto_block_duration_minutes = $8, updated_at = NOW(), updated_by = $9"#,
     )
     .bind(&current_user.tenant_id)
-    .bind(config_json)
+    .bind(config.api_per_minute as i32)
+    .bind(config.auth_per_minute as i32)
+    .bind(config.window_seconds as i32)
+    .bind(config.burst_allowance as i32)
+    .bind(config.auto_block_enabled)
+    .bind(config.auto_block_threshold as i32)
+    .bind(config.auto_block_duration_minutes as i32)
     .bind(&current_user.user_id)
     .execute(state.db.pool())
     .await
@@ -694,8 +700,11 @@ async fn get_tenant_rate_limit_config(
     state: &AppState,
     tenant_id: &str,
 ) -> Result<RateLimitConfig, ApiError> {
-    let row: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT value FROM tenant_settings WHERE tenant_id = $1 AND key = 'rate_limit_config'",
+    let row = sqlx::query_as::<_, (i32, i32, i32, i32, bool, i32, i32)>(
+        r#"SELECT api_per_minute, auth_per_minute, window_seconds, burst_allowance,
+                  auto_block_enabled, auto_block_threshold, auto_block_duration_minutes
+           FROM tenant_rate_limit_configs
+           WHERE tenant_id = $1"#,
     )
     .bind(tenant_id)
     .fetch_optional(state.db.pool())
@@ -703,22 +712,35 @@ async fn get_tenant_rate_limit_config(
     .map_err(|_| ApiError::Internal)?;
 
     match row {
-        Some(value) => {
-            serde_json::from_value(value).map_err(|_| ApiError::Internal)
-        }
-        None => {
-            // Return default based on global config
-            Ok(RateLimitConfig {
-                api_per_minute: state.config.rate_limit.api_per_minute,
-                auth_per_minute: state.config.rate_limit.auth_per_minute,
-                window_seconds: state.config.rate_limit.window_seconds,
-                burst_allowance: 10,
-                user_multiplier: 2.0,
-                ip_multiplier: 1.0,
-                auto_block_enabled: true,
-                auto_block_threshold: 10,
-                auto_block_duration_minutes: 60,
-            })
-        }
+        Some((
+            api_per_minute,
+            auth_per_minute,
+            window_seconds,
+            burst_allowance,
+            auto_block_enabled,
+            auto_block_threshold,
+            auto_block_duration_minutes,
+        )) => Ok(RateLimitConfig {
+            api_per_minute: api_per_minute as u32,
+            auth_per_minute: auth_per_minute as u32,
+            window_seconds: window_seconds as u64,
+            burst_allowance: burst_allowance as u32,
+            user_multiplier: 2.0,
+            ip_multiplier: 1.0,
+            auto_block_enabled,
+            auto_block_threshold: auto_block_threshold as u32,
+            auto_block_duration_minutes: auto_block_duration_minutes as i64,
+        }),
+        None => Ok(RateLimitConfig {
+            api_per_minute: state.config.rate_limit.api_per_minute,
+            auth_per_minute: state.config.rate_limit.auth_per_minute,
+            window_seconds: state.config.rate_limit.window_seconds,
+            burst_allowance: 10,
+            user_multiplier: 2.0,
+            ip_multiplier: 1.0,
+            auto_block_enabled: true,
+            auto_block_threshold: 10,
+            auto_block_duration_minutes: 60,
+        }),
     }
 }

@@ -10,10 +10,10 @@
 //! - JWKS endpoint (/oauth/jwks)
 
 use axum::{
-    extract::{Form, Query, State},
+    extract::{ConnectInfo, Form, Query, Request, State},
     http::{HeaderMap, StatusCode},
     middleware,
-    response::{IntoResponse, Redirect},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -47,7 +47,24 @@ pub fn routes() -> Router<AppState> {
         .route("/oauth/revoke", post(revoke))
         .route("/oauth/jwks", get(jwks))
         // Authorization endpoint requires authentication
-        .merge(auth_routes.layer(middleware::from_fn(auth_middleware)))
+        .merge(auth_routes.layer(middleware::from_fn(oidc_auth_middleware)))
+}
+
+async fn oidc_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+    let state = match request.extensions().get::<AppState>().cloned() {
+        Some(state) => state,
+        None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    let addr = request
+        .extensions()
+        .get::<ConnectInfo<std::net::SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| std::net::SocketAddr::from(([0, 0, 0, 0], 0)));
+
+    match auth_middleware(State(state), ConnectInfo(addr), request, next).await {
+        Ok(response) => response,
+        Err(status) => status.into_response(),
+    }
 }
 
 /// GET /.well-known/openid-configuration
@@ -504,8 +521,8 @@ async fn userinfo(
             userinfo.middle_name = user.profile.middle_name.clone();
             userinfo.nickname = user.profile.nickname.clone();
             userinfo.preferred_username = Some(user.email.clone());
-            userinfo.profile = user.profile.profile_url.clone();
-            userinfo.picture = user.profile.picture_url.clone();
+            userinfo.profile = user.profile.profile.clone();
+            userinfo.picture = user.profile.picture.clone();
             userinfo.website = user.profile.website.clone();
             userinfo.gender = user.profile.gender.clone();
             userinfo.birthdate = user.profile.birthdate.clone();

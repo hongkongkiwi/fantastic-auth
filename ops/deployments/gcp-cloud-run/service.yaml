@@ -1,0 +1,39 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: vault
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containers:
+        - image: ghcr.io/your-org/vault-server:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: VAULT_HOST
+              value: "0.0.0.0"
+            - name: VAULT_PORT
+              value: "3000"
+            - name: VAULT_METRICS_PORT
+              value: "9090"
+            - name: VAULT_LOG_LEVEL
+              value: "info"
+            - name: VAULT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vault-secrets
+                  key: VAULT_DATABASE_URL
+            - name: VAULT_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: vault-secrets
+                  key: VAULT_REDIS_URL
+            - name: VAULT_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vault-secrets
+                  key: VAULT_JWT_SECRET

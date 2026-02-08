@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -43,12 +43,89 @@ export function SamlConfiguration() {
   const [isTesting, setIsTesting] = useState(false)
   const [testStatus, setTestStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [activeTab, setActiveTab] = useState('general')
+  const [connectionId, setConnectionId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadConnection() {
+      try {
+        const response = await fetch('/api/v1/admin/sso/saml/connections', {
+          credentials: 'include',
+        })
+        if (!response.ok) return
+        const payload = await response.json() as { data?: Array<{
+          id: string
+          name: string
+          idp_entity_id?: string
+          idp_sso_url?: string
+          idp_slo_url?: string
+          name_id_format?: string
+          jit_provisioning_enabled?: boolean
+          status?: string
+        }> }
+        const first = payload.data?.[0]
+        if (!first || cancelled) return
+        setConnectionId(first.id)
+        setConfig((prev) => ({
+          ...prev,
+          enabled: first.status === 'active',
+          provider: first.name || '',
+          entityId: first.idp_entity_id || '',
+          ssoUrl: first.idp_sso_url || '',
+          signInUrl: first.idp_slo_url || '',
+          nameIdFormat: first.name_id_format || prev.nameIdFormat,
+          allowCreate: first.jit_provisioning_enabled ?? true,
+        }))
+      } catch {
+        // leave defaults on load failure
+      }
+    }
+    void loadConnection()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      // TODO: Implement save API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const payload = {
+        name: config.provider || 'Default SAML',
+        idp_entity_id: config.entityId || null,
+        idp_sso_url: config.ssoUrl || null,
+        idp_slo_url: config.signInUrl || null,
+        idp_certificate: config.certificate || null,
+        name_id_format: config.nameIdFormat,
+        jit_provisioning_enabled: config.allowCreate,
+        status: config.enabled ? 'active' : 'inactive',
+      }
+
+      const url = connectionId
+        ? `/api/v1/admin/sso/saml/connections/${connectionId}`
+        : '/api/v1/admin/sso/saml/connections'
+      const method = connectionId ? 'PATCH' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to save SAML configuration')
+      }
+
+      if (!connectionId) {
+        const created = await response.json() as { id?: string }
+        if (created.id) {
+          setConnectionId(created.id)
+        }
+      }
+      setSaveError(null)
+      setTestStatus('idle')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save SAML configuration')
     } finally {
       setIsLoading(false)
     }
@@ -58,8 +135,16 @@ export function SamlConfiguration() {
     setIsTesting(true)
     setTestStatus('idle')
     try {
-      // TODO: Implement test API call
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      if (!connectionId) {
+        throw new Error('Save configuration before testing')
+      }
+      const response = await fetch(`/api/v1/admin/sso/saml/connections/${connectionId}/test`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        throw new Error('Connection test failed')
+      }
       setTestStatus('success')
     } catch {
       setTestStatus('error')
@@ -95,6 +180,11 @@ export function SamlConfiguration() {
           </span>
         </div>
       </div>
+      {saveError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {saveError}
+        </div>
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

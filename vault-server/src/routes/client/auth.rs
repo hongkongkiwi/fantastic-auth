@@ -738,7 +738,7 @@ async fn login(
                     &tenant_id,
                     &auth_result.user.id,
                     None,
-                    context,
+                    context.clone(),
                     false,
                     "totp",
                 );
@@ -1005,7 +1005,7 @@ async fn login(
             let failure_count = record_failed_login(&state, &failed_login_key).await;
 
             // Log failed login
-            audit.log_login_failed(&tenant_id, &email, context, &e.to_string());
+            audit.log_login_failed(&tenant_id, &email, context.clone(), &e.to_string());
 
             tracing::info!(
                 "Failed login attempt {} for {} from {}",
@@ -1134,7 +1134,7 @@ async fn try_ldap_authenticate(
         return Ok(None);
     }
 
-    let jit_auth = LdapJitAuth::new(state.db.pool().clone());
+    let jit_auth = LdapJitAuth::new(state.db.pool().clone(), state.tenant_key_service.clone());
 
     // Try LDAP authentication with JIT provisioning
     match jit_auth.authenticate(tenant_id, email, password).await {
@@ -1282,14 +1282,33 @@ async fn logout(
 
 /// Get current user
 async fn get_current_user(
+    State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
 ) -> Result<Json<UserResponse>, StatusCode> {
+    let db_user = state
+        .db
+        .users()
+        .find_by_id(&user.tenant_id, &user.user_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let profile = db_user.profile;
+    let name = profile.name.clone().or_else(|| {
+        match (profile.given_name.as_deref(), profile.family_name.as_deref()) {
+            (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
+            (Some(f), None) => Some(f.to_string()),
+            (None, Some(l)) => Some(l.to_string()),
+            _ => None,
+        }
+    });
+
     Ok(Json(UserResponse {
         id: user.user_id,
         email: user.email,
         email_verified: user.email_verified,
-        name: None, // TODO: Get from database
-        mfa_enabled: user.mfa_authenticated,
+        name,
+        mfa_enabled: db_user.mfa_enabled,
     }))
 }
 
@@ -2111,8 +2130,8 @@ async fn apple_oauth_callback(
             user_info.email_verified = true;
         }
         if let Some(name) = apple_user_info.name {
-            let first = name.first_name.unwrap_or_default();
-            let last = name.last_name.unwrap_or_default();
+            let first = name.first_name.clone().unwrap_or_default();
+            let last = name.last_name.clone().unwrap_or_default();
             let full = format!("{} {}", first, last).trim().to_string();
             if !full.is_empty() {
                 user_info.name = Some(full);
@@ -2190,6 +2209,7 @@ fn decode_apple_id_token(token: &str) -> Result<vault_core::auth::oauth::OAuthUs
         picture: None,
         username: None,
         locale: None,
+        provider: Some(vault_core::auth::oauth::OAuthProvider::Apple),
         raw: claims,
     };
 
@@ -2492,6 +2512,7 @@ fn get_oauth_config(
         scopes: vec![],
         pkce_enabled: true, // Enable PKCE by default for security
         apple_credentials,
+        extra_config: None,
     };
 
     Ok((oauth_config, provider_enum))
@@ -3294,8 +3315,7 @@ async fn verify_password_step_up(
         .users()
         .find_by_email_with_password_legacy(&user.tenant_id, &user.email)
         .await
-        .map_err(|e| StepUpFailureReason::InternalError(e.to_string()))?
-        .ok_or(StepUpFailureReason::InvalidCredentials)?;
+        .map_err(|e| StepUpFailureReason::InternalError(e.to_string()))?;
 
     // Verify password
     if let Some(hash) = password_hash {

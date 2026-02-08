@@ -22,6 +22,8 @@ struct ListAuditQuery {
     page: Option<i64>,
     #[serde(rename = "per_page")]
     per_page: Option<i64>,
+    #[serde(rename = "user_id")]
+    user_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,7 +71,7 @@ async fn query_audit_logs(
     let (entries, total) = state
         .db
         .audit()
-        .list(&current_user.tenant_id, page, per_page)
+        .list_filtered(&current_user.tenant_id, query.user_id.as_deref(), page, per_page)
         .await
         .map_err(|_| ApiError::Internal)?;
 

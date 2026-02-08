@@ -6,7 +6,7 @@
 use crate::db::Database;
 use chrono::Utc;
 use vault_core::email::templates::{NewDeviceEmail, SecurityAlertEmail, SecurityAlertType};
-use vault_core::email::EmailService;
+use vault_core::email::{EmailRequest, EmailService, EmailTemplate, TemplateEngine};
 
 use super::session_binding::{ViolationDetails, ViolationType};
 
@@ -16,6 +16,8 @@ pub struct SessionBindingNotificationService {
     db: Database,
     email_service: Option<Box<dyn EmailService>>,
     base_url: String,
+    from_address: String,
+    from_name: String,
 }
 
 impl SessionBindingNotificationService {
@@ -25,6 +27,8 @@ impl SessionBindingNotificationService {
             db,
             email_service: None,
             base_url,
+            from_address: "no-reply@vault.local".to_string(),
+            from_name: "Vault".to_string(),
         }
     }
 
@@ -32,6 +36,42 @@ impl SessionBindingNotificationService {
     pub fn with_email_service(mut self, service: Box<dyn EmailService>) -> Self {
         self.email_service = Some(service);
         self
+    }
+
+    /// Optionally override the "from" address used for notifications
+    pub fn with_from_address(mut self, from_address: String, from_name: String) -> Self {
+        self.from_address = from_address;
+        self.from_name = from_name;
+        self
+    }
+
+    async fn send_templated_email<T: EmailTemplate + serde::Serialize + Send>(
+        &self,
+        to: &str,
+        template: &T,
+    ) -> anyhow::Result<()> {
+        let Some(ref email_service) = self.email_service else {
+            return Ok(());
+        };
+
+        let engine = TemplateEngine::new(self.base_url.clone(), self.from_name.clone(), None);
+        let rendered = engine.render(template)?;
+
+        email_service
+            .send_email(EmailRequest {
+                to: to.to_string(),
+                to_name: None,
+                subject: rendered.subject,
+                html_body: rendered.html_body,
+                text_body: rendered.text_body,
+                from: self.from_address.clone(),
+                from_name: self.from_name.clone(),
+                reply_to: None,
+                headers: std::collections::HashMap::new(),
+            })
+            .await?;
+
+        Ok(())
     }
 
     /// Notify user of a new device/login
@@ -46,40 +86,32 @@ impl SessionBindingNotificationService {
         revoke_url: &str,
     ) -> anyhow::Result<()> {
         // Send security alert email
-        if let Some(ref email_service) = self.email_service {
-            let alert = SecurityAlertEmail {
-                name: email.to_string(),
-                alert_type: SecurityAlertType::NewDevice,
-                timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-                ip_address: ip_address.to_string(),
-                location: location.clone(),
-                device: device.to_string(),
-            };
+        let alert = SecurityAlertEmail {
+            name: email.to_string(),
+            alert_type: SecurityAlertType::NewDevice,
+            timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            ip_address: ip_address.to_string(),
+            location: location.clone(),
+            device: device.to_string(),
+        };
 
-            if let Err(e) = email_service
-                .send_template(email, &alert)
-                .await
-            {
-                tracing::warn!("Failed to send new device alert: {}", e);
-            }
+        if let Err(e) = self.send_templated_email(email, &alert).await {
+            tracing::warn!("Failed to send new device alert: {}", e);
+        }
 
-            // Also send "Was this you?" email with verification link
-            let new_device_email = NewDeviceEmail {
-                name: email.to_string(),
-                device: device.to_string(),
-                location,
-                ip_address: ip_address.to_string(),
-                timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-                trust_url: trust_url.to_string(),
-                revoke_url: revoke_url.to_string(),
-            };
+        // Also send "Was this you?" email with verification link
+        let new_device_email = NewDeviceEmail {
+            name: email.to_string(),
+            device: device.to_string(),
+            location,
+            ip_address: ip_address.to_string(),
+            timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            trust_url: trust_url.to_string(),
+            revoke_url: revoke_url.to_string(),
+        };
 
-            if let Err(e) = email_service
-                .send_template(email, &new_device_email)
-                .await
-            {
-                tracing::warn!("Failed to send 'was this you' email: {}", e);
-            }
+        if let Err(e) = self.send_templated_email(email, &new_device_email).await {
+            tracing::warn!("Failed to send 'was this you' email: {}", e);
         }
 
         // Create security alert in database (for dashboard)
@@ -107,19 +139,17 @@ impl SessionBindingNotificationService {
 
         // Send security alert for suspicious activity
         if details.is_suspicious || details.risk_score > 50 {
-            if let Some(ref email_service) = self.email_service {
-                let alert = SecurityAlertEmail {
-                    name: email.to_string(),
-                    alert_type: SecurityAlertType::SuspiciousLogin,
-                    timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-                    ip_address: details.actual_ip.clone().unwrap_or_default(),
-                    location: None, // Could add geolocation
-                    device: "Unknown".to_string(),
-                };
+            let alert = SecurityAlertEmail {
+                name: email.to_string(),
+                alert_type: SecurityAlertType::SuspiciousLogin,
+                timestamp: Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+                ip_address: details.actual_ip.clone().unwrap_or_default(),
+                location: None, // Could add geolocation
+                device: "Unknown".to_string(),
+            };
 
-                if let Err(e) = email_service.send_template(email, &alert).await {
-                    tracing::warn!("Failed to send suspicious login alert: {}", e);
-                }
+            if let Err(e) = self.send_templated_email(email, &alert).await {
+                tracing::warn!("Failed to send suspicious login alert: {}", e);
             }
         }
 

@@ -432,6 +432,27 @@ export type {
 } from './zk';
 
 // ============================================================================
+// Utilities
+// ============================================================================
+
+export {
+  // OAuth utilities
+  oauthProviderMetadata,
+  oauthProviderCategories,
+  getAllOAuthProviders,
+  getOAuthProvidersByCategory,
+  getOAuthProviderMetadata,
+  getOAuthProviderDisplayName,
+  getOAuthProviderColor,
+  isPkceEnabled,
+  getOAuthProviderDefaultScopes,
+  getPopularOAuthProviders,
+  getRecommendedOAuthProviders,
+  isValidOAuthProvider,
+  groupProvidersByCategory,
+} from './utils';
+
+// ============================================================================
 // Version
 // ============================================================================
 

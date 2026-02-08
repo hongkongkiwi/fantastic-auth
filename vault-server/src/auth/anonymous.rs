@@ -5,12 +5,13 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::net::IpAddr;
 use uuid::Uuid;
 
 use vault_core::crypto::{Claims, HybridJwt, HybridSigningKey, TokenType, VaultPasswordHasher};
 use vault_core::error::{Result, VaultError};
-use vault_core::models::session::Session;
+use vault_core::db::sessions::Session as DbSession;
 use vault_core::models::user::{User, UserProfile, UserStatus};
 
 use crate::state::AppState;
@@ -282,7 +283,7 @@ async fn create_anonymous_user(
     .bind(&user.id)
     .execute(state.db.pool())
     .await
-    .map_err(|e| VaultError::database(format!("Failed to mark user as anonymous: {}", e)))?;
+    .map_err(|e| VaultError::internal(format!("Failed to mark user as anonymous: {}", e)))?;
 
     Ok(user)
 }
@@ -294,7 +295,7 @@ async fn create_anonymous_db_session(
     user_id: &str,
     ip: Option<IpAddr>,
     user_agent: Option<String>,
-) -> Result<Session> {
+) -> Result<DbSession> {
     let access_token_jti = Uuid::new_v4().to_string();
     let refresh_token_hash = format!("anon_refresh_{}", Uuid::new_v4());
     let token_family = format!("anon_family_{}", Uuid::new_v4());
@@ -386,12 +387,12 @@ async fn store_anonymous_session(state: &AppState, session: &AnonymousSession) {
         let expiry_secs = (session.expires_at - Utc::now()).num_seconds() as u64;
 
         let mut conn = redis.clone();
-        let _: Result<(), _> = redis::cmd("SETEX")
-            .arg(&key)
-            .arg(expiry_secs)
-            .arg(&value)
-            .query_async(&mut conn)
-            .await;
+    let _: redis::RedisResult<()> = redis::cmd("SETEX")
+        .arg(&key)
+        .arg(expiry_secs)
+        .arg(&value)
+        .query_async(&mut conn)
+        .await;
     }
 }
 
@@ -482,7 +483,7 @@ pub async fn convert_to_full_account(
     .bind(tenant_id)
     .execute(state.db.pool())
     .await
-    .map_err(|e| VaultError::database(format!("Failed to convert anonymous user: {}", e)))?;
+    .map_err(|e| VaultError::internal(format!("Failed to convert anonymous user: {}", e)))?;
 
     // Migrate anonymous data to full account
     let data_migrated = migrate_anonymous_data(state, tenant_id, &anon_user.id).await.unwrap_or(false);
@@ -546,7 +547,7 @@ async fn find_anonymous_user(
     .bind(anonymous_session_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|e| VaultError::database(format!("Failed to find anonymous user: {}", e)))?;
+    .map_err(|e| VaultError::internal(format!("Failed to find anonymous user: {}", e)))?;
 
     match row {
         Some((id, email, profile, metadata)) => {
@@ -617,13 +618,13 @@ async fn mark_session_converted(state: &AppState, anonymous_session_id: &str, us
         let mut conn = redis.clone();
         
         // Delete the original session
-        let _: Result<(), _> = redis::cmd("DEL")
+        let _: redis::RedisResult<()> = redis::cmd("DEL")
             .arg(&key)
             .query_async(&mut conn)
             .await;
 
         // Store conversion record
-        let _: Result<(), _> = redis::cmd("SETEX")
+        let _: redis::RedisResult<()> = redis::cmd("SETEX")
             .arg(&converted_key)
             .arg(86400 * 7) // Keep for 7 days
             .arg(user_id)
@@ -722,7 +723,7 @@ pub async fn extend_anonymous_session(
             .bind(tenant_id)
             .execute(state.db.pool())
             .await
-            .map_err(|e| VaultError::database(format!("Failed to extend session: {}", e)))?;
+            .map_err(|e| VaultError::internal(format!("Failed to extend session: {}", e)))?;
 
             Ok(true)
         }

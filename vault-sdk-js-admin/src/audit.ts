@@ -5,7 +5,7 @@
  */
 
 import { VaultAdminClient } from './client';
-import type { AuditLogEntry, QueryAuditLogsQuery } from './generated/client';
+import type { AuditLogEntry } from './generated/client';
 
 export interface AuditFilter {
   userId?: string;

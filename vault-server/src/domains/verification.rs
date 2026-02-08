@@ -349,12 +349,19 @@ impl DnsVerifier {
     }
 
     /// Generate a verification token
+    /// 
+    /// SECURITY: Uses OsRng (operating system's CSPRNG) for cryptographically secure
+    /// token generation. DNS verification tokens prove domain ownership and must be
+    /// unpredictable to prevent attackers from verifying domains they don't control.
     pub fn generate_token() -> String {
         use rand::Rng;
+        use rand_core::OsRng;
+        
         const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         const TOKEN_LEN: usize = 32;
 
-        let mut rng = rand::thread_rng();
+        // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
+        let mut rng = OsRng;
         let token: String = (0..TOKEN_LEN)
             .map(|_| {
                 let idx = rng.gen_range(0..CHARSET.len());

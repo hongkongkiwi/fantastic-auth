@@ -16,6 +16,7 @@ vault-core = { path = "../vault-core" }
 
 # Async
 tokio.workspace = true
+async-trait.workspace = true
 
 # CLI
 clap.workspace = true
@@ -30,14 +31,21 @@ reqwest.workspace = true
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
-serde_yaml = "0.9"
+serde_yaml.workspace = true
 toml = "0.8"
+
+# Time
+chrono.workspace = true
+
+# JWT
+jsonwebtoken.workspace = true
 
 # Configuration
 dotenvy.workspace = true
 
 # Error handling
 anyhow.workspace = true
+thiserror.workspace = true
 
 # Logging & Tracing
 tracing.workspace = true
@@ -46,6 +54,12 @@ tracing-subscriber.workspace = true
 # Utilities
 dirs.workspace = true
 url.workspace = true
+
+# Encryption for secure credential storage
+aes-gcm = "0.10"
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
 
 [dev-dependencies]
 tokio-test.workspace = true

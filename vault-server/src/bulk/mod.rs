@@ -324,11 +324,16 @@ impl JobProgress {
         let percentage = Self::calculate(job.total_records, job.processed_records);
 
         // Calculate ETA based on average processing time
-        let eta_seconds = if job.processed_records > 0 && job.started_at.is_some() {
-            let elapsed = Utc::now() - job.started_at.unwrap();
-            let avg_time_per_record = elapsed.num_seconds() as f64 / job.processed_records as f64;
-            let remaining = job.total_records - job.processed_records;
-            Some((avg_time_per_record * remaining as f64) as u64)
+        // SECURITY: Safe pattern matching without unwrap()
+        let eta_seconds = if let Some(started_at) = job.started_at {
+            if job.processed_records > 0 {
+                let elapsed = Utc::now() - started_at;
+                let avg_time_per_record = elapsed.num_seconds() as f64 / job.processed_records as f64;
+                let remaining = job.total_records - job.processed_records;
+                Some((avg_time_per_record * remaining as f64) as u64)
+            } else {
+                None
+            }
         } else {
             None
         };

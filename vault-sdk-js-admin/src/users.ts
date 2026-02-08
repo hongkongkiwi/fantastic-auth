@@ -18,7 +18,7 @@ export interface UserStats {
   active: number;
   suspended: number;
   pending: number;
-  mfaEnabled: number;
+  mfaEnabled?: number;
 }
 
 /**
@@ -32,22 +32,13 @@ export class UserManager {
    */
   async getAll(filter?: UserFilter): Promise<AdminUserResponse[]> {
     const results: AdminUserResponse[] = [];
-    let page = 1;
-    let hasMore = true;
 
-    while (hasMore) {
-      const response = await this.client.listUsers({
-        page,
-        perPage: 100,
-        status: filter?.status,
-        email: filter?.email,
-        orgId: filter?.organizationId,
-      });
-
-      results.push(...response.data);
-      
-      hasMore = response.data.length === 100 && page < response.pagination.totalPages;
-      page++;
+    for await (const user of this.client.iterateUsers({
+      status: filter?.status,
+      email: filter?.email,
+      orgId: filter?.organizationId,
+    })) {
+      results.push(user);
     }
 
     return results;
@@ -58,7 +49,7 @@ export class UserManager {
    */
   async findByEmail(email: string): Promise<AdminUserResponse | null> {
     const result = await this.client.listUsers({ email, perPage: 1 });
-    return result.data[0] ?? null;
+    return result.users[0] ?? null;
   }
 
   /**
@@ -108,13 +99,14 @@ export class UserManager {
    */
   async getStats(): Promise<UserStats> {
     const all = await this.getAll();
+    const mfaEnabledCount = all.filter(u => u.mfaEnabled === true).length;
     
     return {
       total: all.length,
       active: all.filter(u => u.status === 'active').length,
       suspended: all.filter(u => u.status === 'suspended').length,
       pending: all.filter(u => u.status === 'pending').length,
-      mfaEnabled: all.filter(u => u.mfaEnabled).length,
+      mfaEnabled: mfaEnabledCount > 0 ? mfaEnabledCount : undefined,
     };
   }
 
@@ -134,8 +126,9 @@ export class UserManager {
     cutoff.setDate(cutoff.getDate() - days);
 
     return all.filter(user => {
-      if (!user.lastLoginAt) return true;
-      return new Date(user.lastLoginAt) < cutoff;
+      const lastLoginAt = user.lastLoginAt ?? user.last_login_at;
+      if (!lastLoginAt) return true;
+      return new Date(lastLoginAt) < cutoff;
     });
   }
 

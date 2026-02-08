@@ -10,6 +10,9 @@ use uuid::Uuid;
 
 use super::models::*;
 
+// Re-export try_get for use in this module
+use sqlx::Row as _;
+
 /// Repository for analytics database operations
 #[derive(Clone)]
 pub struct AnalyticsRepository {
@@ -20,6 +23,10 @@ impl AnalyticsRepository {
     /// Create a new analytics repository
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
+    }
+
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
     }
 
     // ============ Event Storage ============

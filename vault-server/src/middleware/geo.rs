@@ -275,10 +275,10 @@ async fn check_geo_restriction(
         config.country_list.iter().cloned().collect();
 
     let allowed = match config.policy {
-        crate::security::geo::GeoRestrictionPolicy::AllowList => {
+        crate::config::GeoRestrictionPolicy::AllowList => {
             country_list.is_empty() || country_list.contains(&country_code)
         }
-        crate::security::geo::GeoRestrictionPolicy::BlockList => {
+        crate::config::GeoRestrictionPolicy::BlockList => {
             !country_list.contains(&country_code)
         }
     };
@@ -360,6 +360,15 @@ fn is_private_ip(ip: IpAddr) -> bool {
 pub struct GeoRestrictionError {
     reason: String,
     country_code: Option<String>,
+}
+
+impl std::fmt::Display for GeoRestrictionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.country_code {
+            Some(code) => write!(f, "{} (country: {})", self.reason, code),
+            None => write!(f, "{}", self.reason),
+        }
+    }
 }
 
 impl IntoResponse for GeoRestrictionError {

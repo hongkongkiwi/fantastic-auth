@@ -5,7 +5,8 @@
 use axum::{middleware as axum_middleware, routing::get, Router};
 use std::net::SocketAddr;
 use std::time::Duration;
-use tower_http::{compression::CompressionLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
+use tower::ServiceBuilder;
+use tower_http::{compression::CompressionLayer, limit::RequestBodyLimitLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use tracing::info;
 
 mod ai;
@@ -16,14 +17,18 @@ mod auth;
 mod background;
 mod billing;
 mod bulk;
+mod communications;
 mod config;
 mod consent;
 mod db;
 mod domains;
+mod federation;
 mod i18n;
 mod impersonation;
 mod ldap;
 mod m2m;
+mod migration;
+mod mfa;
 mod metrics_internal;
 mod middleware;
 mod monitoring;
@@ -157,6 +162,9 @@ fn create_app(state: AppState, config: &Config) -> Router {
         )
         // Body size limit (10MB)
         .layer(RequestBodyLimitLayer::new(10 * 1024 * 1024))
+        // Request timeout (30 seconds)
+        // SECURITY: Prevents slowloris and long-running request attacks
+        .layer(TimeoutLayer::new(Duration::from_secs(30)))
         // Compression
         .layer(CompressionLayer::new())
         // CORS (outermost)

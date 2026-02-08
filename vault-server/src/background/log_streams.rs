@@ -49,6 +49,12 @@ async fn process_streams(state: &AppState) -> anyhow::Result<()> {
     .unwrap_or_default();
 
     for tenant_id in tenants {
+        if let Ok(settings) = state.settings_service.get_settings(&tenant_id).await {
+            if !settings.advanced.log_streaming_enabled {
+                continue;
+            }
+        }
+
         let streams = state
             .auth_service
             .db()
@@ -360,6 +366,9 @@ async fn deliver_kafka(
         .payload(&payload)
         .key(&stream.tenant_id);
 
-    let _ = producer.send(record, Duration::from_secs(5)).await?;
+    producer
+        .send(record, Duration::from_secs(5))
+        .await
+        .map_err(|(e, _)| anyhow::anyhow!(e))?;
     Ok(())
 }

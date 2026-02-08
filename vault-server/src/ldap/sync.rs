@@ -1263,12 +1263,13 @@ impl LdapSyncScheduler {
 /// JIT (Just-In-Time) LDAP authentication handler
 pub struct LdapJitAuth {
     pool: sqlx::PgPool,
+    tenant_keys: Arc<crate::security::TenantKeyService>,
 }
 
 impl LdapJitAuth {
     /// Create a new JIT auth handler
-    pub fn new(pool: sqlx::PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: sqlx::PgPool, tenant_keys: Arc<crate::security::TenantKeyService>) -> Self {
+        Self { pool, tenant_keys }
     }
 
     /// Authenticate a user via LDAP with JIT provisioning
@@ -1340,12 +1341,23 @@ impl LdapJitAuth {
         if let Some(row) = row {
             let connection_id: Uuid = row.get("id");
 
-            // TODO: Decrypt password
+            let encrypted: Option<String> = row.get("bind_password_encrypted");
+            let bind_password = match encrypted {
+                Some(value) => self
+                    .decrypt_bind_password(tenant_id, &value)
+                    .await
+                    .map_err(|e| {
+                        tracing::error!("Failed to decrypt LDAP bind password: {}", e);
+                        sqlx::Error::Protocol("Failed to decrypt bind password".into())
+                    })?,
+                None => String::new(),
+            };
+
             let config = LdapConfig {
                 enabled: row.get("jit_provisioning_enabled"),
                 url: row.get("url"),
                 bind_dn: row.get("bind_dn"),
-                bind_password: String::new(), // TODO: Decrypt
+                bind_password,
                 base_dn: row.get("base_dn"),
                 user_search_base: row.get("user_search_base"),
                 user_search_filter: row.get("user_search_filter"),
@@ -1464,6 +1476,24 @@ impl LdapJitAuth {
         }
 
         Ok(())
+    }
+}
+
+impl LdapJitAuth {
+    async fn decrypt_bind_password(
+        &self,
+        tenant_id: &str,
+        encrypted: &str,
+    ) -> Result<String, crate::security::encryption::EncryptionError> {
+        let key = self
+            .tenant_keys
+            .get_data_key(tenant_id)
+            .await
+            .map_err(|_| crate::security::encryption::EncryptionError::DecryptFailed)?;
+
+        let bytes =
+            crate::security::encryption::decrypt_from_base64(&key, encrypted)?;
+        String::from_utf8(bytes).map_err(|_| crate::security::encryption::EncryptionError::DecryptFailed)
     }
 }
 

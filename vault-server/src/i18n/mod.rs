@@ -11,7 +11,7 @@ use axum::{
     extract::Request,
     http::header::{ACCEPT_LANGUAGE, HeaderMap},
 };
-use fluent::{FluentBundle, FluentResource, FluentValue};
+use fluent::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -245,6 +245,24 @@ impl I18n {
         })
     }
 
+    /// Create a new I18n manager with built-in translations (for thread_local)
+    fn new_for_thread() -> anyhow::Result<Self> {
+        let mut bundles = HashMap::new();
+
+        // Load translations for each language
+        for lang in Language::all() {
+            if let Some(bundle) = Self::load_bundle(lang)? {
+                bundles.insert(lang, bundle);
+            }
+        }
+
+        Ok(Self {
+            bundles: Arc::new(bundles),
+            default_lang: Language::English,
+            custom_translations: Arc::new(dashmap::DashMap::new()),
+        })
+    }
+
     /// Load Fluent bundle for a language
     fn load_bundle(lang: Language) -> anyhow::Result<Option<FluentBundle<FluentResource>>> {
         let ftl_content = match lang {
@@ -324,7 +342,13 @@ impl I18n {
             None => return format!("[{}]", key),
         };
 
-        let args = args.map(|a| a.into_inner());
+        let args = args.map(|a| {
+            let mut fluent_args = FluentArgs::new();
+            for (k, v) in a.into_inner() {
+                fluent_args.set(k, v);
+            }
+            fluent_args
+        });
         let mut errors = vec![];
         let result = bundle.format_pattern(pattern, args.as_ref(), &mut errors);
 
@@ -480,17 +504,57 @@ fn parse_accept_language(header: &str) -> Option<Language> {
     candidates.first().map(|(_, lang)| lang).copied()
 }
 
-/// Global I18n instance
-pub static I18N: Lazy<I18n> = Lazy::new(I18n::default);
+/// Thread-local I18n instance
+thread_local! {
+    static I18N: std::cell::RefCell<Option<I18n>> = std::cell::RefCell::new(None);
+}
+
+/// Initialize the thread-local I18n instance
+pub fn init_i18n() -> anyhow::Result<()> {
+    I18N.with(|i18n| {
+        let mut i18n = i18n.borrow_mut();
+        if i18n.is_none() {
+            *i18n = Some(I18n::new_for_thread()?);
+        }
+        Ok(())
+    })
+}
+
+/// Get the thread-local I18n instance (initializing if needed)
+fn with_i18n<F, R>(f: F) -> R
+where
+    F: FnOnce(&I18n) -> R,
+{
+    I18N.with(|i18n| {
+        // Try to get existing instance
+        {
+            let i18n = i18n.borrow();
+            if let Some(ref i18n) = *i18n {
+                return f(i18n);
+            }
+        }
+        
+        // Need to create a new instance
+        let new_i18n = I18n::new_for_thread().unwrap_or_default();
+        let result = f(&new_i18n);
+        
+        // Store it for future use
+        let mut i = i18n.borrow_mut();
+        if i.is_none() {
+            *i = Some(new_i18n);
+        }
+        result
+    })
+}
 
 /// Convenience function to translate a key
 pub fn t(key: &str, lang: Language) -> String {
-    I18N.translate(key, lang, None)
+    with_i18n(|i18n| i18n.translate(key, lang, None))
 }
 
 /// Translate with arguments
 pub fn t_args(key: &str, lang: Language, args: TranslationArgs) -> String {
-    I18N.translate(key, lang, Some(args))
+    with_i18n(|i18n| i18n.translate(key, lang, Some(args)))
 }
 
 #[cfg(test)]
