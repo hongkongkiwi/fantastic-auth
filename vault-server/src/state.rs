@@ -16,6 +16,7 @@ use crate::auth::web3::{create_web3_auth_in_memory, create_web3_auth_with_redis,
 use crate::billing::{BillingConfig, BillingService};
 use crate::config::{BotProtectionProvider, Config, EvictionPolicy};
 use crate::db::Database;
+use crate::impersonation::ImpersonationService;
 use crate::monitoring::{HealthRegistry, MetricsRegistry};
 use crate::routes::SessionLimitError;
 use crate::security::{RiskEngine, SecurityService};
@@ -69,6 +70,8 @@ pub struct AppState {
     pub consent_manager: Arc<crate::consent::ConsentManager>,
     /// Risk engine for risk-based authentication
     pub risk_engine: Arc<RiskEngine>,
+    /// Impersonation service for admin user impersonation
+    pub impersonation_service: Arc<ImpersonationService>,
 }
 
 impl AppState {
@@ -319,6 +322,7 @@ impl AppState {
             },
             consent_manager,
             risk_engine,
+            impersonation_service: Arc::new(ImpersonationService::new(db)),
         })
     }
 

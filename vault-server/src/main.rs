@@ -19,6 +19,7 @@ mod consent;
 mod db;
 mod domains;
 mod i18n;
+mod impersonation;
 mod ldap;
 mod metrics_internal;
 mod middleware;

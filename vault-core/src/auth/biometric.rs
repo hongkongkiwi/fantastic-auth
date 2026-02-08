@@ -4,7 +4,7 @@
 //! using ECDSA P-256 challenge-response authentication.
 
 use crate::crypto::generate_secure_random;
-use crate::error::{Result, VaultError};
+use crate::error::VaultError;
 use chrono::{DateTime, Duration, Utc};
 use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};

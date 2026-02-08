@@ -508,6 +508,7 @@ impl AuditLogger {
                 success,
                 error_message,
                 metadata,
+                None, // impersonator_id - not available in basic log method
             )
             .await
             {
@@ -553,10 +554,101 @@ impl AuditLogger {
             success,
             error_message,
             metadata,
+            None, // impersonator_id - not available in basic log_sync method
         )
         .await
         {
             tracing::error!(error = %e, "Failed to write audit log to database");
+        }
+    }
+
+    /// Log an audit event with impersonation context
+    ///
+    /// This method should be used when logging actions performed during an impersonation session.
+    /// It includes the impersonator_id in the audit log for compliance tracking.
+    pub fn log_with_impersonation(
+        &self,
+        tenant_id: impl Into<String>,
+        action: AuditAction,
+        resource_type: ResourceType,
+        resource_id: impl Into<String>,
+        user_id: Option<String>,
+        session_id: Option<String>,
+        context: Option<RequestContext>,
+        success: bool,
+        error_message: Option<String>,
+        metadata: Option<serde_json::Value>,
+        impersonator_id: Option<String>,
+    ) {
+        let db = self.db.clone();
+        let tenant_id = tenant_id.into();
+        let resource_id = resource_id.into();
+        let action_str = action.as_str().to_string();
+        let resource_type_str = resource_type.as_str().to_string();
+        let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
+        let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
+        let impersonator_id = impersonator_id.clone();
+
+        // Include impersonator info in metadata for webhook payload
+        let mut metadata_with_impersonator = metadata.clone();
+        if let Some(ref imp_id) = impersonator_id {
+            if let Some(ref mut meta) = metadata_with_impersonator {
+                if let Some(obj) = meta.as_object_mut() {
+                    obj.insert("impersonator_id".to_string(), json!(imp_id));
+                    obj.insert("is_impersonated_action".to_string(), json!(true));
+                }
+            } else {
+                metadata_with_impersonator = Some(json!({
+                    "impersonator_id": imp_id,
+                    "is_impersonated_action": true,
+                }));
+            }
+        }
+
+        // Spawn async task to write to database
+        tokio::spawn(async move {
+            if let Err(e) = Self::write_to_db(
+                &db,
+                &tenant_id,
+                action_str,
+                resource_type_str,
+                resource_id,
+                user_id,
+                session_id.clone(),
+                ip_address.clone(),
+                user_agent.clone(),
+                success,
+                error_message.clone(),
+                metadata.clone(),
+                impersonator_id.clone(),
+            )
+            .await
+            {
+                tracing::error!(error = %e, "Failed to write audit log to database");
+            }
+        });
+
+        // Trigger webhook with impersonation context if applicable
+        if let Some(imp_id) = impersonator_id {
+            let webhook_payload = json!({
+                "action": action_str,
+                "resource_type": resource_type_str,
+                "resource_id": resource_id,
+                "user_id": user_id,
+                "session_id": session_id,
+                "impersonator_id": imp_id,
+                "is_impersonated_action": true,
+                "success": success,
+                "error": error_message,
+                "metadata": metadata_with_impersonator,
+                "timestamp": chrono::Utc::now().to_rfc3339(),
+            });
+            
+            self.trigger_webhook(
+                tenant_id.to_string(),
+                format!("audit.{}_impersonated", action_str),
+                webhook_payload,
+            );
         }
     }
 
@@ -586,6 +678,7 @@ impl AuditLogger {
         success: bool,
         error: Option<String>,
         metadata: Option<serde_json::Value>,
+        impersonator_id: Option<String>,
     ) -> anyhow::Result<()> {
         // Set tenant context for RLS
         let mut conn = db.pool().acquire().await?;
@@ -594,12 +687,12 @@ impl AuditLogger {
             .execute(&mut *conn)
             .await?;
 
-        // Insert audit log
+        // Insert audit log with impersonator_id
         sqlx::query(
             r#"INSERT INTO audit_logs 
                (id, tenant_id, user_id, session_id, action, resource_type, resource_id,
-                ip_address, user_agent, success, error, metadata, timestamp)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())"#,
+                ip_address, user_agent, success, error, metadata, impersonator_id, timestamp)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())"#,
         )
         .bind(Uuid::new_v4().to_string())
         .bind(tenant_id)
@@ -613,6 +706,7 @@ impl AuditLogger {
         .bind(success)
         .bind(error)
         .bind(metadata)
+        .bind(impersonator_id)
         .execute(&mut *conn)
         .await?;
 
