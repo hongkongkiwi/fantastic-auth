@@ -22,11 +22,11 @@ use config::Config;
 #[command(version = vault_core::VERSION)]
 struct Cli {
     /// Vault API URL
-    #[arg(short, long, env = "VAULT_API_URL")]
+    #[arg(short = 'u', long, env = "VAULT_API_URL")]
     api_url: Option<String>,
 
     /// API key for authentication
-    #[arg(short, long, env = "VAULT_API_KEY")]
+    #[arg(short = 'k', long, env = "VAULT_API_KEY")]
     api_key: Option<String>,
 
     /// Tenant ID
