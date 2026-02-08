@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+#[cfg(any(feature = "aws-kms", feature = "azure-kv"))]
 use base64::Engine;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

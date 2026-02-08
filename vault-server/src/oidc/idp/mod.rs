@@ -30,11 +30,14 @@ pub mod endpoints;
 pub mod grants;
 pub mod scopes;
 
-pub use auth_code::AuthorizationCodeManager;
-pub use client_management::ClientManager;
+pub use auth_code::{AuthorizationCodeEntry, AuthorizationCodeManager, PkceParams};
+pub use client_management::{
+    ClientManager, ClientRegistrationRequest, ClientRegistrationResponse, ClientType,
+    ClientUpdateRequest, GrantType, OAuthClient, TokenEndpointAuthMethod,
+};
 pub use endpoints::routes;
 pub use grants::GrantHandler;
-pub use scopes::{ScopeManager, StandardScope};
+pub use scopes::{Scope, ScopeManager, StandardScope};
 
 /// OIDC Identity Provider main struct
 #[derive(Clone)]
