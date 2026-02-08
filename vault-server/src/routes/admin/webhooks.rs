@@ -383,11 +383,21 @@ async fn test_webhook(
         let payload_str = serde_json::to_string(&payload).map_err(|_| ApiError::Internal)?;
         let signature_payload = format!("test.{}.{}", chrono::Utc::now().timestamp(), payload_str);
 
-        let secret = state
+        let secret = match state
             .webhook_service
             .decrypt_secret(&current_user.tenant_id, &endpoint.secret)
             .await
-            .map_err(|_| ApiError::Internal)?;
+        {
+            Ok(value) => value,
+            Err(err) => {
+                tracing::warn!(
+                    endpoint_id = %endpoint.id,
+                    error = %err,
+                    "Failed to decrypt webhook secret for test delivery; using stored value"
+                );
+                endpoint.secret.clone()
+            }
+        };
         let mut mac =
             HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| ApiError::Internal)?;
         mac.update(signature_payload.as_bytes());

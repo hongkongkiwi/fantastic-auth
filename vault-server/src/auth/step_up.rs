@@ -16,7 +16,8 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use vault_core::crypto::{AuthMethod, StepUpLevel, StepUpSession};
+use vault_core::crypto::{AuthMethod, StepUpLevel};
+pub use vault_core::crypto::StepUpSession;
 
 /// Step-up challenge response
 ///

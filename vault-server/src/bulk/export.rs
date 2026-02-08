@@ -135,7 +135,7 @@ impl ExportProcessor {
         let mut count = 0;
         let mut first = true;
 
-        while let Some(result) = tokio::stream::StreamExt::next(stream).await {
+        while let Some(result) = stream.next().await {
             match result {
                 Ok(record) => {
                     if !first {
