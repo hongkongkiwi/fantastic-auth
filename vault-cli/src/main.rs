@@ -146,10 +146,10 @@ enum UserCommands {
         #[arg(short, long)]
         status: Option<String>,
         /// Page number
-        #[arg(short, long, default_value = "1")]
+        #[arg(short = 'p', long, default_value = "1")]
         page: i64,
         /// Number of results per page
-        #[arg(short, long, default_value = "20")]
+        #[arg(short = 'n', long = "per-page", default_value = "20")]
         per_page: i64,
     },
     /// Get user details
@@ -205,10 +205,10 @@ enum OrgCommands {
     /// List organizations
     List {
         /// Page number
-        #[arg(short, long, default_value = "1")]
+        #[arg(short = 'p', long, default_value = "1")]
         page: i64,
         /// Number of results per page
-        #[arg(short, long, default_value = "20")]
+        #[arg(short = 'n', long = "per-page", default_value = "20")]
         per_page: i64,
         /// Filter by status
         #[arg(short, long)]
