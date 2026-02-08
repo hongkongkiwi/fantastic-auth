@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod organization;
+pub mod project;
 pub mod session;
 pub mod user;
 
