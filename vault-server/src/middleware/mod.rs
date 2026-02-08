@@ -1,16 +1,23 @@
 //! HTTP middleware
 
+pub mod anonymous;
 pub mod audit;
 pub mod auth;
 pub mod bot_protection;
 pub mod consent;
 pub mod geo;
 pub mod i18n;
+pub mod permission;
 pub mod rate_limit;
 pub mod security;
 pub mod step_up;
 pub mod tenant;
 
+pub use anonymous::{
+    is_anonymous_user, reject_anonymous_users, require_anonymous_user,
+    anonymous_path_restrictions, is_anonymous_restricted_path,
+    AnonymousLimits, get_anonymous_limits,
+};
 pub use audit::{audit_middleware, log_action, log_admin_event, log_auth_event};
 pub use auth::auth_middleware;
 pub use bot_protection::{

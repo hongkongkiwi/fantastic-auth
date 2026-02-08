@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DataTable, createSelectColumn } from '../../components/DataTable'
 import type { ColumnDef } from '@tanstack/react-table'
@@ -62,6 +62,7 @@ describe('DataTable Integration', () => {
       <DataTable
         columns={columns}
         data={testData}
+        getRowId={(row) => row.id}
         onSelectionChange={handleSelectionChange}
       />
     )
@@ -77,12 +78,14 @@ describe('DataTable Integration', () => {
     
     render(<DataTable columns={columns} data={testData} pageSize={2} />)
     
-    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
+    expect(screen.getByText(/Page 1 of 2/)).toBeInTheDocument()
     
     const nextButton = screen.getByLabelText('Next page')
     await user.click(nextButton)
-    
-    expect(screen.getByText('Page 2 of 2')).toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Page 2 of 2/)).toBeInTheDocument()
+    })
   })
 
   it('calls onRowClick when row is clicked', async () => {

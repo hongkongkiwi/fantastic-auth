@@ -13,6 +13,7 @@ import {
   Play,
   Trash2,
 } from 'lucide-react'
+import type { ColumnDef } from '@tanstack/react-table'
 import { PageHeader, StatCard } from '../../components/layout/Layout'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
@@ -20,6 +21,7 @@ import { Badge } from '../../components/ui/Badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs'
 import { ConfirmDialog } from '../../components/ui/Dialog'
 import { Skeleton } from '../../components/ui/Skeleton'
+import { DataTable } from '../../components/DataTable'
 import { useServerFn } from '@tanstack/react-start'
 import {
   getTenantDetail,
@@ -61,6 +63,42 @@ const recentActivity = [
   { id: 2, action: 'API Key Created', user: 'admin', timestamp: new Date(now - 15 * 60 * 1000).toISOString(), status: 'success' },
   { id: 3, action: 'Password Reset', user: 'jane@example.com', timestamp: new Date(now - 60 * 60 * 1000).toISOString(), status: 'success' },
   { id: 4, action: 'Failed Login', user: 'unknown', timestamp: new Date(now - 2 * 60 * 60 * 1000).toISOString(), status: 'error' },
+]
+
+const tenantUsersMock = [
+  { id: 'user-1', name: 'Avery Stone', email: 'avery@tenant.com', role: 'Admin', seats: 3, status: 'active' },
+  { id: 'user-2', name: 'Jordan Lee', email: 'jordan@tenant.com', role: 'Member', seats: 1, status: 'active' },
+  { id: 'user-3', name: 'Morgan Patel', email: 'morgan@tenant.com', role: 'Viewer', seats: 1, status: 'invited' },
+]
+
+const tenantUserColumns: ColumnDef<(typeof tenantUsersMock)[number]>[] = [
+  {
+    accessorKey: 'name',
+    header: 'User',
+    cell: ({ row }) => (
+      <div>
+        <p className="font-medium">{row.original.name}</p>
+        <p className="text-sm text-muted-foreground">{row.original.email}</p>
+      </div>
+    ),
+  },
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ getValue }) => <Badge variant="secondary">{getValue() as string}</Badge>,
+  },
+  {
+    accessorKey: 'seats',
+    header: 'Seats',
+    cell: ({ getValue }) => getValue() as number,
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: ({ getValue }) => (
+      <Badge variant={getValue() === 'active' ? 'success' : 'warning'}>{getValue() as string}</Badge>
+    ),
+  },
 ]
 
 function TenantDetailPage() {
@@ -255,6 +293,7 @@ function TenantDetailPage() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="usage">Usage</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
@@ -401,6 +440,27 @@ function TenantDetailPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tenant Users</CardTitle>
+              <CardDescription>Manage members, roles, and seats for this tenant</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                columns={tenantUserColumns}
+                data={tenantUsersMock}
+                searchable
+                searchPlaceholder="Search users…"
+                pagination
+                pageSize={5}
+                exportable
+                exportFileName={`tenant_${tenant.id || 'tenant'}_users`}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="activity" className="space-y-6">

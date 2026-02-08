@@ -7,6 +7,11 @@ import {
   CreditCard,
   ClipboardList,
   Settings,
+  Bell,
+  LifeBuoy,
+  Server,
+  Lock,
+  BarChart3,
   Menu,
   X,
   Shield,
@@ -41,6 +46,16 @@ const navItems: NavItem[] = [
     icon: Users,
   },
   {
+    title: 'Roles',
+    href: '/roles',
+    icon: Lock,
+  },
+  {
+    title: 'Usage',
+    href: '/usage',
+    icon: BarChart3,
+  },
+  {
     title: 'Billing',
     href: '/billing',
     icon: CreditCard,
@@ -49,6 +64,21 @@ const navItems: NavItem[] = [
     title: 'Audit',
     href: '/audit',
     icon: ClipboardList,
+  },
+  {
+    title: 'Notifications',
+    href: '/notifications',
+    icon: Bell,
+  },
+  {
+    title: 'Support',
+    href: '/support',
+    icon: LifeBuoy,
+  },
+  {
+    title: 'System',
+    href: '/system',
+    icon: Server,
   },
   {
     title: 'Settings',

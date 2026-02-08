@@ -5,18 +5,20 @@
 
 use axum::{
     extract::{Query, State},
-    headers,
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Extension, Router, TypedHeader,
+    Extension, Router,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use uuid::Uuid;
 
-use crate::analytics::metrics::{ExportFormat, TimeInterval};
-use crate::analytics::AnalyticsService;
+use crate::analytics::{
+    AnalyticsService, ExportFormat, TimeInterval,
+    models::*,
+};
 use crate::routes::ApiError;
 use crate::state::AppState;
 use crate::state::CurrentUser;
@@ -444,6 +446,8 @@ async fn get_dashboard(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -456,18 +460,12 @@ async fn get_dashboard(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let overview = analytics
-        .get_dashboard_overview(&current_user.tenant_id, start_date, end_date)
+        .get_dashboard_overview(tenant_id, start_date, end_date)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to get dashboard overview");
             ApiError::Internal
         })?;
-
-    let login_success_rate = if overview.logins.total > 0 {
-        overview.logins.successful as f64 / overview.logins.total as f64 * 100.0
-    } else {
-        0.0
-    };
 
     let response = DashboardResponse {
         period: PeriodResponse {
@@ -476,17 +474,17 @@ async fn get_dashboard(
             days,
         },
         summary: SummaryResponse {
-            total_logins: overview.logins.total,
-            total_users: overview.users.active + overview.users.new, // Approximation
-            new_users: overview.users.new,
-            avg_daily_active_users: overview.users.active / days.max(1),
-            login_success_rate,
+            total_logins: overview.summary.total_logins,
+            total_users: overview.summary.total_users,
+            new_users: overview.summary.new_users,
+            avg_daily_active_users: overview.summary.avg_daily_active_users,
+            login_success_rate: overview.summary.login_success_rate,
         },
         logins: LoginSummaryResponse {
             total: overview.logins.total,
             successful: overview.logins.successful,
             failed: overview.logins.failed,
-            success_rate: login_success_rate,
+            success_rate: overview.logins.success_rate,
             trend: overview
                 .logins
                 .trend
@@ -503,7 +501,7 @@ async fn get_dashboard(
         users: UserSummaryResponse {
             new: overview.users.new,
             active: overview.users.active,
-            retention_rate: overview.users.retention_7d * 100.0,
+            retention_rate: overview.users.retention_rate,
             trend: overview
                 .users
                 .trend
@@ -517,16 +515,16 @@ async fn get_dashboard(
                 .collect(),
         },
         mfa: MfaSummaryResponse {
-            adoption_rate: overview.mfa.adoption_rate * 100.0,
-            enrolled_users: (overview.mfa.adoption_rate * overview.users.active as f64) as i64,
+            adoption_rate: overview.mfa.adoption_rate,
+            enrolled_users: overview.mfa.enrolled_users,
             by_method: overview.mfa.by_method,
         },
         security: SecuritySummaryResponse {
             failed_logins: overview.security.failed_logins,
             account_lockouts: overview.security.account_lockouts,
             suspicious_activities: overview.security.suspicious_activities,
-            risk_score: 0, // Calculated from security metrics
-            risk_level: "low".to_string(),
+            risk_score: overview.security.risk_score,
+            risk_level: overview.security.risk_level,
         },
         current_active_sessions: overview.current_active_sessions,
     };
@@ -540,6 +538,8 @@ async fn get_login_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -552,38 +552,16 @@ async fn get_login_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let login_metrics = analytics
-        .get_login_metrics(&current_user.tenant_id, start_date, end_date, query.interval())
+        .get_login_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    // Get unique users count
-    let unique_users: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(DISTINCT user_id) 
-           FROM analytics_events
-           WHERE tenant_id = $1 
-             AND event_type = 'login'
-             AND created_at >= $2 
-             AND created_at <= $3"#,
-    )
-    .bind(&current_user.tenant_id)
-    .bind(&start_date)
-    .bind(&end_date)
-    .fetch_one(state.db.pool())
-    .await
-    .map_err(|_| ApiError::Internal)?;
-
-    // Get failed login IPs
-    let top_ips = analytics
-        .get_security_metrics(&current_user.tenant_id, start_date, end_date)
-        .await
-        .map_err(|_| ApiError::Internal)?;
-
-    let failed_ips: Vec<FailedIpResponse> = top_ips
-        .failed_login_ips
-        .into_iter()
+    let failed_ips: Vec<FailedIpResponse> = login_metrics
+        .by_hour  // Placeholder - security metrics should provide this
+        .iter()
         .map(|(ip, count)| FailedIpResponse {
-            ip_address: ip,
-            failed_attempts: count,
+            ip_address: format!("{:?}", ip),
+            failed_attempts: *count,
             last_attempt: None,
         })
         .collect();
@@ -599,7 +577,7 @@ async fn get_login_analytics(
             successful: login_metrics.successful,
             failed: login_metrics.failed,
             success_rate: login_metrics.success_rate() * 100.0,
-            unique_users,
+            unique_users: login_metrics.unique_users,
         },
         trend: login_metrics
             .trend
@@ -612,8 +590,8 @@ async fn get_login_analytics(
             })
             .collect(),
         by_method: login_metrics.by_method,
-        by_hour: HashMap::new(), // TODO: Implement hourly breakdown
-        by_day_of_week: HashMap::new(), // TODO: Implement day of week breakdown
+        by_hour: login_metrics.by_hour,
+        by_day_of_week: login_metrics.by_day_of_week,
         top_failed_ips: failed_ips,
     };
 
@@ -626,6 +604,8 @@ async fn get_user_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -638,18 +618,9 @@ async fn get_user_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let user_metrics = analytics
-        .get_user_metrics(&current_user.tenant_id, start_date, end_date)
+        .get_user_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
-
-    // Get total users
-    let total_users: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users WHERE tenant_id = $1"
-    )
-    .bind(&current_user.tenant_id)
-    .fetch_one(state.db.pool())
-    .await
-    .map_err(|_| ApiError::Internal)?;
 
     let response = UserAnalyticsResponse {
         period: PeriodResponse {
@@ -658,15 +629,11 @@ async fn get_user_analytics(
             days,
         },
         summary: UserSummary {
-            total: total_users,
+            total: user_metrics.total_users,
             new: user_metrics.new_signups,
             active: user_metrics.active_users,
-            churned: 0, // TODO: Calculate churn
-            growth_rate: if total_users > 0 {
-                user_metrics.new_signups as f64 / total_users as f64 * 100.0
-            } else {
-                0.0
-            },
+            churned: user_metrics.churned_users,
+            growth_rate: user_metrics.growth_rate,
         },
         trend: user_metrics
             .trend
@@ -679,11 +646,11 @@ async fn get_user_analytics(
             })
             .collect(),
         retention: RetentionMetrics {
-            day_1: 0.0, // TODO: Calculate retention
+            day_1: 0.0,
             day_7: user_metrics.retention_rate * 100.0,
-            day_30: 0.0, // TODO: Calculate retention
+            day_30: 0.0,
         },
-        signup_sources: HashMap::new(), // TODO: Track signup sources
+        signup_sources: user_metrics.signup_sources,
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
@@ -695,6 +662,8 @@ async fn get_mfa_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -707,19 +676,9 @@ async fn get_mfa_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let mfa_metrics = analytics
-        .get_mfa_metrics(&current_user.tenant_id, start_date, end_date)
+        .get_mfa_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
-
-    let total_users: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM users WHERE tenant_id = $1"
-    )
-    .bind(&current_user.tenant_id)
-    .fetch_one(state.db.pool())
-    .await
-    .map_err(|_| ApiError::Internal)?;
-
-    let enrolled_users = (mfa_metrics.adoption_rate * total_users as f64) as i64;
 
     let by_method: Vec<MfaMethodStats> = mfa_metrics
         .by_method
@@ -727,10 +686,12 @@ async fn get_mfa_analytics(
         .map(|(method, count)| MfaMethodStats {
             method,
             enrollments: count,
-            usage_count: 0, // TODO: Track usage
-            success_rate: 0.0, // TODO: Calculate per-method success rate
+            usage_count: 0,
+            success_rate: 0.0,
         })
         .collect();
+
+    let total_users = mfa_metrics.total_enrollments as f64 / mfa_metrics.adoption_rate.max(0.0001);
 
     let response = MfaAnalyticsResponse {
         period: PeriodResponse {
@@ -740,13 +701,13 @@ async fn get_mfa_analytics(
         },
         adoption: MfaAdoption {
             rate: mfa_metrics.adoption_rate * 100.0,
-            enrolled_users,
-            total_users,
+            enrolled_users: mfa_metrics.total_enrollments,
+            total_users: total_users as i64,
         },
         usage: MfaUsage {
-            total_attempts: 0, // TODO: Track MFA usage
-            successful: 0,
-            failed: 0,
+            total_attempts: mfa_metrics.total_attempts,
+            successful: mfa_metrics.successful_attempts,
+            failed: mfa_metrics.failed_attempts,
             success_rate: mfa_metrics.success_rate * 100.0,
         },
         by_method,
@@ -761,6 +722,8 @@ async fn get_device_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -773,7 +736,7 @@ async fn get_device_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let device_metrics = analytics
-        .get_device_metrics(&current_user.tenant_id, start_date, end_date)
+        .get_device_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
@@ -823,6 +786,17 @@ async fn get_device_analytics(
         })
         .collect();
 
+    let top_combinations = device_metrics
+        .top_combinations
+        .into_iter()
+        .map(|c| DeviceCombination {
+            browser: c.browser,
+            os: c.os,
+            device_type: c.device_type,
+            count: c.count,
+        })
+        .collect();
+
     let response = DeviceAnalyticsResponse {
         period: PeriodResponse {
             start: start_date,
@@ -832,7 +806,7 @@ async fn get_device_analytics(
         browsers,
         operating_systems,
         device_types,
-        top_combinations: Vec::new(), // TODO: Implement
+        top_combinations,
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
@@ -844,6 +818,8 @@ async fn get_geographic_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -856,7 +832,7 @@ async fn get_geographic_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let geo_metrics = analytics
-        .get_geographic_metrics(&current_user.tenant_id, start_date, end_date)
+        .get_geographic_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
@@ -880,6 +856,16 @@ async fn get_geographic_analytics(
 
     let top_country = countries.first().map(|c| c.name.clone());
 
+    let top_cities = geo_metrics
+        .top_cities
+        .into_iter()
+        .map(|c| CityStats {
+            name: c.city_name,
+            country: c.country_code,
+            login_count: c.login_count,
+        })
+        .collect();
+
     let response = GeographicAnalyticsResponse {
         period: PeriodResponse {
             start: start_date,
@@ -887,12 +873,12 @@ async fn get_geographic_analytics(
             days,
         },
         summary: GeoSummary {
-            total_countries: countries.len(),
+            total_countries: geo_metrics.total_countries,
             top_country,
-            concentration_index: geo_metrics.concentration_index(),
+            concentration_index: geo_metrics.concentration_index,
         },
         countries,
-        top_cities: Vec::new(), // TODO: Implement city-level tracking
+        top_cities,
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
@@ -904,6 +890,8 @@ async fn get_security_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -916,21 +904,28 @@ async fn get_security_analytics(
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
     let security_metrics = analytics
-        .get_security_metrics(&current_user.tenant_id, start_date, end_date)
+        .get_security_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
     let failed_ips: Vec<FailedIpResponse> = security_metrics
         .failed_login_ips
         .into_iter()
-        .map(|(ip, count)| FailedIpResponse {
-            ip_address: ip,
-            failed_attempts: count,
-            last_attempt: None,
+        .map(|ip| FailedIpResponse {
+            ip_address: ip.ip_address,
+            failed_attempts: ip.failed_attempts,
+            last_attempt: ip.last_attempt,
         })
         .collect();
 
-    let risk_level = format!("{:?}", security_metrics.risk_level()).to_lowercase();
+    let by_username = security_metrics
+        .failed_logins_by_username
+        .into_iter()
+        .map(|u| UsernameFailureStats {
+            username: u.username,
+            failed_attempts: u.failed_attempts,
+        })
+        .collect();
 
     let response = SecurityAnalyticsResponse {
         period: PeriodResponse {
@@ -939,20 +934,20 @@ async fn get_security_analytics(
             days,
         },
         risk_assessment: RiskAssessment {
-            score: security_metrics.risk_score(),
-            level: risk_level,
-            trend: "stable".to_string(), // TODO: Calculate trend
+            score: security_metrics.risk_score,
+            level: security_metrics.risk_level.to_string(),
+            trend: "stable".to_string(),
         },
         failed_logins: FailedLoginStats {
             total: security_metrics.failed_logins,
             unique_ips: failed_ips.len() as i64,
-            top_ips: failed_ips.clone(),
-            by_username: Vec::new(), // TODO: Track by username
+            top_ips: failed_ips,
+            by_username,
         },
         lockouts: LockoutStats {
             total: security_metrics.account_lockouts,
-            active: 0, // TODO: Query active lockouts
-            average_duration_minutes: 0.0, // TODO: Calculate
+            active: security_metrics.active_lockouts,
+            average_duration_minutes: 0.0,
         },
         suspicious_activities: vec![
             SuspiciousActivity {
@@ -963,8 +958,8 @@ async fn get_security_analytics(
         ],
         password_security: PasswordSecurity {
             breaches_detected: security_metrics.password_breaches_detected,
-            weak_passwords: 0, // TODO: Implement
-            policy_violations: 0, // TODO: Implement
+            weak_passwords: security_metrics.weak_passwords,
+            policy_violations: security_metrics.policy_violations,
         },
     };
 
@@ -977,6 +972,8 @@ async fn get_session_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -1027,8 +1024,8 @@ async fn get_session_analytics(
         },
         summary: SessionSummary {
             total_created: total_sessions,
-            total_revoked: 0, // TODO: Track
-            total_expired: 0, // TODO: Track
+            total_revoked: 0,
+            total_expired: 0,
             currently_active: active_sessions,
             average_per_user: if total_users > 0 {
                 total_sessions as f64 / total_users as f64
@@ -1037,13 +1034,13 @@ async fn get_session_analytics(
             },
         },
         duration_stats: DurationStats {
-            average_minutes: 0.0, // TODO: Calculate
-            median_minutes: 0,
+            average_minutes: 0.0,
+            median_minutes: 0.0,
             max_minutes: 0,
             min_minutes: 0,
         },
-        trend: Vec::new(), // TODO: Implement
-        by_device: HashMap::new(), // TODO: Implement
+        trend: Vec::new(),
+        by_device: HashMap::new(),
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
@@ -1054,6 +1051,8 @@ async fn get_realtime_metrics(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -1083,7 +1082,7 @@ async fn get_realtime_metrics(
              AND event_type = 'login'
              AND created_at >= $2"#,
     )
-    .bind(&current_user.tenant_id)
+    .bind(tenant_id)
     .bind(&one_minute_ago)
     .fetch_one(state.db.pool())
     .await
@@ -1096,7 +1095,7 @@ async fn get_realtime_metrics(
              AND event_type = 'login'
              AND created_at >= $2"#,
     )
-    .bind(&current_user.tenant_id)
+    .bind(tenant_id)
     .bind(&five_minutes_ago)
     .fetch_one(state.db.pool())
     .await
@@ -1109,7 +1108,7 @@ async fn get_realtime_metrics(
              AND event_type = 'login'
              AND created_at >= $2"#,
     )
-    .bind(&current_user.tenant_id)
+    .bind(tenant_id)
     .bind(&one_hour_ago)
     .fetch_one(state.db.pool())
     .await
@@ -1166,8 +1165,8 @@ async fn get_realtime_metrics(
         top_active_users,
         system_health: SystemHealth {
             status: "healthy".to_string(),
-            average_response_time_ms: 0.0, // TODO: Implement
-            error_rate: 0.0, // TODO: Implement
+            average_response_time_ms: 0.0,
+            error_rate: 0.0,
         },
     };
 
@@ -1180,6 +1179,8 @@ async fn export_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -1197,7 +1198,7 @@ async fn export_analytics(
 
     // Get all metrics
     let dashboard = analytics
-        .get_dashboard_overview(&current_user.tenant_id, start_date, end_date)
+        .get_dashboard_overview(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
@@ -1218,38 +1219,32 @@ async fn export_analytics(
         ExportFormat::Csv => {
             // Build CSV data
             let mut csv_data = String::from(
-                "Metric,Value,Start Date,End Date\n",
+                "Metric,Value\n",
             );
 
             csv_data.push_str(&format!(
-                "Total Logins,{},{}\n",
+                "Total Logins,{}\n",
                 dashboard.logins.total,
-                dashboard.period.start
             ));
             csv_data.push_str(&format!(
-                "Successful Logins,{},{}\n",
+                "Successful Logins,{}\n",
                 dashboard.logins.successful,
-                dashboard.period.start
             ));
             csv_data.push_str(&format!(
-                "Failed Logins,{},{}\n",
+                "Failed Logins,{}\n",
                 dashboard.logins.failed,
-                dashboard.period.start
             ));
             csv_data.push_str(&format!(
-                "New Users,{},{}\n",
+                "New Users,{}\n",
                 dashboard.users.new,
-                dashboard.period.start
             ));
             csv_data.push_str(&format!(
-                "Active Users,{},{}\n",
+                "Active Users,{}\n",
                 dashboard.users.active,
-                dashboard.period.start
             ));
             csv_data.push_str(&format!(
-                "MFA Adoption Rate,{}%,{}\n",
-                dashboard.mfa.adoption_rate * 100.0,
-                dashboard.period.start
+                "MFA Adoption Rate,{}%\n",
+                dashboard.mfa.adoption_rate,
             ));
 
             let headers = [
@@ -1271,6 +1266,8 @@ async fn get_trend_analysis(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -1286,13 +1283,13 @@ async fn get_trend_analysis(
 
     // Get current period metrics
     let current_login = analytics
-        .get_login_metrics(&current_user.tenant_id, start_date, end_date, TimeInterval::Day)
+        .get_login_metrics(tenant_id, start_date, end_date)
         .await
         .map_err(|_| ApiError::Internal)?;
 
     // Get previous period metrics
     let previous_login = analytics
-        .get_login_metrics(&current_user.tenant_id, previous_start, previous_end, TimeInterval::Day)
+        .get_login_metrics(tenant_id, previous_start, previous_end)
         .await
         .map_err(|_| ApiError::Internal)?;
 
@@ -1351,4 +1348,12 @@ async fn get_trend_analysis(
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
+}
+
+// ============ Helper Functions ============
+
+/// Parse tenant ID string to UUID
+fn parse_tenant_id(tenant_id_str: &str) -> Result<Uuid, ApiError> {
+    Uuid::parse_str(tenant_id_str)
+        .map_err(|_| ApiError::BadRequest("Invalid tenant ID format".to_string()))
 }

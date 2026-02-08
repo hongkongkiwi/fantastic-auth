@@ -102,6 +102,11 @@ impl VaultError {
         Self::Conflict(message.into())
     }
 
+    /// Create a rate limit error
+    pub fn rate_limit(retry_after: u64) -> Self {
+        Self::RateLimit { retry_after }
+    }
+
     /// Get HTTP status code for this error
     pub fn status_code(&self) -> u16 {
         match self {

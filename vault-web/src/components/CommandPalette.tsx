@@ -15,6 +15,10 @@ import {
   Bell,
   Key,
   Webhook,
+  Lock,
+  BarChart3,
+  LifeBuoy,
+  Server,
   Plus,
   ExternalLink,
   Moon,
@@ -112,6 +116,24 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       section: 'Navigation',
     },
     {
+      id: 'roles',
+      title: 'Roles & Permissions',
+      subtitle: 'Manage access control',
+      icon: <Lock className="h-4 w-4" />,
+      shortcut: ['G', 'R'],
+      href: '/roles',
+      section: 'Navigation',
+    },
+    {
+      id: 'usage',
+      title: 'Usage & Analytics',
+      subtitle: 'Platform usage and exports',
+      icon: <BarChart3 className="h-4 w-4" />,
+      shortcut: ['G', 'Y'],
+      href: '/usage',
+      section: 'Navigation',
+    },
+    {
       id: 'billing',
       title: 'Billing',
       subtitle: 'Subscriptions and invoices',
@@ -127,6 +149,33 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       icon: <ClipboardList className="h-4 w-4" />,
       shortcut: ['G', 'A'],
       href: '/audit',
+      section: 'Navigation',
+    },
+    {
+      id: 'notifications-nav',
+      title: 'Notifications',
+      subtitle: 'System alerts and updates',
+      icon: <Bell className="h-4 w-4" />,
+      shortcut: ['G', 'N'],
+      href: '/notifications',
+      section: 'Navigation',
+    },
+    {
+      id: 'support',
+      title: 'Support',
+      subtitle: 'Tickets and incidents',
+      icon: <LifeBuoy className="h-4 w-4" />,
+      shortcut: ['G', 'P'],
+      href: '/support',
+      section: 'Navigation',
+    },
+    {
+      id: 'system',
+      title: 'System',
+      subtitle: 'Health and feature flags',
+      icon: <Server className="h-4 w-4" />,
+      shortcut: ['G', 'M'],
+      href: '/system',
       section: 'Navigation',
     },
     {
@@ -170,7 +219,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       title: 'Notifications',
       subtitle: 'View recent notifications',
       icon: <Bell className="h-4 w-4" />,
-      action: () => pushPage('notifications'),
+      href: '/notifications',
       section: 'Quick Actions',
     },
 
@@ -226,7 +275,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       subtitle: 'See all configured API keys',
       icon: <Key className="h-4 w-4" />,
       action: () => {
-        navigate({ to: '/settings' })
+        navigate({ to: '/settings/api-keys' })
         onOpenChange(false)
       },
       section: 'API Keys',
@@ -237,7 +286,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       subtitle: 'Create a new API key',
       icon: <Plus className="h-4 w-4" />,
       action: () => {
-        navigate({ to: '/settings' })
+        navigate({ to: '/settings/api-keys' })
         onOpenChange(false)
       },
       section: 'API Keys',

@@ -125,6 +125,9 @@ pub struct RateLimitConfig {
     /// Requests per minute for general API
     #[serde(default = "default_api_rate_limit")]
     pub api_per_minute: u32,
+    /// Requests per hour for anonymous session creation (per IP)
+    #[serde(default = "default_anonymous_rate_limit")]
+    pub anonymous_per_hour: u32,
     /// Window size in seconds
     #[serde(default = "default_rate_limit_window")]
     pub window_seconds: u64,
@@ -135,6 +138,7 @@ impl Default for RateLimitConfig {
         Self {
             auth_per_minute: default_auth_rate_limit(),
             api_per_minute: default_api_rate_limit(),
+            anonymous_per_hour: default_anonymous_rate_limit(),
             window_seconds: default_rate_limit_window(),
         }
     }
@@ -713,6 +717,9 @@ fn default_auth_rate_limit() -> u32 {
 }
 fn default_api_rate_limit() -> u32 {
     100
+}
+fn default_anonymous_rate_limit() -> u32 {
+    10 // 10 anonymous sessions per hour per IP
 }
 fn default_rate_limit_window() -> u64 {
     60

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
 use uuid::Uuid;
 
-use vault_core::crypto::{Claims, HybridJwt, TokenType};
+use vault_core::crypto::{Claims, HybridJwt, HybridSigningKey, TokenType, VaultPasswordHasher};
 use vault_core::error::{Result, VaultError};
 use vault_core::models::session::Session;
 use vault_core::models::user::{User, UserProfile, UserStatus};
@@ -69,7 +69,7 @@ impl AnonymousSession {
     }
 
     /// Check if the session has expired
-    pub fn is_expired(&self) bool {
+    pub fn is_expired(&self) -> bool {
         Utc::now() >= self.expires_at
     }
 
@@ -202,7 +202,7 @@ pub async fn create_anonymous_session(
             .await;
 
         if !allowed {
-            return Err(VaultError::rate_limit("Anonymous session creation rate limit exceeded"));
+            return Err(VaultError::rate_limit(3600)); // Retry after 1 hour
         }
     }
 
@@ -519,7 +519,7 @@ pub async fn convert_to_full_account(
             email_verified: false,
             name: req.name,
             is_anonymous: false,
-            previous_anonymous_id: anon_session_id,
+            previous_anonymous_id: anon_session_id.to_string(),
         },
         data_migrated,
     })

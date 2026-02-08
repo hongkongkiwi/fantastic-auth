@@ -9,6 +9,11 @@ import {
   ClipboardList,
   Settings,
   Shield,
+  Bell,
+  LifeBuoy,
+  Server,
+  Lock,
+  BarChart3,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -52,6 +57,16 @@ const navItems: NavItem[] = [
     icon: Users,
   },
   {
+    title: 'Roles',
+    href: '/roles',
+    icon: Lock,
+  },
+  {
+    title: 'Usage',
+    href: '/usage',
+    icon: BarChart3,
+  },
+  {
     title: 'Billing',
     href: '/billing',
     icon: CreditCard,
@@ -66,12 +81,29 @@ const navItems: NavItem[] = [
     icon: ClipboardList,
   },
   {
+    title: 'Notifications',
+    href: '/notifications',
+    icon: Bell,
+  },
+  {
+    title: 'Support',
+    href: '/support',
+    icon: LifeBuoy,
+  },
+  {
+    title: 'System',
+    href: '/system',
+    icon: Server,
+  },
+  {
     title: 'Settings',
     href: '/settings',
     icon: Settings,
     children: [
       { title: 'General', href: '/settings' },
       { title: 'Security', href: '/settings/security' },
+      { title: 'API Keys', href: '/settings/api-keys' },
+      { title: 'SSO & Integrations', href: '/settings/sso' },
       { title: 'Webhooks', href: '/settings/webhooks' },
     ],
   },

@@ -36,14 +36,14 @@ describe('Input', () => {
   })
 
   it('supports different types', () => {
-    const { rerender } = render(<Input type="text" />)
-    expect(screen.getByRole('textbox')).toHaveAttribute('type', 'text')
-    
-    rerender(<Input type="password" />)
-    expect(screen.getByRole('textbox')).toHaveAttribute('type', 'password')
-    
-    rerender(<Input type="email" />)
-    expect(screen.getByRole('textbox')).toHaveAttribute('type', 'email')
+    const { rerender } = render(<Input type="text" label="Field" id="type-test" />)
+    expect(screen.getByLabelText('Field')).toHaveAttribute('type', 'text')
+
+    rerender(<Input type="password" label="Field" id="type-test" />)
+    expect(screen.getByLabelText('Field')).toHaveAttribute('type', 'password')
+
+    rerender(<Input type="email" label="Field" id="type-test" />)
+    expect(screen.getByLabelText('Field')).toHaveAttribute('type', 'email')
   })
 
   it('displays helper text', () => {

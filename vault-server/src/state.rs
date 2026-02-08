@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use base64::Engine;
 use vault_core::auth::AuthService;
-use vault_core::email::SmtpEmailService;
+use vault_core::email::{EmailService, SmtpEmailService};
 use vault_core::security::bot_protection::{
     BotProtection, CloudflareTurnstile, DisabledBotProtection, HCaptcha,
 };
@@ -18,7 +18,7 @@ use crate::config::{BotProtectionProvider, Config, EvictionPolicy};
 use crate::db::Database;
 use crate::monitoring::{HealthRegistry, MetricsRegistry};
 use crate::routes::SessionLimitError;
-use crate::security::SecurityService;
+use crate::security::{RiskEngine, SecurityService};
 use crate::webhooks::WebhookService;
 use crate::webhooks::WebhookService as AppWebhookService;
 
@@ -61,10 +61,14 @@ pub struct AppState {
     pub step_up_max_age_minutes: u32,
     /// Data encryption key (AES-256-GCM)
     pub data_encryption_key: Arc<Vec<u8>>,
+    /// Email service for transactional emails
+    pub email_service: Option<Arc<dyn EmailService>>,
     /// Web3 authentication service
     pub web3_auth: Arc<Web3Auth>,
     /// Consent manager for GDPR/CCPA compliance
     pub consent_manager: Arc<crate::consent::ConsentManager>,
+    /// Risk engine for risk-based authentication
+    pub risk_engine: Arc<RiskEngine>,
 }
 
 impl AppState {
@@ -83,7 +87,7 @@ impl AppState {
 
         // Initialize email service if SMTP is configured
         // Initialize email service if SMTP is configured
-        let _email_service: Option<Arc<SmtpEmailService>> =
+        let email_service: Option<Arc<dyn EmailService>> =
             if let Some(ref smtp_config) = config.smtp {
                 match SmtpEmailService::new(
                     &smtp_config.host,
@@ -242,6 +246,10 @@ impl AppState {
             consent_config,
         ));
 
+        // Initialize risk engine for risk-based authentication
+        let risk_engine = Arc::new(RiskEngine::default_with_db(db.clone()));
+        tracing::info!("Risk-based authentication engine initialized");
+
         Ok(Self {
             config: Arc::new(config),
             db,
@@ -261,6 +269,7 @@ impl AppState {
             step_up_policy,
             step_up_max_age_minutes,
             data_encryption_key,
+            email_service,
             i18n,
             web3_auth: {
                 // Initialize Web3 authentication service
@@ -277,6 +286,7 @@ impl AppState {
                 Arc::new(web3_auth)
             },
             consent_manager,
+            risk_engine,
         })
     }
 

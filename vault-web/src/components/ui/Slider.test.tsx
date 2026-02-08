@@ -1,7 +1,19 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Slider, RangeSlider } from './Slider'
+
+beforeAll(() => {
+  if (!HTMLElement.prototype.setPointerCapture) {
+    HTMLElement.prototype.setPointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.releasePointerCapture) {
+    HTMLElement.prototype.releasePointerCapture = () => {}
+  }
+  if (!HTMLElement.prototype.hasPointerCapture) {
+    HTMLElement.prototype.hasPointerCapture = () => false
+  }
+})
 
 describe('Slider', () => {
   it('renders correctly', () => {
@@ -34,14 +46,13 @@ describe('Slider', () => {
     render(<Slider value={[50]} onValueChange={handleChange} />)
     const slider = screen.getByRole('slider')
     
-    // Note: Testing slider drag behavior is complex in JSDOM
-    // This is a simplified test
-    await user.click(slider)
+    slider.focus()
+    await user.keyboard('{ArrowRight}')
     expect(handleChange).toHaveBeenCalled()
   })
 
   it('shows min and max labels', () => {
-    render(<Slider min={0} max={100} />)
+    render(<Slider min={0} max={100} showValue={false} />)
     expect(screen.getByText('0')).toBeInTheDocument()
     expect(screen.getByText('100')).toBeInTheDocument()
   })
@@ -53,7 +64,7 @@ describe('Slider', () => {
 
   it('is disabled when disabled prop is true', () => {
     render(<Slider disabled />)
-    expect(screen.getByRole('slider')).toBeDisabled()
+    expect(screen.getByRole('slider')).toHaveAttribute('data-disabled')
   })
 })
 
@@ -76,7 +87,8 @@ describe('RangeSlider', () => {
     render(<RangeSlider value={[20, 80]} onValueChange={handleChange} />)
     const sliders = screen.getAllByRole('slider')
     
-    await user.click(sliders[0])
+    sliders[0].focus()
+    await user.keyboard('{ArrowRight}')
     expect(handleChange).toHaveBeenCalled()
   })
 })

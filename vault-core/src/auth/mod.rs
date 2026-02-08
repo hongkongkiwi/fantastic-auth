@@ -821,6 +821,11 @@ impl AuthService {
         &self.verifying_key
     }
 
+    /// Get signing key for token generation
+    pub fn signing_key(&self) -> &HybridSigningKey {
+        &self.signing_key
+    }
+
     // Helper methods
 
     async fn create_session(

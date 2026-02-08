@@ -7,7 +7,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "generate:sdk": "openapi-typescript ../openapi/vault-internal-api.yaml -o src/sdk/internal.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

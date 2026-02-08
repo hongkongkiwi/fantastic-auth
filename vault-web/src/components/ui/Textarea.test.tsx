@@ -59,8 +59,8 @@ describe('Textarea', () => {
     // Add multiple lines
     await user.type(textarea, 'Line 1\nLine 2\nLine 3\nLine 4\nLine 5')
     
-    // The textarea should have been resized (min-height is 80px)
-    expect(textarea).toHaveStyle({ minHeight: '80px' })
+    // JSDOM doesn't compute tailwind styles; ensure the class is present
+    expect(textarea).toHaveClass('min-h-[80px]')
   })
 
   it('forwards ref correctly', () => {

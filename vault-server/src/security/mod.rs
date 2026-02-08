@@ -1,7 +1,7 @@
 //! Security module for Vault Server
 //!
 //! Provides password policy enforcement, breach detection, bot protection,
-//! password history management, and session binding.
+//! password history management, session binding, and risk-based authentication.
 
 pub mod bot_protection;
 pub mod device_fingerprint;
@@ -9,6 +9,7 @@ pub mod encryption;
 pub mod geo;
 pub mod hibp;
 pub mod password_policy;
+pub mod risk;
 pub mod session_binding;
 pub mod session_binding_notifications;
 
@@ -25,6 +26,13 @@ pub use hibp::{HibpClient, HibpConfig, HibpError};
 pub use password_policy::{
     EnforcementMode, PasswordPolicy, PasswordPolicyValidator, PasswordValidationError,
     PasswordValidationResult, UserInfo,
+};
+pub use risk::{
+    actions::{ActionContext, ActionError, ActionResult, RiskAction, RiskActionExecutor, RiskActionResponse, RiskChallenge},
+    factors::{RiskFactor, RiskFactorResult, RiskFactorType},
+    scoring::{RiskScore, RiskScoringEngine, ScoringStrategy, ScoringWeights},
+    EnabledFactors, LoginContext, RiskAnalytics, RiskAssessment, RiskEngine, RiskEngineConfig,
+    RiskThresholds,
 };
 pub use session_binding::{
     BindingAction, BindingLevel, BindingRequestContext, BindingResult, SessionBindingChecker,

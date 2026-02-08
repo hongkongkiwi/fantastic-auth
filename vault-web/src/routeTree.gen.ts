@@ -10,7 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UsersRouteImport } from './routes/users'
+import { Route as UsageRouteImport } from './routes/usage'
+import { Route as SystemRouteImport } from './routes/system'
+import { Route as SupportRouteImport } from './routes/support'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RolesRouteImport } from './routes/roles'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as IndexRouteImport } from './routes/index'
@@ -18,16 +23,19 @@ import { Route as TenantsIndexRouteImport } from './routes/tenants/index'
 import { Route as OrganizationsIndexRouteImport } from './routes/organizations/index'
 import { Route as HostedIndexRouteImport } from './routes/hosted/index'
 import { Route as BillingIndexRouteImport } from './routes/billing/index'
+import { Route as UsersIdRouteImport } from './routes/users/$id'
 import { Route as TenantsCreateRouteImport } from './routes/tenants/create'
 import { Route as TenantsIdRouteImport } from './routes/tenants/$id'
 import { Route as SettingsWebhooksRouteImport } from './routes/settings/webhooks'
 import { Route as SettingsSecurityRouteImport } from './routes/settings/security'
+import { Route as OrganizationsIdRouteImport } from './routes/organizations/$id'
 import { Route as HostedVerifyEmailRouteImport } from './routes/hosted/verify-email'
 import { Route as HostedSignUpRouteImport } from './routes/hosted/sign-up'
 import { Route as HostedSignInRouteImport } from './routes/hosted/sign-in'
 import { Route as HostedOauthCallbackRouteImport } from './routes/hosted/oauth-callback'
 import { Route as HostedMfaRouteImport } from './routes/hosted/mfa'
 import { Route as HostedForgotPasswordRouteImport } from './routes/hosted/forgot-password'
+import { Route as BillingSubscriptionsRouteImport } from './routes/billing/subscriptions'
 import { Route as HostedOrganizationSwitchRouteImport } from './routes/hosted/organization/switch'
 import { Route as HostedOrganizationCreateRouteImport } from './routes/hosted/organization/create'
 
@@ -36,9 +44,34 @@ const UsersRoute = UsersRouteImport.update({
   path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemRoute = SystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupportRoute = SupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RolesRoute = RolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -76,6 +109,11 @@ const BillingIndexRoute = BillingIndexRouteImport.update({
   path: '/billing/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UsersIdRoute = UsersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => UsersRoute,
+} as any)
 const TenantsCreateRoute = TenantsCreateRouteImport.update({
   id: '/tenants/create',
   path: '/tenants/create',
@@ -95,6 +133,11 @@ const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
   id: '/security',
   path: '/security',
   getParentRoute: () => SettingsRoute,
+} as any)
+const OrganizationsIdRoute = OrganizationsIdRouteImport.update({
+  id: '/organizations/$id',
+  path: '/organizations/$id',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const HostedVerifyEmailRoute = HostedVerifyEmailRouteImport.update({
   id: '/hosted/verify-email',
@@ -126,6 +169,11 @@ const HostedForgotPasswordRoute = HostedForgotPasswordRouteImport.update({
   path: '/hosted/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BillingSubscriptionsRoute = BillingSubscriptionsRouteImport.update({
+  id: '/billing/subscriptions',
+  path: '/billing/subscriptions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HostedOrganizationSwitchRoute =
   HostedOrganizationSwitchRouteImport.update({
     id: '/hosted/organization/switch',
@@ -143,18 +191,26 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/roles': typeof RolesRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/users': typeof UsersRoute
+  '/support': typeof SupportRoute
+  '/system': typeof SystemRoute
+  '/usage': typeof UsageRoute
+  '/users': typeof UsersRouteWithChildren
+  '/billing/subscriptions': typeof BillingSubscriptionsRoute
   '/hosted/forgot-password': typeof HostedForgotPasswordRoute
   '/hosted/mfa': typeof HostedMfaRoute
   '/hosted/oauth-callback': typeof HostedOauthCallbackRoute
   '/hosted/sign-in': typeof HostedSignInRoute
   '/hosted/sign-up': typeof HostedSignUpRoute
   '/hosted/verify-email': typeof HostedVerifyEmailRoute
+  '/organizations/$id': typeof OrganizationsIdRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/webhooks': typeof SettingsWebhooksRoute
   '/tenants/$id': typeof TenantsIdRoute
   '/tenants/create': typeof TenantsCreateRoute
+  '/users/$id': typeof UsersIdRoute
   '/billing/': typeof BillingIndexRoute
   '/hosted/': typeof HostedIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
@@ -166,18 +222,26 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/roles': typeof RolesRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/users': typeof UsersRoute
+  '/support': typeof SupportRoute
+  '/system': typeof SystemRoute
+  '/usage': typeof UsageRoute
+  '/users': typeof UsersRouteWithChildren
+  '/billing/subscriptions': typeof BillingSubscriptionsRoute
   '/hosted/forgot-password': typeof HostedForgotPasswordRoute
   '/hosted/mfa': typeof HostedMfaRoute
   '/hosted/oauth-callback': typeof HostedOauthCallbackRoute
   '/hosted/sign-in': typeof HostedSignInRoute
   '/hosted/sign-up': typeof HostedSignUpRoute
   '/hosted/verify-email': typeof HostedVerifyEmailRoute
+  '/organizations/$id': typeof OrganizationsIdRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/webhooks': typeof SettingsWebhooksRoute
   '/tenants/$id': typeof TenantsIdRoute
   '/tenants/create': typeof TenantsCreateRoute
+  '/users/$id': typeof UsersIdRoute
   '/billing': typeof BillingIndexRoute
   '/hosted': typeof HostedIndexRoute
   '/organizations': typeof OrganizationsIndexRoute
@@ -190,18 +254,26 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/audit': typeof AuditRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/roles': typeof RolesRoute
   '/settings': typeof SettingsRouteWithChildren
-  '/users': typeof UsersRoute
+  '/support': typeof SupportRoute
+  '/system': typeof SystemRoute
+  '/usage': typeof UsageRoute
+  '/users': typeof UsersRouteWithChildren
+  '/billing/subscriptions': typeof BillingSubscriptionsRoute
   '/hosted/forgot-password': typeof HostedForgotPasswordRoute
   '/hosted/mfa': typeof HostedMfaRoute
   '/hosted/oauth-callback': typeof HostedOauthCallbackRoute
   '/hosted/sign-in': typeof HostedSignInRoute
   '/hosted/sign-up': typeof HostedSignUpRoute
   '/hosted/verify-email': typeof HostedVerifyEmailRoute
+  '/organizations/$id': typeof OrganizationsIdRoute
   '/settings/security': typeof SettingsSecurityRoute
   '/settings/webhooks': typeof SettingsWebhooksRoute
   '/tenants/$id': typeof TenantsIdRoute
   '/tenants/create': typeof TenantsCreateRoute
+  '/users/$id': typeof UsersIdRoute
   '/billing/': typeof BillingIndexRoute
   '/hosted/': typeof HostedIndexRoute
   '/organizations/': typeof OrganizationsIndexRoute
@@ -215,18 +287,26 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/login'
+    | '/notifications'
+    | '/roles'
     | '/settings'
+    | '/support'
+    | '/system'
+    | '/usage'
     | '/users'
+    | '/billing/subscriptions'
     | '/hosted/forgot-password'
     | '/hosted/mfa'
     | '/hosted/oauth-callback'
     | '/hosted/sign-in'
     | '/hosted/sign-up'
     | '/hosted/verify-email'
+    | '/organizations/$id'
     | '/settings/security'
     | '/settings/webhooks'
     | '/tenants/$id'
     | '/tenants/create'
+    | '/users/$id'
     | '/billing/'
     | '/hosted/'
     | '/organizations/'
@@ -238,18 +318,26 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/login'
+    | '/notifications'
+    | '/roles'
     | '/settings'
+    | '/support'
+    | '/system'
+    | '/usage'
     | '/users'
+    | '/billing/subscriptions'
     | '/hosted/forgot-password'
     | '/hosted/mfa'
     | '/hosted/oauth-callback'
     | '/hosted/sign-in'
     | '/hosted/sign-up'
     | '/hosted/verify-email'
+    | '/organizations/$id'
     | '/settings/security'
     | '/settings/webhooks'
     | '/tenants/$id'
     | '/tenants/create'
+    | '/users/$id'
     | '/billing'
     | '/hosted'
     | '/organizations'
@@ -261,18 +349,26 @@ export interface FileRouteTypes {
     | '/'
     | '/audit'
     | '/login'
+    | '/notifications'
+    | '/roles'
     | '/settings'
+    | '/support'
+    | '/system'
+    | '/usage'
     | '/users'
+    | '/billing/subscriptions'
     | '/hosted/forgot-password'
     | '/hosted/mfa'
     | '/hosted/oauth-callback'
     | '/hosted/sign-in'
     | '/hosted/sign-up'
     | '/hosted/verify-email'
+    | '/organizations/$id'
     | '/settings/security'
     | '/settings/webhooks'
     | '/tenants/$id'
     | '/tenants/create'
+    | '/users/$id'
     | '/billing/'
     | '/hosted/'
     | '/organizations/'
@@ -285,14 +381,21 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuditRoute: typeof AuditRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
+  RolesRoute: typeof RolesRoute
   SettingsRoute: typeof SettingsRouteWithChildren
-  UsersRoute: typeof UsersRoute
+  SupportRoute: typeof SupportRoute
+  SystemRoute: typeof SystemRoute
+  UsageRoute: typeof UsageRoute
+  UsersRoute: typeof UsersRouteWithChildren
+  BillingSubscriptionsRoute: typeof BillingSubscriptionsRoute
   HostedForgotPasswordRoute: typeof HostedForgotPasswordRoute
   HostedMfaRoute: typeof HostedMfaRoute
   HostedOauthCallbackRoute: typeof HostedOauthCallbackRoute
   HostedSignInRoute: typeof HostedSignInRoute
   HostedSignUpRoute: typeof HostedSignUpRoute
   HostedVerifyEmailRoute: typeof HostedVerifyEmailRoute
+  OrganizationsIdRoute: typeof OrganizationsIdRoute
   TenantsIdRoute: typeof TenantsIdRoute
   TenantsCreateRoute: typeof TenantsCreateRoute
   BillingIndexRoute: typeof BillingIndexRoute
@@ -312,11 +415,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system': {
+      id: '/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof SystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/support': {
+      id: '/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof SupportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roles': {
+      id: '/roles'
+      path: '/roles'
+      fullPath: '/roles'
+      preLoaderRoute: typeof RolesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -368,6 +506,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/users/$id': {
+      id: '/users/$id'
+      path: '/$id'
+      fullPath: '/users/$id'
+      preLoaderRoute: typeof UsersIdRouteImport
+      parentRoute: typeof UsersRoute
+    }
     '/tenants/create': {
       id: '/tenants/create'
       path: '/tenants/create'
@@ -395,6 +540,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings/security'
       preLoaderRoute: typeof SettingsSecurityRouteImport
       parentRoute: typeof SettingsRoute
+    }
+    '/organizations/$id': {
+      id: '/organizations/$id'
+      path: '/organizations/$id'
+      fullPath: '/organizations/$id'
+      preLoaderRoute: typeof OrganizationsIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/hosted/verify-email': {
       id: '/hosted/verify-email'
@@ -438,6 +590,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HostedForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/billing/subscriptions': {
+      id: '/billing/subscriptions'
+      path: '/billing/subscriptions'
+      fullPath: '/billing/subscriptions'
+      preLoaderRoute: typeof BillingSubscriptionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/hosted/organization/switch': {
       id: '/hosted/organization/switch'
       path: '/hosted/organization/switch'
@@ -469,18 +628,35 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
   SettingsRouteChildren,
 )
 
+interface UsersRouteChildren {
+  UsersIdRoute: typeof UsersIdRoute
+}
+
+const UsersRouteChildren: UsersRouteChildren = {
+  UsersIdRoute: UsersIdRoute,
+}
+
+const UsersRouteWithChildren = UsersRoute._addFileChildren(UsersRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuditRoute: AuditRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
+  RolesRoute: RolesRoute,
   SettingsRoute: SettingsRouteWithChildren,
-  UsersRoute: UsersRoute,
+  SupportRoute: SupportRoute,
+  SystemRoute: SystemRoute,
+  UsageRoute: UsageRoute,
+  UsersRoute: UsersRouteWithChildren,
+  BillingSubscriptionsRoute: BillingSubscriptionsRoute,
   HostedForgotPasswordRoute: HostedForgotPasswordRoute,
   HostedMfaRoute: HostedMfaRoute,
   HostedOauthCallbackRoute: HostedOauthCallbackRoute,
   HostedSignInRoute: HostedSignInRoute,
   HostedSignUpRoute: HostedSignUpRoute,
   HostedVerifyEmailRoute: HostedVerifyEmailRoute,
+  OrganizationsIdRoute: OrganizationsIdRoute,
   TenantsIdRoute: TenantsIdRoute,
   TenantsCreateRoute: TenantsCreateRoute,
   BillingIndexRoute: BillingIndexRoute,

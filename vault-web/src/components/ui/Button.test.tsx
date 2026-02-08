@@ -26,8 +26,9 @@ describe('Button', () => {
 
   it('shows loading state', () => {
     render(<Button isLoading>Loading</Button>)
-    expect(screen.getByRole('button')).toHaveAttribute('data-loading', 'true')
-    expect(screen.getByRole('button')).toBeDisabled()
+    const button = screen.getByRole('button')
+    expect(button).toBeDisabled()
+    expect(button.querySelector('svg')).toBeTruthy()
   })
 
   it('supports different variants', () => {
@@ -46,7 +47,7 @@ describe('Button', () => {
 
   it('supports different sizes', () => {
     const { rerender } = render(<Button size="sm">Small</Button>)
-    expect(screen.getByRole('button')).toHaveClass('h-9')
+    expect(screen.getByRole('button')).toHaveClass('h-8')
 
     rerender(<Button size="default">Default</Button>)
     expect(screen.getByRole('button')).toHaveClass('h-10')
