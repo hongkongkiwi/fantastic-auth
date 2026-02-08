@@ -164,8 +164,8 @@ impl PluginLoader {
         };
 
         // Find entry point
-        let entry_point = if let Some(ref m) = manifest {
-            dir.join(&m.entry)
+        let entry_point: Option<PathBuf> = if let Some(ref m) = manifest {
+            Some(dir.join(&m.entry))
         } else {
             // Guess entry point from known extensions
             self.find_entry_point(dir)?
@@ -185,7 +185,7 @@ impl PluginLoader {
                 description: manifest.as_ref().map(|m| m.description.clone()),
                 manifest,
                 plugin_type,
-                entry_point: entry,
+                entry_point: entry.to_path_buf(),
                 directory: dir.to_path_buf(),
             }));
         }

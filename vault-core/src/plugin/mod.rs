@@ -74,6 +74,7 @@ pub use types::{
 };
 pub use wasm::{WasmPlugin, WasmPluginBuilder, WasmPluginConfig, WasmResourceLimits};
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Plugin manager - high-level API for managing plugins
@@ -107,11 +108,11 @@ impl PluginManager {
     }
 
     /// Initialize with configuration
-    pub async fn initialize(&mut self, config: &PluginsConfig) -> Result<LoadResult, PluginError> {
+    pub async fn initialize(&mut self, config: &PluginsConfig) -> std::result::Result<LoadResult, PluginError> {
         // Set up loader if plugin directory configured
         if let Some(ref settings) = config.settings {
             if let Some(ref dir) = settings.directory {
-                self.loader = Some(PluginLoader::new(LoaderConfig::new(dir)));
+                self.loader = Some(PluginLoader::new(LoaderConfig::new(PathBuf::from(dir))));
             }
         }
 
@@ -120,7 +121,7 @@ impl PluginManager {
     }
 
     /// Load and auto-discover plugins from directory
-    pub async fn auto_load(&self) -> Result<LoadResult, PluginError> {
+    pub async fn auto_load(&self) -> std::result::Result<LoadResult, PluginError> {
         let loader = self.loader.as_ref().ok_or_else(|| {
             PluginError::new("NO_LOADER", "Plugin loader not configured")
         })?;

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { useServerFn } from '@tanstack/react-start'
 import { 
   Building2, 
   Users, 
@@ -19,29 +20,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../components/ui/DropdownMenu'
+import { listOrganizations, type OrganizationResponse } from '../../server/internal-api'
 
 export const Route = createFileRoute('/organizations/')({
   component: OrganizationsPage,
 })
 
-interface Organization {
-  id: string
-  name: string
-  slug: string
-  member_count: number
-  role: 'owner' | 'admin' | 'member'
-  sso_enabled: boolean
-  created_at: string
-}
-
 function OrganizationsPage() {
+  const listOrganizationsFn = useServerFn(listOrganizations)
   const { data: organizations, isLoading } = useQuery({
     queryKey: ['organizations'],
-    queryFn: async () => {
-      const res = await fetch('/api/v1/admin/organizations')
-      if (!res.ok) throw new Error('Failed to load organizations')
-      return res.json() as Promise<Organization[]>
-    },
+    queryFn: () => listOrganizationsFn({ data: {} }),
   })
 
   return (
@@ -65,7 +54,7 @@ function OrganizationsPage() {
               <div className="h-4 w-48 bg-muted rounded mx-auto" />
             </div>
           </Card>
-        ) : organizations?.length === 0 ? (
+        ) : (organizations as OrganizationResponse[])?.length === 0 ? (
           <Card className="p-8 text-center">
             <Building2 className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium">No organizations</h3>
@@ -78,7 +67,7 @@ function OrganizationsPage() {
             </Button>
           </Card>
         ) : (
-          organizations?.map((org, index) => (
+          (organizations as OrganizationResponse[] | undefined)?.map((org, index) => (
             <motion.div
               key={org.id}
               initial={{ opacity: 0, y: 20 }}
@@ -97,9 +86,9 @@ function OrganizationsPage() {
                         <span className="text-sm text-muted-foreground">@{org.slug}</span>
                         <Badge variant="secondary" className="gap-1">
                           <Users className="h-3 w-3" />
-                          {org.member_count} members
+                          {org.memberCount} members
                         </Badge>
-                        {org.sso_enabled && (
+                        {org.ssoEnabled && (
                           <Badge variant="outline" className="gap-1">
                             <Shield className="h-3 w-3" />
                             SSO

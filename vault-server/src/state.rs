@@ -20,6 +20,7 @@ use crate::impersonation::ImpersonationService;
 use crate::monitoring::{HealthRegistry, MetricsRegistry};
 use crate::routes::SessionLimitError;
 use crate::security::{RiskEngine, SecurityService};
+use crate::settings::{SettingsRepository, SettingsService};
 use crate::webhooks::WebhookService;
 use crate::webhooks::WebhookService as AppWebhookService;
 
@@ -72,6 +73,8 @@ pub struct AppState {
     pub risk_engine: Arc<RiskEngine>,
     /// Impersonation service for admin user impersonation
     pub impersonation_service: Arc<ImpersonationService>,
+    /// Tenant settings service for per-tenant configuration
+    pub settings_service: Arc<SettingsService>,
 }
 
 impl AppState {
@@ -323,6 +326,9 @@ impl AppState {
             consent_manager,
             risk_engine,
             impersonation_service: Arc::new(ImpersonationService::new(db)),
+            settings_service: Arc::new(SettingsService::new(Arc::new(SettingsRepository::new(
+                db.pool().clone(),
+            )))),
         })
     }
 

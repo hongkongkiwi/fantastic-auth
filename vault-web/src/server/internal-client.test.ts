@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-const createClientMock = vi.fn((config) => ({ config }))
+const createClientMock = vi.hoisted(() => vi.fn((config) => ({ config })))
 vi.mock('openapi-fetch', () => ({
   default: createClientMock,
 }))
