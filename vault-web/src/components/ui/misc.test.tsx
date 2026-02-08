@@ -62,6 +62,13 @@ describe('Badge', () => {
     expect(screen.getByText('New')).toBeInTheDocument()
     expect(container.querySelector('span')).toBeInTheDocument()
   })
+
+  it('uses default dot color when not provided', () => {
+    const { container } = render(<Badge dot>Default</Badge>)
+    const dot = container.querySelector('span')
+    expect(dot).toBeInTheDocument()
+    expect(dot?.className).toContain('bg-current')
+  })
 })
 
 describe('Label', () => {
@@ -91,6 +98,15 @@ describe('RadioGroup', () => {
 
     await user.click(screen.getByText('Two'))
     expect(onValueChange).toHaveBeenCalledWith('two')
+  })
+
+  it('renders items without label or description', () => {
+    render(
+      <RadioGroup defaultValue="one">
+        <RadioGroupItem id="one" value="one" />
+      </RadioGroup>
+    )
+    expect(screen.getByRole('radio')).toBeInTheDocument()
   })
 })
 
@@ -128,6 +144,18 @@ describe('Select', () => {
     )
 
     expect(screen.getByText('Required')).toBeInTheDocument()
+  })
+
+  it('shows helper text when no error', () => {
+    render(
+      <Select
+        label="Plan"
+        options={[{ value: 'free', label: 'Free' }]}
+        helperText="Pick a plan"
+      />
+    )
+
+    expect(screen.getByText('Pick a plan')).toBeInTheDocument()
   })
 })
 

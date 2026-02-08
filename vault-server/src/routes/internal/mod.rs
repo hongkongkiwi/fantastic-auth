@@ -15,10 +15,15 @@
 use axum::Router;
 
 pub mod analytics;
+pub mod api_keys;
 pub mod billing;
 pub mod config;
 pub mod maintenance;
+pub mod notifications;
+pub mod organizations;
 pub mod platform_users;
+pub mod roles;
+pub mod support;
 pub mod tenants;
 
 use crate::state::AppState;
@@ -35,4 +40,9 @@ pub fn routes() -> Router<AppState> {
         .merge(analytics::routes())
         .merge(config::routes())
         .merge(maintenance::routes())
+        .merge(organizations::routes())
+        .merge(roles::routes())
+        .merge(api_keys::routes())
+        .merge(notifications::routes())
+        .merge(support::routes())
 }

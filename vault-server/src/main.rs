@@ -29,6 +29,7 @@ mod permissions;
 mod routes;
 mod scim;
 mod security;
+mod settings;
 mod state;
 mod validation;
 mod webhooks;

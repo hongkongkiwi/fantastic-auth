@@ -4,6 +4,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 use tracing::info;
 
 mod client;
@@ -93,6 +94,12 @@ enum Commands {
     Sessions {
         #[command(subcommand)]
         command: SessionCommands,
+    },
+
+    /// Plugin management commands
+    Plugins {
+        #[command(subcommand)]
+        command: PluginCommands,
     },
 
     /// Configuration commands
@@ -201,6 +208,74 @@ enum ConfigCommands {
     Set { key: String, value: String },
     /// Initialize configuration
     Init,
+}
+
+#[derive(Subcommand)]
+#[clap(rename_all = "kebab-case")]
+enum PluginCommands {
+    /// List all installed plugins
+    List {
+        /// Show detailed information
+        #[arg(short, long)]
+        detailed: bool,
+    },
+    /// Install a plugin
+    Install {
+        /// Path to plugin file or directory
+        path: PathBuf,
+        /// Plugin name (optional)
+        #[arg(short, long)]
+        name: Option<String>,
+        /// Enable plugin immediately
+        #[arg(short, long)]
+        enable: bool,
+    },
+    /// Uninstall a plugin
+    Uninstall {
+        /// Plugin name
+        name: String,
+        /// Force uninstall even if enabled
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Enable a plugin
+    Enable {
+        /// Plugin name
+        name: String,
+    },
+    /// Disable a plugin
+    Disable {
+        /// Plugin name
+        name: String,
+    },
+    /// Show plugin details
+    Show {
+        /// Plugin name
+        name: String,
+    },
+    /// Check plugin health
+    Health {
+        /// Plugin name (if not provided, checks all)
+        name: Option<String>,
+    },
+    /// Create a new plugin scaffold
+    Create {
+        /// Plugin name
+        name: String,
+        /// Plugin type
+        #[arg(short, long, default_value = "builtin")]
+        plugin_type: PluginTypeArg,
+        /// Output directory
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum PluginTypeArg {
+    Native,
+    Wasm,
+    Builtin,
 }
 
 #[tokio::main]
@@ -331,6 +406,92 @@ async fn main() -> Result<()> {
                 }
             }
         }
+        Commands::Plugins { command } => {
+            let token = config.token.as_deref().context("Not logged in")?;
+            
+            match command {
+                PluginCommands::List { detailed } => {
+                    println!("Listing plugins... (detailed: {})", detailed);
+                    println!("\nExample plugins that would be listed:");
+                    println!("  example-plugin   v1.0.0  builtin   ✓ enabled  ● healthy");
+                    println!("  ldap-plugin      v1.0.0  builtin   ✓ enabled  ● healthy");
+                    println!("  webhook-plugin   v1.0.0  builtin   ✓ enabled  ● healthy");
+                    // TODO: Implement actual plugin list API call
+                }
+                PluginCommands::Install { path, name, enable } => {
+                    println!("Installing plugin from: {:?}", path);
+                    if let Some(n) = name {
+                        println!("Plugin name: {}", n);
+                    }
+                    println!("Enable immediately: {}", enable);
+                    // TODO: Implement actual plugin install API call
+                }
+                PluginCommands::Uninstall { name, force } => {
+                    println!("Uninstalling plugin: {}", name);
+                    println!("Force: {}", force);
+                    // TODO: Implement actual plugin uninstall API call
+                }
+                PluginCommands::Enable { name } => {
+                    println!("Enabling plugin: {}", name);
+                    // TODO: Implement actual plugin enable API call
+                }
+                PluginCommands::Disable { name } => {
+                    println!("Disabling plugin: {}", name);
+                    // TODO: Implement actual plugin disable API call
+                }
+                PluginCommands::Show { name } => {
+                    println!("Showing plugin details: {}", name);
+                    println!("\nExample output for a plugin:");
+                    println!("  Name:        {}", name);
+                    println!("  Version:     1.0.0");
+                    println!("  Type:        builtin");
+                    println!("  Health:      healthy");
+                    println!("  Enabled:     true");
+                    // TODO: Implement actual plugin show API call
+                }
+                PluginCommands::Health { name } => {
+                    if let Some(n) = name {
+                        println!("Checking health of plugin: {}", n);
+                    } else {
+                        println!("Checking health of all plugins");
+                    }
+                    // TODO: Implement actual plugin health API call
+                }
+                PluginCommands::Create { name, plugin_type, output } => {
+                    let output_dir = output.unwrap_or_else(|| PathBuf::from("./plugins"));
+                    let plugin_type_str = match plugin_type {
+                        PluginTypeArg::Native => "native",
+                        PluginTypeArg::Wasm => "wasm",
+                        PluginTypeArg::Builtin => "builtin",
+                    };
+                    
+                    println!("Creating new {} plugin: {}", plugin_type_str, name);
+                    println!("Output directory: {:?}", output_dir);
+                    
+                    // Use the scaffold generator
+                    let author = std::env::var("USER").unwrap_or_else(|_| "Unknown".to_string());
+                    let description = format!("A custom {} plugin for Vault", plugin_type_str);
+                    
+                    let cli_plugin_type = match plugin_type {
+                        PluginTypeArg::Native => commands::plugin::PluginTypeArg::Native,
+                        PluginTypeArg::Wasm => commands::plugin::PluginTypeArg::Wasm,
+                        PluginTypeArg::Builtin => commands::plugin::PluginTypeArg::Builtin,
+                    };
+                    
+                    match commands::plugin::PluginScaffold::create(
+                        &name,
+                        cli_plugin_type,
+                        &output_dir,
+                        &description,
+                        &author,
+                    ) {
+                        Ok(_) => println!("\nPlugin scaffold created successfully!"),
+                        Err(e) => eprintln!("Error creating plugin scaffold: {}", e),
+                    }
+                }
+            }
+        }
+
         Commands::Config { command } => match command {
             ConfigCommands::Show => {
                 commands::config::show(format)?;

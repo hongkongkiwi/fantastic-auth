@@ -4,15 +4,24 @@
 //! These are public routes that Stripe calls directly.
 
 use axum::{
-    body::Bytes, extract::State, http::StatusCode, response::IntoResponse, routing::post, Router,
+    body::Bytes,
+    extract::State,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+    Extension, Json, Router,
 };
 
 use crate::state::AppState;
+use crate::state::CurrentUser;
+use crate::routes::ApiError;
 
 /// Create billing webhook routes
 /// These are mounted under /api/v1/internal/billing
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/webhooks/stripe", post(stripe_webhook))
+    Router::new()
+        .route("/webhooks/stripe", post(stripe_webhook))
+        .route("/invoices", get(list_platform_invoices))
 }
 
 /// Handle Stripe webhook events
@@ -72,4 +81,22 @@ async fn stripe_webhook(
             (StatusCode::BAD_REQUEST, "Webhook processing failed")
         }
     }
+}
+
+/// List invoices across all tenants (superadmin)
+async fn list_platform_invoices(
+    State(state): State<AppState>,
+    Extension(_current_user): Extension<CurrentUser>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if !state.billing_service.is_enabled() {
+        return Ok(Json(serde_json::json!({ \"invoices\": [] })));
+    }
+
+    let invoices = state
+        .billing_service
+        .list_all_invoices()
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    Ok(Json(serde_json::json!({ \"invoices\": invoices })))
 }

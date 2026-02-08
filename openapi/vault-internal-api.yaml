@@ -54,6 +54,16 @@ tags:
     description: System-wide metrics
   - name: System Configuration
     description: Global settings and features
+  - name: Organizations
+    description: Organization management
+  - name: Roles & Permissions
+    description: Role-based access control
+  - name: API Keys
+    description: Internal API key management
+  - name: Notifications
+    description: Admin notifications
+  - name: Support
+    description: Support tickets and incidents
 
 security:
   - ApiKeyAuth: []
@@ -811,6 +821,289 @@ paths:
                     type: string
                   status:
                     type: string
+
+  /organizations:
+    get:
+      summary: List organizations
+      description: Platform-wide organizations list
+      operationId: listOrganizations
+      tags: [Organizations]
+      responses:
+        '200':
+          description: Organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationResponse'
+
+  /organizations/{orgId}:
+    get:
+      summary: Get organization
+      description: Organization detail
+      operationId: getOrganization
+      tags: [Organizations]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{orgId}/members:
+    get:
+      summary: List organization members
+      description: Organization members list
+      operationId: listOrganizationMembers
+      tags: [Organizations]
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organization members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationMemberResponse'
+
+  /roles:
+    get:
+      summary: List roles
+      description: Role definitions
+      operationId: listRoles
+      tags: [Roles & Permissions]
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleResponse'
+    post:
+      summary: Create role
+      description: Create a new role
+      operationId: createRole
+      tags: [Roles & Permissions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Role created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+  /roles/{roleId}:
+    patch:
+      summary: Update role
+      description: Update role definition
+      operationId: updateRole
+      tags: [Roles & Permissions]
+      parameters:
+        - name: roleId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api-keys:
+    get:
+      summary: List API keys
+      description: List internal API keys
+      operationId: listApiKeys
+      tags: [API Keys]
+      responses:
+        '200':
+          description: API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKeyResponse'
+    post:
+      summary: Create API key
+      description: Create a new API key
+      operationId: createApiKey
+      tags: [API Keys]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateApiKeyResponse'
+
+  /api-keys/{keyId}:
+    delete:
+      summary: Delete API key
+      description: Revoke an API key
+      operationId: deleteApiKey
+      tags: [API Keys]
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications:
+    get:
+      summary: List notifications
+      description: Admin notifications
+      operationId: listNotifications
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationResponse'
+
+  /notifications/mark-read:
+    post:
+      summary: Mark notifications read
+      description: Mark notifications as read
+      operationId: markNotificationsRead
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarkNotificationsReadRequest'
+      responses:
+        '200':
+          description: Updated notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NotificationResponse'
+
+  /support/tickets:
+    get:
+      summary: List support tickets
+      description: Platform support tickets
+      operationId: listSupportTickets
+      tags: [Support]
+      responses:
+        '200':
+          description: Support tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportTicketResponse'
+
+  /support/incidents:
+    get:
+      summary: List incidents
+      description: Platform incident history
+      operationId: listSupportIncidents
+      tags: [Support]
+      responses:
+        '200':
+          description: Incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupportIncidentResponse'
+
+  /support/status:
+    get:
+      summary: List service status
+      description: Current service status
+      operationId: listServiceStatus
+      tags: [Support]
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceStatusResponse'
+
+  /billing/invoices:
+    get:
+      summary: List invoices (platform)
+      description: List invoices across all tenants
+      operationId: listPlatformInvoices
+      tags: [Billing]
+      responses:
+        '200':
+          description: Invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invoices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InvoiceResponse'
 
 components:
   securitySchemes:

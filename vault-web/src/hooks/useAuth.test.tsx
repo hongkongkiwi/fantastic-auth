@@ -171,6 +171,16 @@ describe('useAuth', () => {
     })
   })
 
+  it('creates a default user when session is valid without stored user', async () => {
+    getUiSessionStatusMock.mockResolvedValueOnce({ ok: true })
+    const authRef = await setup()
+
+    await waitFor(() => {
+      expect(authRef.current?.user?.email).toBe('admin')
+      expect(authRef.current?.isAuthenticated).toBe(true)
+    })
+  })
+
   it('clears invalid stored user', async () => {
     sessionStorage.setItem('vault_ui_user', '{invalid json')
     const authRef = await setup()

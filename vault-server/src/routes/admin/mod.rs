@@ -31,6 +31,7 @@ pub mod scim;
 pub mod security;
 pub mod security_policies;
 pub mod settings;
+pub mod settings_v2;
 pub mod sso;
 pub mod system;
 pub mod users;
@@ -57,6 +58,7 @@ pub fn routes() -> Router<AppState> {
         .merge(security::routes())
         .merge(security_policies::routes())
         .merge(settings::routes())
+        .merge(settings_v2::routes())
         .merge(system::routes())
         .merge(webhooks::routes())
         .merge(billing::routes())

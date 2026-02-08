@@ -135,6 +135,22 @@ impl StripeBillingService {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    /// List invoices across all tenants
+    pub async fn list_all_invoices(&self) -> Result<Vec<Invoice>, BillingError> {
+        let rows = sqlx::query_as::<_, InvoiceRow>(
+            r#"SELECT id, tenant_id, stripe_invoice_id, status, total_cents, subtotal_cents,
+                      tax_cents, currency, invoice_pdf_url, hosted_invoice_url,
+                      period_start, period_end, paid_at, created_at
+               FROM invoices
+               ORDER BY created_at DESC"#,
+        )
+        .fetch_all(self.db.pool())
+        .await
+        .map_err(BillingError::DatabaseError)?;
+
+        Ok(rows.into_iter().map(|r| r.into()).collect())
+    }
+
     /// Cancel subscription at period end (STUB)
     pub async fn cancel_subscription(
         &self,

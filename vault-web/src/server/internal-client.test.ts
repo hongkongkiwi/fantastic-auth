@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fetchWithRetry } from './internal-client'
+
+const createClientMock = vi.fn((config) => ({ config }))
+vi.mock('openapi-fetch', () => ({
+  default: createClientMock,
+}))
+
+import { fetchWithRetry, createInternalClient } from './internal-client'
 
 describe('fetchWithRetry', () => {
   it('retries GET requests on 503', async () => {
@@ -56,5 +62,23 @@ describe('fetchWithRetry', () => {
     const res = await fetchWithRetry('https://example.com', { method: 'HEAD' }, { retries: 1, retryDelayMs: 0 })
     expect(res.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry on non-retryable status codes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 400 }))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const res = await fetchWithRetry('https://example.com', { method: 'GET' }, { retries: 2, retryDelayMs: 0 })
+    expect(res.status).toBe(400)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates an internal client with baseUrl and fetch', () => {
+    const client = createInternalClient('https://api.example.com')
+    expect(createClientMock).toHaveBeenCalledWith({
+      baseUrl: 'https://api.example.com',
+      fetch: expect.any(Function),
+    })
+    expect(client).toEqual({ config: { baseUrl: 'https://api.example.com', fetch: expect.any(Function) } })
   })
 })

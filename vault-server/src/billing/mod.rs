@@ -179,6 +179,17 @@ impl BillingService {
         }
     }
 
+    /// List invoices across all tenants
+    pub async fn list_all_invoices(&self) -> Result<Vec<Invoice>> {
+        match &self.inner {
+            Some(service) => service
+                .list_all_invoices()
+                .await
+                .map_err(|e| anyhow::anyhow!(e)),
+            None => Ok(vec![]),
+        }
+    }
+
     /// Cancel subscription at period end
     pub async fn cancel_subscription(&self, tenant_id: &str) -> Result<Option<Subscription>> {
         match &self.inner {
