@@ -229,6 +229,11 @@ impl HybridVerifyingKey {
         result
     }
 
+    /// Get Ed25519 public key bytes (for JWKS publishing)
+    pub fn ed25519_public_bytes(&self) -> [u8; ED25519_PUBLIC_SIZE] {
+        self.ed25519.to_bytes()
+    }
+
     /// Deserialize from bytes
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         // Ed25519 public key is 32 bytes

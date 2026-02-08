@@ -191,7 +191,10 @@ pub async fn auth_middleware(
     request.extensions_mut().insert(current_user.clone());
 
     let role = current_user.claims.roles.as_ref().and_then(|roles| {
-        if roles.iter().any(|r| r == "admin" || r == "owner") {
+        if roles
+            .iter()
+            .any(|r| r == "admin" || r == "owner" || r == "support" || r == "viewer")
+        {
             Some("admin".to_string())
         } else {
             Some("member".to_string())
@@ -248,7 +251,10 @@ pub async fn optional_auth_middleware(
             request.extensions_mut().insert(current_user.clone());
 
             let role = current_user.claims.roles.as_ref().and_then(|roles| {
-                if roles.iter().any(|r| r == "admin" || r == "owner") {
+                if roles
+                    .iter()
+                    .any(|r| r == "admin" || r == "owner" || r == "support" || r == "viewer")
+                {
                     Some("admin".to_string())
                 } else {
                     Some("member".to_string())
