@@ -14,7 +14,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::FromRow;
+use sqlx::{FromRow, Row};
 
 use crate::routes::ApiError;
 use crate::scim::auth::{
@@ -372,33 +372,33 @@ async fn get_config(
         return Err(ApiError::Forbidden);
     }
 
-    let row = sqlx::query!(
+    let row = sqlx::query(
         r#"
         SELECT enabled, auto_create_users, auto_deactivate_users, default_user_role, sync_group_members
         FROM scim_settings
         WHERE tenant_id = $1::uuid
-        "#,
-        current_user.tenant_id
+        "#
     )
+    .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
     .map_err(|_| ApiError::Internal)?;
 
-    let config = if let Some(row) = row {
+    let config = if let Some(row) = row.as_ref() {
         ScimConfig {
-            enabled: row.enabled,
+            enabled: row.get::<bool, _>("enabled"),
             base_url: format!("{}/scim/v2", state.config.base_url),
             user_schema: ScimUserSchemaConfig {
                 custom_attributes: vec![],
                 required_attributes: vec!["userName".to_string()],
             },
             group_schema: ScimGroupSchemaConfig {
-                sync_members: row.sync_group_members,
+                sync_members: row.get::<bool, _>("sync_group_members"),
             },
             mappings: ScimMappingsConfig {
-                auto_create_users: row.auto_create_users,
-                auto_deactivate_users: row.auto_deactivate_users,
-                default_role: row.default_user_role,
+                auto_create_users: row.get::<bool, _>("auto_create_users"),
+                auto_deactivate_users: row.get::<bool, _>("auto_deactivate_users"),
+                default_role: row.get::<String, _>("default_user_role"),
             },
         }
     } else {
@@ -434,7 +434,7 @@ async fn update_config(
         return Err(ApiError::Forbidden);
     }
 
-    sqlx::query!(
+    sqlx::query(
         r#"
         INSERT INTO scim_settings (
             tenant_id, enabled, auto_create_users, auto_deactivate_users,
@@ -448,14 +448,14 @@ async fn update_config(
             default_user_role = EXCLUDED.default_user_role,
             sync_group_members = EXCLUDED.sync_group_members,
             updated_at = NOW()
-        "#,
-        current_user.tenant_id,
-        config.enabled,
-        config.mappings.auto_create_users,
-        config.mappings.auto_deactivate_users,
-        config.mappings.default_role,
-        config.group_schema.sync_members,
+        "#
     )
+    .bind(&current_user.tenant_id)
+    .bind(config.enabled)
+    .bind(config.mappings.auto_create_users)
+    .bind(config.mappings.auto_deactivate_users)
+    .bind(&config.mappings.default_role)
+    .bind(config.group_schema.sync_members)
     .execute(state.db.pool())
     .await
     .map_err(|_| ApiError::Internal)?;
