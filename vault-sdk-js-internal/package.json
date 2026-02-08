@@ -1,0 +1,48 @@
+{
+  "name": "@vault/internal-sdk",
+  "version": "0.1.0",
+  "description": "Vault Internal API SDK for SaaS platform services",
+  "keywords": [
+    "vault",
+    "auth",
+    "internal",
+    "saas",
+    "api",
+    "tenant-management"
+  ],
+  "author": "Vault Team",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit",
+    "generate": "openapi-typescript ../../openapi/vault-internal-api.yaml -o src/generated/client.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "openapi-typescript": "^6.7.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

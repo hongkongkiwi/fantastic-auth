@@ -1,0 +1,1743 @@
+openapi: 3.0.3
+info:
+  title: Vault API
+  description: |
+    Secure, quantum-resistant user management API.
+    
+    ## Authentication
+    
+    The API uses JWT Bearer tokens for authentication. Include the token in the Authorization header:
+    ```
+    Authorization: Bearer <your-jwt-token>
+    ```
+    
+    ## Multi-Tenancy
+    
+    All API requests are scoped to a tenant. The tenant ID can be provided via:
+    - `X-Tenant-ID` header
+    - `X-Tenant-Slug` header
+    - Subdomain (e.g., `tenant.example.com`)
+    
+    ## Rate Limiting
+    
+    API endpoints are rate-limited:
+    - Auth endpoints: 5 requests per minute
+    - General API: 100 requests per minute
+    
+    Rate limit headers are included in responses:
+    - `X-RateLimit-Limit`: Maximum requests allowed
+    - `X-RateLimit-Remaining`: Remaining requests in window
+    - `X-RateLimit-Reset`: Unix timestamp when limit resets
+  version: 0.1.0
+  contact:
+    name: Vault Team
+    email: support@vault.dev
+  license:
+    name: MIT OR Apache-2.0
+
+servers:
+  - url: https://api.vault.dev/api/v1
+    description: Production server
+  - url: http://localhost:3000/api/v1
+    description: Local development
+
+tags:
+  - name: Authentication
+    description: User registration, login, and session management
+  - name: Users
+    description: User profile and account management
+  - name: Organizations
+    description: Team/organization management
+  - name: Sessions
+    description: Session management
+  - name: MFA
+    description: Multi-factor authentication
+
+paths:
+  # ============ Health ============
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  # ============ Authentication ============
+  /auth/register:
+    post:
+      summary: Register new user
+      operationId: register
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Login with email and password
+      operationId: login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Account locked or MFA required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /auth/logout:
+    post:
+      summary: Logout current session
+      operationId: logout
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      summary: Refresh access token
+      operationId: refreshToken
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/magic-link:
+    post:
+      summary: Send magic link for passwordless login
+      operationId: sendMagicLink
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MagicLinkRequest'
+      responses:
+        '200':
+          description: Magic link sent (if email exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /auth/magic-link/verify:
+    post:
+      summary: Verify magic link and create session
+      operationId: verifyMagicLink
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyMagicLinkRequest'
+      responses:
+        '200':
+          description: Magic link verified, session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/forgot-password:
+    post:
+      summary: Request password reset
+      operationId: forgotPassword
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Reset email sent (if email exists)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /auth/reset-password:
+    post:
+      summary: Reset password with token
+      operationId: resetPassword
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/verify-email:
+    post:
+      summary: Verify email address
+      operationId: verifyEmail
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/me:
+    get:
+      summary: Get current user
+      operationId: getCurrentUser
+      tags:
+        - Authentication
+      security:
+        - bearerAuth: []
+        - {}
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/oauth/{provider}:
+    post:
+      summary: Initiate OAuth login
+      operationId: oauthRedirect
+      tags:
+        - Authentication
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [google, github, microsoft, apple, discord, slack]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OAuthRequest'
+      responses:
+        '200':
+          description: OAuth URL generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+
+  /auth/oauth/{provider}/callback:
+    get:
+      summary: OAuth callback
+      operationId: oauthCallback
+      tags:
+        - Authentication
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/sso/redirect:
+    get:
+      summary: Initiate SSO login
+      operationId: ssoRedirect
+      tags:
+        - Authentication
+      parameters:
+        - name: domain
+          in: query
+          required: false
+          schema: { type: string }
+        - name: connection_id
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: SSO redirect URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url: { type: string }
+              example:
+                url: https://sso.example.com/redirect/acme.com
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/sso/callback:
+    post:
+      summary: SSO callback handler
+      operationId: ssoCallback
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SsoCallbackRequest'
+            example:
+              connectionId: sso_123
+              payload:
+                state: state_abc
+                code: code_xyz
+      responses:
+        '200':
+          description: SSO login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                accessToken: access_123
+                refreshToken: refresh_123
+                user:
+                  id: user_123
+                  email: user@acme.com
+                  emailVerified: true
+                  name: Jane Doe
+                  mfaEnabled: false
+                mfaRequired: false
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/sso/metadata:
+    get:
+      summary: Get SSO metadata (SAML)
+      operationId: ssoMetadata
+      tags:
+        - Authentication
+      parameters:
+        - name: connection_id
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: SAML metadata
+          content:
+            application/xml:
+              schema:
+                type: string
+              example: "<EntityDescriptor entityID=\"vault:sso_123\"><IDPSSODescriptor/></EntityDescriptor>"
+
+  # ============ Users ============
+  /users/me:
+    get:
+      summary: Get current user profile
+      operationId: getMe
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    patch:
+      summary: Update user profile
+      operationId: updateMe
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Delete user account
+      operationId: deleteMe
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/password:
+    patch:
+      summary: Change password
+      operationId: changePassword
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa:
+    get:
+      summary: Get MFA status
+      operationId: getMfaStatus
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: MFA status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Enable MFA
+      operationId: enableMfa
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnableMfaRequest'
+      responses:
+        '200':
+          description: MFA setup initiated
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TotpSetupResponse'
+                  - $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Disable MFA
+      operationId: disableMfa
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyMfaRequest'
+      responses:
+        '200':
+          description: MFA disabled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/webauthn/register/begin:
+    post:
+      summary: Begin WebAuthn registration
+      operationId: beginWebauthnRegistration
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: WebAuthn registration options
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebauthnBeginResponse'
+              example:
+                challenge: ABC123
+                rpId: vault.dev
+                user:
+                  id: user_123
+                  name: user@acme.com
+                pubKeyCredParams:
+                  - type: public-key
+                    alg: -7
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/webauthn/register/finish:
+    post:
+      summary: Finish WebAuthn registration
+      operationId: finishWebauthnRegistration
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebauthnFinishRequest'
+            example:
+              credential:
+                id: cred_123
+                type: public-key
+      responses:
+        '200':
+          description: WebAuthn device registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: WebAuthn device registered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/backup-codes:
+    post:
+      summary: Generate MFA backup codes
+      operationId: generateBackupCodes
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Backup codes generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupCodesResponse'
+              example:
+                codes: [ABCD-EFGH, IJKL-MNOP]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/backup-codes/verify:
+    post:
+      summary: Verify backup code
+      operationId: verifyBackupCode
+      tags:
+        - MFA
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupCodeVerifyRequest'
+            example:
+              code: ABCD-EFGH
+      responses:
+        '200':
+          description: Backup code verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+              example:
+                message: Backup code verified
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/sessions:
+    get:
+      summary: List active sessions
+      operationId: listSessions
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      summary: Logout all sessions
+      operationId: logoutAllSessions
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/sessions/{sessionId}:
+    delete:
+      summary: Revoke specific session
+      operationId: revokeSession
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ============ Organizations ============
+  /organizations:
+    get:
+      summary: List organizations
+      operationId: listOrganizations
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create organization
+      operationId: createOrganization
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrgRequest'
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /organizations/{orgId}:
+    get:
+      summary: Get organization
+      operationId: getOrganization
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update organization
+      operationId: updateOrganization
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrgRequest'
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete organization
+      operationId: deleteOrganization
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organization deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{orgId}/members:
+    get:
+      summary: List organization members
+      operationId: listMembers
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrganizationMemberResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Invite member
+      operationId: inviteMember
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
+      responses:
+        '201':
+          description: Invitation sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{orgId}/members/{userId}:
+    patch:
+      summary: Update member role
+      operationId: updateMember
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRequest'
+      responses:
+        '200':
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationMemberResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove member
+      operationId: removeMember
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/{orgId}/invitations:
+    get:
+      summary: List pending invitations
+      operationId: listInvitations
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitationResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /organizations/invitations/{token}/accept:
+    post:
+      summary: Accept organization invitation
+      operationId: acceptInvitation
+      tags:
+        - Organizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Invitation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer token obtained from login/registration
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: Permission denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ============ Common ============
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              example: "Invalid email format"
+            details:
+              type: object
+              additionalProperties: true
+
+    MessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: "Operation completed successfully"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        version:
+          type: string
+          example: "0.1.0"
+        timestamp:
+          type: string
+          format: date-time
+
+    # ============ Auth ============
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 12
+          example: "StrongP@ssw0rd123!"
+        name:
+          type: string
+          example: "John Doe"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        mfaCode:
+          type: string
+          description: MFA code if MFA is enabled
+          example: "123456"
+
+    AuthResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - user
+        - mfaRequired
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: Refresh token for getting new access tokens
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        mfaRequired:
+          type: boolean
+          description: Whether MFA verification is required
+
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+
+    MagicLinkRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    VerifyMagicLinkRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          format: password
+          minLength: 12
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+
+    OAuthRequest:
+      type: object
+      properties:
+        redirectUri:
+          type: string
+          format: uri
+
+    # ============ Users ============
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+        - emailVerified
+        - mfaEnabled
+      properties:
+        id:
+          type: string
+          example: "usr_1234567890"
+        email:
+          type: string
+          format: email
+        emailVerified:
+          type: boolean
+        name:
+          type: string
+          nullable: true
+        mfaEnabled:
+          type: boolean
+
+    UserProfileResponse:
+      type: object
+      required:
+        - id
+        - email
+        - emailVerified
+        - mfaEnabled
+        - createdAt
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        emailVerified:
+          type: boolean
+        name:
+          type: string
+          nullable: true
+        givenName:
+          type: string
+          nullable: true
+        familyName:
+          type: string
+          nullable: true
+        picture:
+          type: string
+          format: uri
+          nullable: true
+        mfaEnabled:
+          type: boolean
+        mfaMethods:
+          type: array
+          items:
+            type: string
+        oauthConnections:
+          type: array
+          items:
+            $ref: '#/components/schemas/OAuthConnectionResponse'
+        createdAt:
+          type: string
+          format: date-time
+
+    OAuthConnectionResponse:
+      type: object
+      required:
+        - provider
+        - providerUserId
+        - connectedAt
+      properties:
+        provider:
+          type: string
+          example: "google"
+        providerUserId:
+          type: string
+        providerUsername:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+          nullable: true
+        connectedAt:
+          type: string
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 12
+
+    # ============ MFA ============
+    MfaStatusResponse:
+      type: object
+      required:
+        - enabled
+        - methods
+      properties:
+        enabled:
+          type: boolean
+        methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/MfaMethodResponse'
+
+    MfaMethodResponse:
+      type: object
+      required:
+        - method
+        - enabled
+      properties:
+        method:
+          type: string
+          enum: [totp, email, sms, webauthn, backup_codes]
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    EnableMfaRequest:
+      type: object
+      required:
+        - method
+      properties:
+        method:
+          type: string
+          enum: [totp, email, sms]
+        code:
+          type: string
+          description: Verification code for confirming MFA setup
+
+    VerifyMfaRequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+
+    TotpSetupResponse:
+      type: object
+      required:
+        - secret
+        - qrCodeUri
+        - backupCodes
+      properties:
+        secret:
+          type: string
+          description: TOTP secret (base32 encoded)
+        qrCodeUri:
+          type: string
+          description: otpauth:// URI for QR code
+        backupCodes:
+          type: array
+          items:
+            type: string
+          description: Single-use backup codes
+
+    WebauthnBeginResponse:
+      type: object
+      properties:
+        challenge: { type: string }
+        rpId: { type: string }
+        user: { type: object }
+        pubKeyCredParams:
+          type: array
+          items: { type: object }
+      example:
+        challenge: ABC123
+        rpId: vault.dev
+        user:
+          id: user_123
+          name: user@acme.com
+        pubKeyCredParams:
+          - type: public-key
+            alg: -7
+
+    WebauthnFinishRequest:
+      type: object
+      required: [credential]
+      properties:
+        credential: { type: object }
+      example:
+        credential:
+          id: cred_123
+          type: public-key
+
+    BackupCodesResponse:
+      type: object
+      properties:
+        codes:
+          type: array
+          items: { type: string }
+      example:
+        codes: [ABCD-EFGH, IJKL-MNOP]
+
+    BackupCodeVerifyRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+      example:
+        code: ABCD-EFGH
+
+    SsoCallbackRequest:
+      type: object
+      required: [connectionId, payload]
+      properties:
+        connectionId: { type: string }
+        payload: { type: object }
+      example:
+        connectionId: sso_123
+        payload:
+          state: state_abc
+          code: code_xyz
+
+    # ============ Sessions ============
+    SessionResponse:
+      type: object
+      required:
+        - id
+        - mfaVerified
+        - createdAt
+        - lastActivityAt
+        - expiresAt
+        - current
+      properties:
+        id:
+          type: string
+        ipAddress:
+          type: string
+          nullable: true
+        userAgent:
+          type: string
+          nullable: true
+        deviceInfo:
+          $ref: '#/components/schemas/DeviceInfoResponse'
+          nullable: true
+        mfaVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+          description: Whether this is the current session
+
+    DeviceInfoResponse:
+      type: object
+      required:
+        - deviceType
+        - os
+        - browser
+        - isMobile
+      properties:
+        deviceType:
+          type: string
+          enum: [desktop, mobile, tablet]
+        os:
+          type: string
+          example: "macOS"
+        browser:
+          type: string
+          example: "Chrome"
+        isMobile:
+          type: boolean
+
+    # ============ Organizations ============
+    OrganizationResponse:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - memberCount
+        - ssoRequired
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+          nullable: true
+        logoUrl:
+          type: string
+          format: uri
+          nullable: true
+        website:
+          type: string
+          format: uri
+          nullable: true
+        memberCount:
+          type: integer
+        maxMembers:
+          type: integer
+          nullable: true
+        ssoRequired:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateOrgRequest:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+        description:
+          type: string
+
+    UpdateOrgRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        logoUrl:
+          type: string
+          format: uri
+        website:
+          type: string
+          format: uri
+
+    OrganizationMemberResponse:
+      type: object
+      required:
+        - id
+        - userId
+        - email
+        - role
+        - status
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [owner, admin, member, guest]
+        status:
+          type: string
+          enum: [pending, active, suspended]
+        joinedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    InviteMemberRequest:
+      type: object
+      required:
+        - email
+        - role
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [owner, admin, member, guest]
+
+    UpdateMemberRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [owner, admin, member, guest]
+
+    InvitationResponse:
+      type: object
+      required:
+        - id
+        - email
+        - role
+        - invitedBy
+        - expiresAt
+        - createdAt
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        invitedBy:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time

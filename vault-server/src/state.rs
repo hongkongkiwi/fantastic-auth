@@ -7,6 +7,7 @@ use vault_core::security::bot_protection::{
     BotProtection, CloudflareTurnstile, DisabledBotProtection, HCaptcha,
 };
 use vault_core::webauthn::{WebAuthnConfig, WebAuthnService};
+use crate::i18n::I18n;
 
 use crate::audit::{AuditLogger, DefaultWebhookNotifier};
 use crate::auth::{AccountLinkingService, StepUpPolicy};
@@ -59,6 +60,8 @@ pub struct AppState {
     pub step_up_max_age_minutes: u32,
     /// Web3 authentication service
     pub web3_auth: Arc<Web3Auth>,
+    /// Consent manager for GDPR/CCPA compliance
+    pub consent_manager: Arc<crate::consent::ConsentManager>,
 }
 
 impl AppState {
@@ -215,6 +218,17 @@ impl AppState {
         
         // Initialize SMS service if configured
         let sms_service = initialize_sms_service(&config, redis.clone()).await;
+        
+        // Initialize i18n service
+        let i18n = Arc::new(I18n::new()?);
+        
+        // Initialize consent manager
+        let consent_repository = crate::consent::ConsentRepository::new(db.pool().clone());
+        let consent_config = crate::consent::ConsentConfig::default();
+        let consent_manager = Arc::new(crate::consent::ConsentManager::new(
+            consent_repository,
+            consent_config,
+        ));
 
         Ok(Self {
             config: Arc::new(config),
@@ -234,6 +248,7 @@ impl AppState {
             account_linking_service,
             step_up_policy,
             step_up_max_age_minutes,
+            i18n,
             web3_auth: {
                 // Initialize Web3 authentication service
                 let base_url = config.base_url.clone();
@@ -248,6 +263,7 @@ impl AppState {
                 
                 Arc::new(web3_auth)
             },
+            consent_manager,
         })
     }
 

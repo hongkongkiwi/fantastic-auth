@@ -225,6 +225,18 @@ pub enum AuditAction {
     BulkImportStarted,
     BulkExportStarted,
     BulkJobDeleted,
+    
+    // Consent and privacy
+    ConsentGranted,
+    ConsentWithdrawn,
+    ConsentVersionCreated,
+    ConsentVersionUpdated,
+    DataExportRequested,
+    DataExportCompleted,
+    DataExportFailed,
+    AccountDeletionRequested,
+    AccountDeletionCancelled,
+    AccountDeletionCompleted,
 }
 
 impl AuditAction {
@@ -298,6 +310,16 @@ impl AuditAction {
             AuditAction::BulkImportStarted => "bulk.import_started",
             AuditAction::BulkExportStarted => "bulk.export_started",
             AuditAction::BulkJobDeleted => "bulk.job_deleted",
+            AuditAction::ConsentGranted => "consent.granted",
+            AuditAction::ConsentWithdrawn => "consent.withdrawn",
+            AuditAction::ConsentVersionCreated => "consent.version_created",
+            AuditAction::ConsentVersionUpdated => "consent.version_updated",
+            AuditAction::DataExportRequested => "data_export.requested",
+            AuditAction::DataExportCompleted => "data_export.completed",
+            AuditAction::DataExportFailed => "data_export.failed",
+            AuditAction::AccountDeletionRequested => "account_deletion.requested",
+            AuditAction::AccountDeletionCancelled => "account_deletion.cancelled",
+            AuditAction::AccountDeletionCompleted => "account_deletion.completed",
         }
     }
 }
@@ -320,6 +342,7 @@ pub enum ResourceType {
     Organization,
     Domain,
     BulkJob,
+    Consent,
 }
 
 impl ResourceType {
@@ -340,6 +363,22 @@ impl ResourceType {
             ResourceType::Organization => "organization",
             ResourceType::Domain => "domain",
             ResourceType::BulkJob => "bulk_job",
+            ResourceType::Consent => "consent",
+        }
+    }
+}
+
+impl From<&str> for AuditAction {
+    fn from(action: &str) -> Self {
+        match action {
+            "consent_submitted" => AuditAction::ConsentGranted,
+            "consent_withdrawn" => AuditAction::ConsentWithdrawn,
+            "consent_version_created" => AuditAction::ConsentVersionCreated,
+            "consent_version_updated" => AuditAction::ConsentVersionUpdated,
+            "data_export_requested" => AuditAction::DataExportRequested,
+            "deletion_requested" => AuditAction::AccountDeletionRequested,
+            "deletion_cancelled" => AuditAction::AccountDeletionCancelled,
+            _ => AuditAction::Custom(action),
         }
     }
 }
