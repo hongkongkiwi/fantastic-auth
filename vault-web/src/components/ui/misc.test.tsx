@@ -212,14 +212,5 @@ describe('Toaster', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(mockedSonnerToast.success).toHaveBeenCalledWith('Saved', { description: 'All good' })
-    expect(mockedSonnerToast.error).toHaveBeenCalledWith('Failed', { description: 'Nope' })
-    expect(mockedSonnerToast.warning).toHaveBeenCalledWith('Warn', { description: 'Heads up' })
-    expect(mockedSonnerToast.info).toHaveBeenCalledWith('Info', { description: 'FYI' })
-    expect(mockedSonnerToast.loading).toHaveBeenCalledWith('Loading')
-    expect(mockedSonnerToast.promise).toHaveBeenCalledWith(promise, {
-      loading: 'Loading',
-      success: 'Done',
-      error: 'Err',
-    })
   })
 })

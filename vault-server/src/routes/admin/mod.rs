@@ -21,6 +21,7 @@ pub mod dashboard;
 pub mod directory;
 pub mod domains;
 pub mod i18n;
+pub mod impersonation;
 pub mod organizations;
 pub mod password_policy;
 pub mod permissions;

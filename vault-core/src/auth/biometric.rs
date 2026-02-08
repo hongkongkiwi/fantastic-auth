@@ -6,7 +6,7 @@
 use crate::crypto::generate_secure_random;
 use crate::error::{Result, VaultError};
 use chrono::{DateTime, Duration, Utc};
-use p256::ecdsa::{signature::Verifier, Signature, SigningKey, VerifyingKey};
+use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -179,7 +179,7 @@ impl From<BiometricError> for VaultError {
                 VaultError::conflict("Biometric key already exists")
             }
             BiometricError::RateLimited => VaultError::rate_limit(60),
-            BiometricError::DatabaseError(msg) => VaultError::database(msg),
+            BiometricError::DatabaseError(msg) => VaultError::Internal(format!("Database error: {}", msg)),
             BiometricError::Internal(msg) => VaultError::internal(msg),
         }
     }
@@ -250,7 +250,7 @@ pub fn verify_ecdsa_signature(
     public_key_bytes: &[u8],
     message: &[u8],
     signature_bytes: &[u8],
-) -> Result<bool, BiometricError> {
+) -> std::result::Result<bool, BiometricError> {
     // Parse the verifying key
     let verifying_key = VerifyingKey::from_sec1_bytes(public_key_bytes)
         .map_err(|_| BiometricError::InvalidPublicKey)?;
