@@ -246,4 +246,21 @@ describe('useAuth', () => {
 
     expect(await screen.findByText('Protected')).toBeInTheDocument()
   })
+
+  it('redirects and renders nothing when unauthenticated', async () => {
+    getUiSessionStatusMock.mockRejectedValueOnce(new Error('Unauthorized'))
+
+    const { queryByText } = render(
+      <AuthProvider>
+        <ProtectedRoute>
+          <div>Protected</div>
+        </ProtectedRoute>
+      </AuthProvider>
+    )
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login', search: { redirect: '/' } })
+    })
+    expect(queryByText('Protected')).toBeNull()
+  })
 })

@@ -128,6 +128,7 @@ describe('Select', () => {
     )
 
     const select = screen.getByLabelText('Plan') as HTMLSelectElement
+    expect(screen.getByText('Choose')).toBeInTheDocument()
     await user.selectOptions(select, 'pro')
 
     expect(onChange).toHaveBeenCalledWith('pro')

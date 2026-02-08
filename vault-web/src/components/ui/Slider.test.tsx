@@ -66,6 +66,11 @@ describe('Slider', () => {
     render(<Slider disabled />)
     expect(screen.getByRole('slider')).toHaveAttribute('data-disabled')
   })
+
+  it('hides value when showValue is false', () => {
+    render(<Slider value={[10]} showValue={false} />)
+    expect(screen.queryByText('10')).not.toBeInTheDocument()
+  })
 })
 
 describe('RangeSlider', () => {
@@ -90,5 +95,10 @@ describe('RangeSlider', () => {
     sliders[0].focus()
     await user.keyboard('{ArrowRight}')
     expect(handleChange).toHaveBeenCalled()
+  })
+
+  it('can hide range values', () => {
+    render(<RangeSlider value={[20, 80]} showValue={false} />)
+    expect(screen.queryByText('20 - 80')).not.toBeInTheDocument()
   })
 })

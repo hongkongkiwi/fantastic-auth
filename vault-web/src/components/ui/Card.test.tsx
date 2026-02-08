@@ -39,4 +39,24 @@ describe('Card', () => {
     // Card should have proper heading structure
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('Accessible Card')
   })
+
+  it('supports variants, hover, and padding', () => {
+    const { rerender } = render(
+      <Card variant="glass" hover padding="lg">
+        Card
+      </Card>
+    )
+    const card = screen.getByText('Card')
+    expect(card).toHaveClass('glass')
+    expect(card).toHaveClass('card-hover')
+    expect(card).toHaveClass('p-8')
+
+    rerender(
+      <Card variant="outline" padding="sm">
+        Card
+      </Card>
+    )
+    expect(screen.getByText('Card')).toHaveClass('bg-transparent')
+    expect(screen.getByText('Card')).toHaveClass('p-4')
+  })
 })

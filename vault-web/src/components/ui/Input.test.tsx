@@ -69,6 +69,11 @@ describe('Input', () => {
     expect(container.querySelector('.pr-10')).toBeTruthy()
   })
 
+  it('renders full width container', () => {
+    const { container } = render(<Input fullWidth />)
+    expect(container.firstChild).toHaveClass('w-full')
+  })
+
   it('forwards ref correctly', () => {
     const ref = { current: null as HTMLInputElement | null }
     render(<Input ref={ref} />)

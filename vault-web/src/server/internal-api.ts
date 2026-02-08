@@ -41,6 +41,18 @@ export type SubscriptionListResponse = {
 export type PlatformOverview = components['schemas']['PlatformOverviewResponse']
 export type InvoiceResponse = components['schemas']['InvoiceResponse']
 export type FeatureFlag = components['schemas']['FeatureFlagResponse']
+export type OrganizationResponse = components['schemas']['OrganizationResponse']
+export type OrganizationMemberResponse =
+  components['schemas']['OrganizationMemberResponse']
+export type RoleResponse = components['schemas']['RoleResponse']
+export type ApiKeyResponse = components['schemas']['ApiKeyResponse']
+export type CreateApiKeyResponse = components['schemas']['CreateApiKeyResponse']
+export type NotificationResponse = components['schemas']['NotificationResponse']
+export type SupportTicketResponse = components['schemas']['SupportTicketResponse']
+export type SupportIncidentResponse =
+  components['schemas']['SupportIncidentResponse']
+export type ServiceStatusResponse =
+  components['schemas']['ServiceStatusResponse']
 export type TenantAnalyticsPoint = {
   date?: string
   newTenants?: number
@@ -188,6 +200,50 @@ type UpdateFeatureFlagInput = {
   enabled?: boolean
   rolloutPercentage?: number
   allowedTenants?: string[]
+} & UiAuth
+
+type GetOrganizationInput = {
+  baseUrl?: string
+  orgId: string
+} & UiAuth
+
+type ListOrganizationMembersInput = {
+  baseUrl?: string
+  orgId: string
+} & UiAuth
+
+type CreateRoleInput = {
+  baseUrl?: string
+  name: string
+  description?: string
+  scope?: string
+  permissions?: string[]
+} & UiAuth
+
+type UpdateRoleInput = {
+  baseUrl?: string
+  roleId: string
+  name?: string
+  description?: string
+  permissions?: string[]
+  status?: string
+} & UiAuth
+
+type CreateApiKeyInput = {
+  baseUrl?: string
+  name: string
+  scopes: string[]
+  expiresInDays?: number
+} & UiAuth
+
+type DeleteApiKeyInput = {
+  baseUrl?: string
+  keyId: string
+} & UiAuth
+
+type MarkNotificationsReadInput = {
+  baseUrl?: string
+  ids: string[]
 } & UiAuth
 
 type DeleteTenantInput = {
@@ -650,6 +706,363 @@ export const updateFeatureFlag = createServerFn({ method: 'POST' })
 
     cache.clear()
     return payload ?? {}
+  })
+
+export const listOrganizations = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('organizations', data)
+    const cached = getCached<OrganizationResponse[]>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/organizations', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? []
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const getOrganization = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .inputValidator((input: GetOrganizationInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('organization', data)
+    const cached = getCached<OrganizationResponse>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/organizations/{orgId}', {
+      params: {
+        path: {
+          orgId: data.orgId,
+        },
+      },
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? {}
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const listOrganizationMembers = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .inputValidator((input: ListOrganizationMembersInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET(
+      '/organizations/{orgId}/members',
+      {
+        params: {
+          path: {
+            orgId: data.orgId,
+          },
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const listRoles = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('roles', data)
+    const cached = getCached<RoleResponse[]>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/roles', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? []
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const createRole = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: CreateRoleInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.POST('/roles', {
+      body: {
+        name: data.name,
+        description: data.description,
+        scope: data.scope,
+        permissions: data.permissions,
+      },
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    cache.clear()
+    return payload ?? {}
+  })
+
+export const updateRole = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: UpdateRoleInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.PATCH(
+      '/roles/{roleId}',
+      {
+        params: {
+          path: {
+            roleId: data.roleId,
+          },
+        },
+        body: {
+          name: data.name,
+          description: data.description,
+          permissions: data.permissions,
+          status: data.status,
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    cache.clear()
+    return payload ?? {}
+  })
+
+export const listApiKeys = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const cacheKey = buildCacheKey('apiKeys', data)
+    const cached = getCached<ApiKeyResponse[]>(cacheKey)
+    if (cached) return cached
+
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/api-keys', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    const result = payload ?? []
+    setCached(cacheKey, result)
+    return result
+  })
+
+export const createApiKey = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: CreateApiKeyInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.POST('/api-keys', {
+      body: {
+        name: data.name,
+        scopes: data.scopes,
+        expiresInDays: data.expiresInDays,
+      },
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    cache.clear()
+    return payload ?? {}
+  })
+
+export const deleteApiKey = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: DeleteApiKeyInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.DELETE(
+      '/api-keys/{keyId}',
+      {
+        params: {
+          path: {
+            keyId: data.keyId,
+          },
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    cache.clear()
+    return payload ?? {}
+  })
+
+export const listNotifications = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/notifications', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const markNotificationsRead = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((input: MarkNotificationsReadInput) => input)
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.POST(
+      '/notifications/mark-read',
+      {
+        body: {
+          ids: data.ids,
+        },
+        headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+      },
+    )
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const listSupportTickets = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/support/tickets', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const listSupportIncidents = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/support/incidents', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const listServiceStatus = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/support/status', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? []
+  })
+
+export const listPlatformInvoices = createServerFn({ method: 'GET' })
+  .middleware([authMiddleware])
+  .handler(async ({ data }) => {
+    requireUiToken(data)
+    const client = getClient(data?.baseUrl)
+    const apiKey = env.INTERNAL_API_KEY
+
+    const { data: payload, error, response } = await client.GET('/billing/invoices', {
+      headers: apiKey ? { 'X-API-Key': apiKey } : undefined,
+    })
+
+    if (error) {
+      throw new Error(normalizeApiError(error, response))
+    }
+
+    return payload ?? { invoices: [] }
   })
 
 export const updateTenant = createServerFn({ method: 'POST' })

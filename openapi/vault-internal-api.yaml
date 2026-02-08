@@ -1286,6 +1286,137 @@ components:
         mfaEnabled: { type: boolean }
         failedLoginAttempts: { type: integer }
 
+    # Organizations
+    OrganizationResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        memberCount: { type: integer }
+        role: { type: string }
+        ssoEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    OrganizationMemberResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string }
+        status: { type: string }
+        joinedAt: { type: string, format: date-time }
+
+    # Roles & Permissions
+    RoleResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        scope: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        members: { type: integer }
+        status: { type: string }
+
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        scope: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        status: { type: string }
+
+    # API Keys
+    ApiKeyResponse:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        lastUsedAt: { type: string, format: date-time, nullable: true }
+        scopes:
+          type: array
+          items: { type: string }
+
+    CreateApiKeyRequest:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string }
+        scopes:
+          type: array
+          items: { type: string }
+        expiresInDays: { type: integer, nullable: true }
+
+    CreateApiKeyResponse:
+      type: object
+      properties:
+        key: { type: string }
+        apiKey:
+          $ref: '#/components/schemas/ApiKeyResponse'
+
+    # Notifications
+    NotificationResponse:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+        type: { type: string }
+        read: { type: boolean }
+
+    MarkNotificationsReadRequest:
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items: { type: string }
+
+    # Support
+    SupportTicketResponse:
+      type: object
+      properties:
+        id: { type: string }
+        subject: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        updatedAt: { type: string, format: date-time }
+
+    SupportIncidentResponse:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string }
+        startedAt: { type: string, format: date-time }
+
+    ServiceStatusResponse:
+      type: object
+      properties:
+        service: { type: string }
+        status: { type: string }
+
     # Billing
     SubscriptionResponse:
       type: object
