@@ -4,10 +4,11 @@
 
 use crate::billing::{
     BillingError, BillingPlan, CheckoutSession, Invoice, InvoiceStatus, PortalSession,
-    Subscription, SubscriptionStatus, WebhookEvent,
+    Subscription, SubscriptionStatus,
 };
 use chrono::Utc;
 use serde_json::Value;
+use vault_core::billing::WebhookEvent;
 
 /// Stripe webhook payload structure
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -29,7 +30,7 @@ pub struct EventData {
 }
 
 /// Stripe customer object
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeCustomer {
     pub id: String,
     pub email: Option<String>,
@@ -38,7 +39,7 @@ pub struct StripeCustomer {
 }
 
 /// Stripe subscription object
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeSubscription {
     pub id: String,
     pub customer: String,
@@ -59,26 +60,26 @@ pub struct StripeSubscription {
     pub metadata: Value,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeList<T> {
     pub data: Vec<T>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeSubscriptionItem {
     pub id: String,
     pub price: StripePrice,
     pub quantity: i32,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripePrice {
     pub id: String,
     pub product: String,
 }
 
 /// Stripe checkout session
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct StripeCheckoutSession {
     pub id: String,
     pub customer: Option<String>,
@@ -256,7 +257,7 @@ impl WebhookHandler for DefaultWebhookHandler {
             .bind(&tenant_id)
             .execute(self.db.pool())
             .await
-            .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+            .map_err(|e| BillingError::DatabaseError(e))?;
         }
 
         Ok(WebhookEvent {
@@ -315,7 +316,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(subscription.trial_end.map(|t| chrono::DateTime::from_timestamp(t, 0)))
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         // Log billing event
         sqlx::query(
@@ -328,7 +329,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(serde_json::to_value(&subscription).unwrap_or_default())
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         Ok(WebhookEvent {
             event_type: "customer.subscription.created".to_string(),
@@ -378,7 +379,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&subscription.id)
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         // Log billing event
         sqlx::query(
@@ -391,7 +392,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(serde_json::to_value(&subscription).unwrap_or_default())
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         Ok(WebhookEvent {
             event_type: "customer.subscription.updated".to_string(),
@@ -421,7 +422,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&subscription.id)
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         // Log billing event
         sqlx::query(
@@ -434,7 +435,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(serde_json::to_value(&subscription).unwrap_or_default())
         .execute(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         Ok(WebhookEvent {
             event_type: "customer.subscription.deleted".to_string(),
@@ -458,7 +459,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&invoice.customer)
         .fetch_optional(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         if let Some(tenant_id) = &tenant_id {
             // Insert or update invoice
@@ -487,7 +488,7 @@ impl WebhookHandler for DefaultWebhookHandler {
             .bind(chrono::DateTime::from_timestamp(invoice.period_end, 0))
             .execute(self.db.pool())
             .await
-            .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+            .map_err(|e| BillingError::DatabaseError(e))?;
         }
 
         Ok(WebhookEvent {
@@ -512,7 +513,7 @@ impl WebhookHandler for DefaultWebhookHandler {
         .bind(&invoice.customer)
         .fetch_optional(self.db.pool())
         .await
-        .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+        .map_err(|e| BillingError::DatabaseError(e))?;
 
         if let Some(tenant_id) = &tenant_id {
             // Update invoice status
@@ -540,7 +541,7 @@ impl WebhookHandler for DefaultWebhookHandler {
             .bind(chrono::DateTime::from_timestamp(invoice.period_end, 0))
             .execute(self.db.pool())
             .await
-            .map_err(|e| BillingError::DatabaseError(e.to_string()))?;
+            .map_err(|e| BillingError::DatabaseError(e))?;
         }
 
         Ok(WebhookEvent {
