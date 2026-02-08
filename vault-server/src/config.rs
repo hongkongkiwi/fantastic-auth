@@ -487,6 +487,8 @@ fn default_notify_on_new_device() -> bool { true }
 fn default_require_verification_new_device() -> bool { false }
 fn default_ignore_private_ip() -> bool { true }
 fn default_max_violations() -> u32 { 5 }
+fn default_data_encryption_provider() -> DataEncryptionProvider { DataEncryptionProvider::Local }
+fn default_kms_context_key() -> String { "tenant_id".to_string() }
 
 /// Security configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -514,6 +516,9 @@ pub struct SecurityConfig {
     /// Session binding configuration
     #[serde(default)]
     pub session_binding: SessionBindingConfig,
+    /// Data encryption configuration (per-tenant DEKs)
+    #[serde(default)]
+    pub data_encryption: DataEncryptionConfig,
 }
 
 impl Default for SecurityConfig {
@@ -528,6 +533,80 @@ impl Default for SecurityConfig {
             password_policy: PasswordPolicyConfig::default(),
             geo_restriction: GeoRestrictionConfig::default(),
             session_binding: SessionBindingConfig::default(),
+            data_encryption: DataEncryptionConfig::default(),
+        }
+    }
+}
+
+/// Data encryption configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DataEncryptionConfig {
+    #[serde(default = "default_data_encryption_provider")]
+    pub provider: DataEncryptionProvider,
+    #[serde(default)]
+    pub aws_kms: AwsKmsConfig,
+    #[serde(default)]
+    pub azure_kv: AzureKeyVaultConfig,
+}
+
+impl Default for DataEncryptionConfig {
+    fn default() -> Self {
+        Self {
+            provider: default_data_encryption_provider(),
+            aws_kms: AwsKmsConfig::default(),
+            azure_kv: AzureKeyVaultConfig::default(),
+        }
+    }
+}
+
+/// Data encryption provider (envelope-wrapped DEK)
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum DataEncryptionProvider {
+    #[default]
+    Local,
+    AwsKms,
+    AzureKv,
+}
+
+/// AWS KMS configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AwsKmsConfig {
+    pub key_id: Option<String>,
+    pub region: Option<String>,
+    pub endpoint: Option<String>,
+    #[serde(default = "default_kms_context_key")]
+    pub tenant_context_key: String,
+}
+
+impl Default for AwsKmsConfig {
+    fn default() -> Self {
+        Self {
+            key_id: None,
+            region: None,
+            endpoint: None,
+            tenant_context_key: default_kms_context_key(),
+        }
+    }
+}
+
+/// Azure Key Vault configuration
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct AzureKeyVaultConfig {
+    pub vault_url: Option<String>,
+    pub key_name: Option<String>,
+    pub key_version: Option<String>,
+    #[serde(default = "default_kms_context_key")]
+    pub tenant_context_key: String,
+}
+
+impl Default for AzureKeyVaultConfig {
+    fn default() -> Self {
+        Self {
+            vault_url: None,
+            key_name: None,
+            key_version: None,
+            tenant_context_key: default_kms_context_key(),
         }
     }
 }
@@ -857,6 +936,27 @@ impl Config {
 
         if !(0.0..=1.0).contains(&self.webhook.retry_jitter) {
             anyhow::bail!("webhook.retry_jitter must be between 0.0 and 1.0");
+        }
+
+        match self.security.data_encryption.provider {
+            DataEncryptionProvider::Local => {}
+            DataEncryptionProvider::AwsKms => {
+                if self.security.data_encryption.aws_kms.key_id.is_none() {
+                    anyhow::bail!("security.data_encryption.aws_kms.key_id is required for AWS KMS");
+                }
+            }
+            DataEncryptionProvider::AzureKv => {
+                if self.security.data_encryption.azure_kv.vault_url.is_none() {
+                    anyhow::bail!(
+                        "security.data_encryption.azure_kv.vault_url is required for Azure Key Vault"
+                    );
+                }
+                if self.security.data_encryption.azure_kv.key_name.is_none() {
+                    anyhow::bail!(
+                        "security.data_encryption.azure_kv.key_name is required for Azure Key Vault"
+                    );
+                }
+            }
         }
 
         Ok(())

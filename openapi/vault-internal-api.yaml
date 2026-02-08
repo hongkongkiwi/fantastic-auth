@@ -1092,6 +1092,37 @@ paths:
       description: List invoices across all tenants
       operationId: listPlatformInvoices
       tags: [Billing]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: tenantId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, open, paid, uncollectible, void]
+        - name: createdFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: createdTo
+          in: query
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           description: Invoices
@@ -1104,6 +1135,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/InvoiceResponse'
+                  pagination:
+                    $ref: '#/components/schemas/PaginationResponse'
 
 components:
   securitySchemes:

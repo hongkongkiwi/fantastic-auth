@@ -14,17 +14,17 @@
 //!   - name: "webhook-plugin"
 //!     config:
 //!       webhooks:
-         - name: "audit-log"
-           url: "https://example.com/webhooks/audit"
-           events: ["user.login", "user.created"]
-           secret: "webhook-secret-key"
-           retry_policy:
-             max_retries: 3
-             backoff_secs: 1
-           timeout_secs: 30
-           rate_limit:
-             requests_per_second: 10
-             burst: 20
+//!         - name: "audit-log"
+//!           url: "https://example.com/webhooks/audit"
+//!           events: ["user.login", "user.created"]
+//!           secret: "webhook-secret-key"
+//!           retry_policy:
+//!             max_retries: 3
+//!             backoff_secs: 1
+//!           timeout_secs: 30
+//!           rate_limit:
+//!             requests_per_second: 10
+//!             burst: 20
 //! ```
 
 use async_trait::async_trait;

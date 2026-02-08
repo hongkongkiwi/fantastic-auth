@@ -251,9 +251,12 @@ pub fn get_template_schema(template_key: &str) -> serde_json::Value {
                 })
                 .collect();
 
+            let mut placeholders = required;
+            placeholders.extend(optional);
+
             json!({
                 "template": template_key,
-                "placeholders": [required, optional].concat()
+                "placeholders": placeholders
             })
         }
         None => json!({

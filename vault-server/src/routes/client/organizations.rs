@@ -214,7 +214,7 @@ async fn update_organization(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<String>,
-    Json(_req): Json<UpdateOrgRequest>,
+    Json(req): Json<UpdateOrgRequest>,
 ) -> Result<Json<OrganizationResponse>, ApiError> {
     state
         .set_tenant_context(&current_user.tenant_id)

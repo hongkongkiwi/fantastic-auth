@@ -36,6 +36,7 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+pub mod ai;
 pub mod auth;
 pub mod billing;
 pub mod crypto;
@@ -48,6 +49,9 @@ pub mod plugin;
 pub mod security;
 pub mod sms;
 pub mod webauthn;
+
+// ZK module is internal-only for now until fully implemented
+mod zk;
 
 pub use crypto::{
     generate_random_bytes, generate_secure_random, Claims, HybridJwt, HybridSigningKey,

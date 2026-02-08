@@ -179,6 +179,9 @@ pub enum AuditAction {
     // Session validation
     SessionValidated,
     SessionValidationFailed,
+
+    // Security settings
+    SecurityPolicyUpdated,
     
     // Risk-based authentication
     RiskAssessmentCreated,
@@ -287,6 +290,7 @@ impl AuditAction {
             AuditAction::SessionRevoked => "session.revoked",
             AuditAction::SessionValidated => "session.validated",
             AuditAction::SessionValidationFailed => "session.validation_failed",
+            AuditAction::SecurityPolicyUpdated => "security_policy.updated",
             AuditAction::RiskAssessmentCreated => "risk.assessment_created",
             AuditAction::LoginBlockedRisk => "risk.login_blocked",
             AuditAction::AdminAccessGranted => "admin.access_granted",
@@ -356,6 +360,7 @@ pub enum ResourceType {
     BulkJob,
     Consent,
     RiskAssessment,
+    SecurityPolicy,
 }
 
 impl ResourceType {
@@ -378,6 +383,7 @@ impl ResourceType {
             ResourceType::BulkJob => "bulk_job",
             ResourceType::Consent => "consent",
             ResourceType::RiskAssessment => "risk_assessment",
+            ResourceType::SecurityPolicy => "security_policy",
         }
     }
 }
@@ -392,6 +398,7 @@ impl From<&str> for AuditAction {
             "data_export_requested" => AuditAction::DataExportRequested,
             "deletion_requested" => AuditAction::AccountDeletionRequested,
             "deletion_cancelled" => AuditAction::AccountDeletionCancelled,
+            "security_policy.updated" => AuditAction::SecurityPolicyUpdated,
             _ => AuditAction::Custom(action),
         }
     }
@@ -1732,6 +1739,88 @@ impl AuditLogger {
 /// Extension trait to add audit logger to AppState
 pub trait AuditLoggerExt {
     fn audit(&self) -> AuditLogger;
+}
+
+/// Log an admin event (convenience function)
+/// 
+/// This creates a temporary AuditLogger and logs the event.
+/// For high-performance scenarios, use AuditLogger directly.
+pub fn log_admin_event(
+    db: &Database,
+    tenant_id: &str,
+    admin_id: &str,
+    action: &str,
+    resource_type: &str,
+    resource_id: &str,
+    metadata: Option<serde_json::Value>,
+) {
+    let logger = AuditLogger::new(db.clone());
+    logger.log(
+        tenant_id,
+        AuditAction::from(action),
+        ResourceType::from(resource_type),
+        resource_id,
+        Some(admin_id.to_string()),
+        None,
+        None,
+        true,
+        None,
+        metadata,
+    );
+}
+
+/// Log a user action (convenience function)
+pub fn log_action(
+    db: &Database,
+    tenant_id: &str,
+    user_id: &str,
+    action: &str,
+    resource_type: &str,
+    resource_id: &str,
+    success: bool,
+) {
+    let logger = AuditLogger::new(db.clone());
+    logger.log(
+        tenant_id,
+        AuditAction::from(action),
+        ResourceType::from(resource_type),
+        resource_id,
+        Some(user_id.to_string()),
+        None,
+        None,
+        success,
+        None,
+        None,
+    );
+}
+
+impl From<&str> for AuditAction {
+    fn from(s: &str) -> Self {
+        match s {
+            "user.login" => AuditAction::Login,
+            "user.logout" => AuditAction::Logout,
+            "user.created" => AuditAction::UserCreated,
+            "user.updated" => AuditAction::UserUpdated,
+            "user.deleted" => AuditAction::UserDeleted,
+            "consent.accepted" => AuditAction::ConsentAccepted,
+            "consent.withdrawn" => AuditAction::ConsentWithdrawn,
+            "security_policy.updated" => AuditAction::SecurityPolicyUpdated,
+            _ => AuditAction::Custom(s.to_string()),
+        }
+    }
+}
+
+impl From<&str> for ResourceType {
+    fn from(s: &str) -> Self {
+        match s {
+            "user" => ResourceType::User,
+            "session" => ResourceType::Session,
+            "organization" => ResourceType::Organization,
+            "consent" => ResourceType::Consent,
+            "security_policy" => ResourceType::SecurityPolicy,
+            _ => ResourceType::Other(s.to_string()),
+        }
+    }
 }
 
 #[cfg(test)]

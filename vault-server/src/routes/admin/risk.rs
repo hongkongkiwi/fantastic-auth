@@ -10,12 +10,11 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::routes::ApiError;
 use crate::security::{
     EnabledFactors, RiskAnalytics, RiskEngineConfig, RiskThresholds, ScoringWeights,
 };
-use crate::state::AppState;
-
-use super::{AdminError, AdminUser};
+use crate::state::{AppState, CurrentUser};
 
 /// Risk configuration response
 #[derive(Debug, Serialize)]
@@ -126,8 +125,8 @@ pub fn routes() -> Router<AppState> {
 /// Get risk configuration
 async fn get_risk_config(
     State(state): State<AppState>,
-    _admin: AdminUser,
-) -> Result<Json<RiskConfigResponse>, AdminError> {
+    _admin: CurrentUser,
+) -> Result<Json<RiskConfigResponse>, ApiError> {
     // Get config from database
     let config = get_risk_config_from_db(&state, &state.config).await?;
 
@@ -137,9 +136,9 @@ async fn get_risk_config(
 /// Update risk configuration
 async fn update_risk_config(
     State(state): State<AppState>,
-    _admin: AdminUser,
+    _admin: CurrentUser,
     Json(req): Json<UpdateRiskConfigRequest>,
-) -> Result<Json<RiskConfigResponse>, AdminError> {
+) -> Result<Json<RiskConfigResponse>, ApiError> {
     // Get current config
     let mut config = get_risk_config_from_db(&state, &state.config).await?;
 
@@ -189,9 +188,9 @@ async fn update_risk_config(
 /// Get risk analytics
 async fn get_risk_analytics(
     State(state): State<AppState>,
-    _admin: AdminUser,
+    _admin: CurrentUser,
     Query(query): Query<RiskAnalyticsQuery>,
-) -> Result<Json<RiskAnalyticsResponse>, AdminError> {
+) -> Result<Json<RiskAnalyticsResponse>, ApiError> {
     // Get tenant ID from admin context (use "default" as fallback)
     let tenant_id = "default".to_string();
 
@@ -199,7 +198,7 @@ async fn get_risk_analytics(
         .risk_engine
         .get_tenant_analytics(&tenant_id, query.days)
         .await
-        .map_err(|e| AdminError::Internal(e.to_string()))?;
+        .map_err(|_| ApiError::Internal)?;
 
     Ok(Json(RiskAnalyticsResponse {
         tenant_id,
@@ -213,8 +212,8 @@ async fn get_risk_analytics(
 /// Get recent risk assessments
 async fn get_recent_assessments(
     State(state): State<AppState>,
-    _admin: AdminUser,
-) -> Result<Json<Vec<crate::security::RiskAssessment>>, AdminError> {
+    _admin: CurrentUser,
+) -> Result<Json<Vec<crate::security::RiskAssessment>>, ApiError> {
     // Get tenant ID from admin context
     let tenant_id = "default".to_string();
 
@@ -233,7 +232,7 @@ async fn get_recent_assessments(
     .bind(&tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|e| AdminError::Internal(e.to_string()))?;
+    .map_err(|_| ApiError::Internal)?;
 
     let assessments: Vec<crate::security::RiskAssessment> =
         assessments.into_iter().map(|r| r.into()).collect();
@@ -244,9 +243,9 @@ async fn get_recent_assessments(
 /// Get user risk summary
 async fn get_user_risk_summary(
     State(state): State<AppState>,
-    _admin: AdminUser,
+    _admin: CurrentUser,
     Path(user_id): Path<String>,
-) -> Result<Json<UserRiskSummary>, AdminError> {
+) -> Result<Json<UserRiskSummary>, ApiError> {
     // Get tenant ID from admin context
     let tenant_id = "default".to_string();
 
@@ -258,11 +257,11 @@ async fn get_user_risk_summary(
     .bind(&tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|e| AdminError::Internal(e.to_string()))?;
+    .map_err(|_| ApiError::Internal)?;
 
     let email = match user_row {
         Some(row) => row.email,
-        None => return Err(AdminError::NotFound("User not found".to_string())),
+        None => return Err(ApiError::NotFound),
     };
 
     // Get risk summary from database
@@ -279,7 +278,7 @@ async fn get_user_risk_summary(
     .bind(&user_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|e| AdminError::Internal(e.to_string()))?;
+    .map_err(|_| ApiError::Internal)?;
 
     Ok(Json(UserRiskSummary {
         user_id,
@@ -296,7 +295,7 @@ async fn get_user_risk_summary(
 async fn get_risk_config_from_db(
     state: &AppState,
     _config: &std::sync::Arc<crate::config::Config>,
-) -> Result<RiskEngineConfig, AdminError> {
+) -> Result<RiskEngineConfig, ApiError> {
     // For now, return default config
     // In production, this would load from the database
     Ok(RiskEngineConfig::default())
@@ -305,7 +304,7 @@ async fn get_risk_config_from_db(
 async fn save_risk_config_to_db(
     _state: &AppState,
     _config: &RiskEngineConfig,
-) -> Result<(), AdminError> {
+) -> Result<(), ApiError> {
     // For now, just log the save
     // In production, this would save to risk_config table
     tracing::info!("Saving risk configuration to database");

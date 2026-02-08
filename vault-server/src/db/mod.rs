@@ -29,6 +29,17 @@ impl Database {
             .acquire_timeout(Duration::from_secs(30))
             .idle_timeout(Duration::from_secs(600))
             .max_lifetime(Duration::from_secs(1800))
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    // Enforce application role + RLS for all pooled connections.
+                    sqlx::query("SET ROLE vault_app").execute(conn).await?;
+                    sqlx::query("SET row_security = ON").execute(conn).await?;
+                    sqlx::query("RESET app.current_tenant_id").execute(conn).await?;
+                    sqlx::query("RESET app.current_user_id").execute(conn).await?;
+                    sqlx::query("RESET app.current_user_role").execute(conn).await?;
+                    Ok(())
+                })
+            })
             .connect(database_url)
             .await?;
 

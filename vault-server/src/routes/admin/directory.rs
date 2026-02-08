@@ -511,8 +511,8 @@ async fn create_connection(
     let user_attributes: LdapUserAttributes =
         req.user_attributes.map(Into::into).unwrap_or_default();
 
-    // TODO: Encrypt bind_password before storing
-    let encrypted_password = req.bind_password; // Placeholder
+    let encrypted_password =
+        encrypt_bind_password(&state, &current_user.tenant_id, &req.bind_password).await?;
 
     sqlx::query(
         r#"
@@ -613,82 +613,112 @@ async fn update_connection(
 
     if let Some(name) = &req.name {
         updates.push(format!("name = ${}", param_idx));
+        params.push(Box::new(name.clone()));
         param_idx += 1;
     }
     if let Some(url) = &req.url {
         updates.push(format!("url = ${}", param_idx));
+        params.push(Box::new(url.clone()));
         param_idx += 1;
     }
     if let Some(bind_dn) = &req.bind_dn {
         updates.push(format!("bind_dn = ${}", param_idx));
+        params.push(Box::new(bind_dn.clone()));
         param_idx += 1;
     }
     if let Some(bind_password) = &req.bind_password {
+        let encrypted =
+            encrypt_bind_password(&state, &current_user.tenant_id, bind_password).await?;
         updates.push(format!("bind_password_encrypted = ${}", param_idx));
+        params.push(Box::new(encrypted));
         param_idx += 1;
     }
     if let Some(base_dn) = &req.base_dn {
         updates.push(format!("base_dn = ${}", param_idx));
+        params.push(Box::new(base_dn.clone()));
         param_idx += 1;
     }
     if req.user_search_base.is_some() {
         updates.push(format!("user_search_base = ${}", param_idx));
+        params.push(Box::new(req.user_search_base.clone()));
         param_idx += 1;
     }
     if let Some(user_search_filter) = &req.user_search_filter {
         updates.push(format!("user_search_filter = ${}", param_idx));
+        params.push(Box::new(user_search_filter.clone()));
         param_idx += 1;
     }
     if req.group_search_base.is_some() {
         updates.push(format!("group_search_base = ${}", param_idx));
+        params.push(Box::new(req.group_search_base.clone()));
         param_idx += 1;
     }
     if let Some(group_search_filter) = &req.group_search_filter {
         updates.push(format!("group_search_filter = ${}", param_idx));
+        params.push(Box::new(group_search_filter.clone()));
         param_idx += 1;
     }
     if let Some(user_attributes) = &req.user_attributes {
         updates.push(format!("user_attribute_mappings = ${}", param_idx));
+        params.push(Box::new(
+            serde_json::to_value(user_attributes).unwrap_or_default(),
+        ));
         param_idx += 1;
     }
     if let Some(sync_interval) = req.sync_interval_minutes {
         updates.push(format!("sync_interval_minutes = ${}", param_idx));
+        params.push(Box::new(sync_interval as i32));
         param_idx += 1;
     }
     if let Some(enabled) = req.enabled {
         updates.push(format!("enabled = ${}", param_idx));
+        params.push(Box::new(enabled));
         param_idx += 1;
     }
     if let Some(tls_verify_cert) = req.tls_verify_cert {
         updates.push(format!("tls_verify_cert = ${}", param_idx));
+        params.push(Box::new(tls_verify_cert));
         param_idx += 1;
     }
     if req.tls_ca_cert.is_some() {
         updates.push(format!("tls_ca_cert = ${}", param_idx));
+        params.push(Box::new(req.tls_ca_cert.clone()));
         param_idx += 1;
     }
     if let Some(connection_timeout) = req.connection_timeout_secs {
         updates.push(format!("connection_timeout_secs = ${}", param_idx));
+        params.push(Box::new(connection_timeout as i32));
         param_idx += 1;
     }
     if let Some(search_timeout) = req.search_timeout_secs {
         updates.push(format!("search_timeout_secs = ${}", param_idx));
+        params.push(Box::new(search_timeout as i32));
         param_idx += 1;
     }
     if let Some(jit_enabled) = req.jit_provisioning_enabled {
         updates.push(format!("jit_provisioning_enabled = ${}", param_idx));
+        params.push(Box::new(jit_enabled));
         param_idx += 1;
     }
     if let Some(jit_role) = &req.jit_default_role {
         updates.push(format!("jit_default_role = ${}", param_idx));
+        params.push(Box::new(jit_role.clone()));
         param_idx += 1;
     }
     if req.jit_organization_id.is_some() {
         updates.push(format!("jit_organization_id = ${}::uuid", param_idx));
+        let org_id = req
+            .jit_organization_id
+            .as_deref()
+            .map(Uuid::parse_str)
+            .transpose()
+            .map_err(|_| ApiError::Validation("Invalid organization ID".to_string()))?;
+        params.push(Box::new(org_id));
         param_idx += 1;
     }
     if let Some(group_sync) = req.group_sync_enabled {
         updates.push(format!("group_sync_enabled = ${}", param_idx));
+        params.push(Box::new(group_sync));
         param_idx += 1;
     }
 
@@ -705,8 +735,11 @@ async fn update_connection(
         param_idx + 1
     );
 
-    // For simplicity, using individual field updates
-    sqlx::query(&sql)
+    let mut query = sqlx::query(&sql);
+    for param in params {
+        query = query.bind(param);
+    }
+    query
         .bind(&connection_uuid)
         .bind(&current_user.tenant_id)
         .execute(state.db.pool())
@@ -768,7 +801,7 @@ async fn test_connection(
 
     // Fetch connection config
     let config =
-        fetch_connection_config(state.db.pool(), &connection_uuid, &current_user.tenant_id)
+        fetch_connection_config(&state, &connection_uuid, &current_user.tenant_id)
             .await
             .map_err(|_| ApiError::NotFound)?;
 
@@ -877,9 +910,11 @@ async fn trigger_sync(
     let conn_id = connection_uuid;
     let tenant_id = tenant_uuid;
     let triggered_by = current_user.user_id.clone();
+    let tenant_keys = state.tenant_key_service.clone();
 
     tokio::spawn(async move {
-        let mut job = LdapSyncJob::new(pool, conn_id, tenant_id, sync_type, triggered_by);
+        let mut job =
+            LdapSyncJob::new(pool, conn_id, tenant_id, sync_type, triggered_by, tenant_keys);
         if let Err(e) = job.run().await {
             tracing::error!("LDAP sync failed: {}", e);
         }
@@ -1278,7 +1313,7 @@ async fn fetch_connection_row(
 }
 
 async fn fetch_connection_config(
-    pool: &sqlx::PgPool,
+    state: &AppState,
     connection_id: &Uuid,
     tenant_id: &str,
 ) -> Result<LdapConfig, sqlx::Error> {
@@ -1290,18 +1325,26 @@ async fn fetch_connection_config(
     )
     .bind(connection_id)
     .bind(tenant_id)
-    .fetch_one(pool)
+    .fetch_one(state.db.pool())
     .await?;
 
     let user_attributes: LdapUserAttributes = row
         .get::<serde_json::Value, _>("user_attribute_mappings")
         .pipe(|v| serde_json::from_value(v).unwrap_or_default());
 
+    let encrypted: Option<String> = row.get("bind_password_encrypted");
+    let bind_password = match encrypted {
+        Some(value) => decrypt_bind_password(state, tenant_id, &value)
+            .await
+            .unwrap_or_default(),
+        None => String::new(),
+    };
+
     Ok(LdapConfig {
         enabled: true,
         url: row.get("url"),
         bind_dn: row.get("bind_dn"),
-        bind_password: String::new(), // TODO: Decrypt
+        bind_password,
         base_dn: row.get("base_dn"),
         user_search_base: row.get("user_search_base"),
         user_search_filter: row.get("user_search_filter"),
@@ -1348,6 +1391,45 @@ fn pg_row_to_connection_row(row: sqlx::postgres::PgRow) -> LdapConnectionRow {
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     }
+}
+
+async fn encrypt_bind_password(
+    state: &AppState,
+    tenant_id: &str,
+    password: &str,
+) -> Result<String, ApiError> {
+    let key = state
+        .tenant_key_service
+        .get_data_key(tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load tenant key: {}", e);
+            ApiError::Internal
+        })?;
+    crate::security::encryption::encrypt_to_base64(&key, password.as_bytes()).map_err(|e| {
+        tracing::error!("Failed to encrypt bind password: {}", e);
+        ApiError::Internal
+    })
+}
+
+async fn decrypt_bind_password(
+    state: &AppState,
+    tenant_id: &str,
+    encrypted: &str,
+) -> Result<String, ApiError> {
+    let key = state
+        .tenant_key_service
+        .get_data_key(tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load tenant key: {}", e);
+            ApiError::Internal
+        })?;
+    let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted).map_err(|e| {
+        tracing::error!("Failed to decrypt bind password: {}", e);
+        ApiError::Internal
+    })?;
+    String::from_utf8(bytes).map_err(|_| ApiError::Internal)
 }
 
 fn row_to_response(row: LdapConnectionRow) -> LdapConnectionResponse {

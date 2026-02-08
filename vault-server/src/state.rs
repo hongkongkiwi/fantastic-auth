@@ -14,12 +14,15 @@ use crate::audit::{AuditLogger, DefaultWebhookNotifier};
 use crate::auth::{AccountLinkingService, StepUpPolicy};
 use crate::auth::web3::{create_web3_auth_in_memory, create_web3_auth_with_redis, Web3Auth};
 use crate::billing::{BillingConfig, BillingService};
-use crate::config::{BotProtectionProvider, Config, EvictionPolicy};
+use crate::config::{BotProtectionProvider, Config, DataEncryptionProvider, EvictionPolicy};
 use crate::db::Database;
 use crate::impersonation::ImpersonationService;
 use crate::monitoring::{HealthRegistry, MetricsRegistry};
 use crate::routes::SessionLimitError;
-use crate::security::{RiskEngine, SecurityService};
+use crate::security::{
+    KmsProviderKind, KmsRegistry, LocalMasterKeyProvider, RiskEngine, SecurityService,
+    TenantKeyService,
+};
 use crate::settings::{SettingsRepository, SettingsService};
 use crate::webhooks::WebhookService;
 use crate::webhooks::WebhookService as AppWebhookService;
@@ -61,8 +64,10 @@ pub struct AppState {
     pub step_up_policy: StepUpPolicy,
     /// Default max age for step-up authentication (minutes)
     pub step_up_max_age_minutes: u32,
-    /// Data encryption key (AES-256-GCM)
+    /// Master key for wrapping per-tenant DEKs (AES-256-GCM)
     pub data_encryption_key: Arc<Vec<u8>>,
+    /// Per-tenant data encryption keys (DEK service)
+    pub tenant_key_service: Arc<TenantKeyService>,
     /// Email service for transactional emails
     pub email_service: Option<Arc<dyn EmailService>>,
     /// Web3 authentication service
@@ -75,6 +80,10 @@ pub struct AppState {
     pub impersonation_service: Arc<ImpersonationService>,
     /// Tenant settings service for per-tenant configuration
     pub settings_service: Arc<SettingsService>,
+    /// M2M authentication service
+    pub m2m_service: Arc<crate::m2m::M2mAuthService>,
+    /// AI security engine for ML-based threat detection
+    pub ai_engine: Option<Arc<vault_core::ai::AiSecurityEngine>>,
 }
 
 impl AppState {
@@ -123,6 +132,63 @@ impl AppState {
         let sms_service = initialize_sms_service(&config, redis.clone()).await;
 
         let data_encryption_key = Arc::new(load_data_encryption_key()?);
+        let default_provider = match config.security.data_encryption.provider {
+            DataEncryptionProvider::Local => KmsProviderKind::Local,
+            DataEncryptionProvider::AwsKms => KmsProviderKind::AwsKms,
+            DataEncryptionProvider::AzureKv => KmsProviderKind::AzureKv,
+        };
+
+        let mut kms_registry = KmsRegistry::new(default_provider).with_provider(Arc::new(
+            LocalMasterKeyProvider::new((*data_encryption_key).clone()),
+        ));
+
+        #[cfg(feature = "aws-kms")]
+        {
+            let aws_cfg = &config.security.data_encryption.aws_kms;
+            if let Some(key_id) = aws_cfg.key_id.clone() {
+                let provider = crate::security::tenant_keys::AwsKmsProvider::new(
+                    aws_cfg.region.clone(),
+                    key_id,
+                    aws_cfg.endpoint.clone(),
+                    aws_cfg.tenant_context_key.clone(),
+                )
+                .await?;
+                kms_registry = kms_registry.with_provider(Arc::new(provider));
+            }
+        }
+
+        #[cfg(not(feature = "aws-kms"))]
+        {
+            if default_provider == KmsProviderKind::AwsKms {
+                anyhow::bail!("AWS KMS support is not enabled; build with feature `aws-kms`");
+            }
+        }
+
+        #[cfg(feature = "azure-kv")]
+        {
+            let azure_cfg = &config.security.data_encryption.azure_kv;
+            if let (Some(vault_url), Some(key_name)) =
+                (azure_cfg.vault_url.clone(), azure_cfg.key_name.clone())
+            {
+                let provider = crate::security::tenant_keys::AzureKeyVaultProvider::new(
+                    vault_url,
+                    key_name,
+                    azure_cfg.key_version.clone(),
+                    azure_cfg.tenant_context_key.clone(),
+                )?;
+                kms_registry = kms_registry.with_provider(Arc::new(provider));
+            }
+        }
+
+        #[cfg(not(feature = "azure-kv"))]
+        {
+            if default_provider == KmsProviderKind::AzureKv {
+                anyhow::bail!("Azure Key Vault support is not enabled; build with feature `azure-kv`");
+            }
+        }
+
+        let kms_registry = Arc::new(kms_registry);
+        let tenant_key_service = Arc::new(TenantKeyService::new(db.clone(), kms_registry));
 
         // Initialize auth service with database
         let db_context = Arc::new(vault_core::db::DbContext::new(db.pool().clone()));
@@ -179,7 +245,9 @@ impl AppState {
         }
 
         let auth_service = Arc::new(
-            auth_service.with_data_encryption_key((*data_encryption_key).clone()),
+            auth_service
+                .with_data_encryption_key((*data_encryption_key).clone())
+                .with_data_key_resolver(tenant_key_service.clone()),
         );
 
         // Initialize WebAuthn service
@@ -256,7 +324,7 @@ impl AppState {
         let billing_service = BillingService::new(billing_config, db.clone());
 
         // Initialize webhook service
-        let webhook_service = WebhookService::new(db.clone());
+        let webhook_service = WebhookService::new(db.clone(), tenant_key_service.clone());
 
         // Initialize security service with password policy
         let password_policy = config.security.password_policy.to_policy();
@@ -307,6 +375,7 @@ impl AppState {
             step_up_policy,
             step_up_max_age_minutes,
             data_encryption_key,
+            tenant_key_service,
             email_service,
             i18n,
             web3_auth: {
@@ -325,10 +394,35 @@ impl AppState {
             },
             consent_manager,
             risk_engine,
-            impersonation_service: Arc::new(ImpersonationService::new(db)),
+            impersonation_service: Arc::new(ImpersonationService::new(db.clone())),
             settings_service: Arc::new(SettingsService::new(Arc::new(SettingsRepository::new(
                 db.pool().clone(),
             )))),
+            m2m_service: Arc::new(crate::m2m::M2mAuthService::new(
+                db.clone(),
+                config.jwt.issuer.clone(),
+                config.jwt.audience.clone(),
+            )),
+            // Initialize AI security engine (optional - can be disabled)
+            ai_engine: {
+                if std::env::var("VAULT_AI_ENABLED").unwrap_or_else(|_| "true".to_string()) == "true" {
+                    let ai_config = vault_core::ai::AiSecurityConfig::default();
+                    let db_context = vault_core::db::DbContext::new(db.pool().clone());
+                    match vault_core::ai::AiSecurityEngine::new(ai_config, db_context).await {
+                        Ok(engine) => {
+                            tracing::info!("AI security engine initialized");
+                            Some(Arc::new(engine))
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to initialize AI security engine: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    tracing::info!("AI security engine disabled via configuration");
+                    None
+                }
+            },
         })
     }
 

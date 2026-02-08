@@ -15,8 +15,10 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
+use crate::config::GeoRestrictionPolicy as ConfigGeoRestrictionPolicy;
 use crate::routes::ApiError;
-use crate::security::geo::{common_country_codes, GeoRestrictionConfig, GeoRestrictionPolicy};
+use crate::security::geo::common_country_codes;
+use crate::security::KmsProviderKind;
 use crate::state::{AppState, CurrentUser};
 
 /// Create security admin routes
@@ -34,6 +36,9 @@ pub fn routes() -> Router<AppState> {
         )
         // Geo audit log endpoint
         .route("/security/geo/audit-log", get(get_geo_audit_log))
+        // Data encryption provider migration
+        .route("/security/data-encryption", get(get_data_encryption_status))
+        .route("/security/data-encryption/migrate", put(migrate_data_encryption_provider))
 }
 
 // ============ Request/Response Types ============
@@ -107,6 +112,18 @@ pub struct GeoAnalyticsQuery {
 
 fn default_limit() -> i64 {
     100
+}
+
+fn parse_kms_provider(value: &str) -> Result<KmsProviderKind, ApiError> {
+    match value.to_lowercase().as_str() {
+        "local" => Ok(KmsProviderKind::Local),
+        "aws_kms" | "aws-kms" => Ok(KmsProviderKind::AwsKms),
+        "azure_kv" | "azure-kv" | "azure_kms" => Ok(KmsProviderKind::AzureKv),
+        _ => Err(ApiError::BadRequest(format!(
+            "Unknown provider: {}",
+            value
+        ))),
+    }
 }
 
 /// Geo analytics response
@@ -209,6 +226,98 @@ pub struct UpdateVpnDetectionRequest {
     pub custom_hosting_asns: Option<Vec<u32>>,
 }
 
+async fn get_data_encryption_status(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+) -> Result<Json<DataEncryptionStatusResponse>, ApiError> {
+    let tenant_id = current_user.tenant_id.clone();
+    let active = state
+        .tenant_key_service
+        .get_active_key_info(&tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch tenant key info: {}", e);
+            ApiError::Internal
+        })?;
+
+    let provider = match active.as_ref() {
+        Some(info) => match info.provider {
+            KmsProviderKind::Local => "local",
+            KmsProviderKind::AwsKms => "aws_kms",
+            KmsProviderKind::AzureKv => "azure_kv",
+        },
+        None => match state.config.security.data_encryption.provider {
+            crate::config::DataEncryptionProvider::Local => "local",
+            crate::config::DataEncryptionProvider::AwsKms => "aws_kms",
+            crate::config::DataEncryptionProvider::AzureKv => "azure_kv",
+        },
+    };
+
+    Ok(Json(DataEncryptionStatusResponse {
+        provider: provider.to_string(),
+        version: active.as_ref().map(|info| info.version),
+        provider_key_id: active.as_ref().and_then(|info| info.provider_key_id.clone()),
+        provider_metadata: active.as_ref().map(|info| info.provider_metadata.clone()),
+        initialized: active.is_some(),
+    }))
+}
+
+async fn migrate_data_encryption_provider(
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
+    Json(req): Json<MigrateDataEncryptionRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let tenant_id = current_user.tenant_id.clone();
+    let provider = parse_kms_provider(&req.provider)?;
+
+    state
+        .tenant_key_service
+        .migrate_provider(&tenant_id, provider)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to migrate tenant data key: {}", e);
+            ApiError::Internal
+        })?;
+
+    let audit = state.audit_logger();
+    audit
+        .log(
+            &tenant_id,
+            AuditAction::SecurityPolicyUpdated,
+            ResourceType::SecurityPolicy,
+            "data_encryption_provider",
+            Some(current_user.user_id.clone()),
+            current_user.session_id.clone(),
+            None,
+            true,
+            None,
+            Some(serde_json::json!({
+                "provider": req.provider,
+            })),
+        );
+
+    Ok(Json(serde_json::json!({
+        "message": "Data encryption provider migrated",
+        "provider": req.provider
+    })))
+}
+
+#[derive(Debug, Serialize)]
+pub struct DataEncryptionStatusResponse {
+    pub provider: String,
+    pub version: Option<i32>,
+    #[serde(rename = "providerKeyId")]
+    pub provider_key_id: Option<String>,
+    #[serde(rename = "providerMetadata")]
+    pub provider_metadata: Option<serde_json::Value>,
+    pub initialized: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MigrateDataEncryptionRequest {
+    pub provider: String,
+}
+
 /// Geo audit log entry
 #[derive(Debug, Serialize)]
 pub struct GeoAuditLogEntry {
@@ -252,8 +361,8 @@ async fn get_geo_policy(
     let response = GeoPolicyResponse {
         enabled: config.enabled,
         policy: match config.policy {
-            GeoRestrictionPolicy::AllowList => "allow_list".to_string(),
-            GeoRestrictionPolicy::BlockList => "block_list".to_string(),
+            ConfigGeoRestrictionPolicy::AllowList => "allow_list".to_string(),
+            ConfigGeoRestrictionPolicy::BlockList => "block_list".to_string(),
         },
         countries: config.country_list.clone(),
         allow_vpn: config.allow_vpn,

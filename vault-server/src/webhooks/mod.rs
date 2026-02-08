@@ -1,8 +1,10 @@
 use crate::db::Database;
+use crate::security::TenantKeyService;
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -33,17 +35,22 @@ const MAX_PAYLOAD_SIZE: usize = 1 * 1024 * 1024; // 1MB
 pub struct WebhookService {
     db: Database,
     http_client: Client,
+    tenant_keys: Arc<TenantKeyService>,
 }
 
 impl WebhookService {
-    pub fn new(db: Database) -> Self {
+    pub fn new(db: Database, tenant_keys: Arc<TenantKeyService>) -> Self {
         let http_client = Client::builder()
             .timeout(WEBHOOK_TIMEOUT)
             .pool_max_idle_per_host(10)
             .build()
             .expect("Failed to build HTTP client");
 
-        Self { db, http_client }
+        Self {
+            db,
+            http_client,
+            tenant_keys,
+        }
     }
 
     /// Create a new webhook endpoint
@@ -69,11 +76,20 @@ impl WebhookService {
 
         // Generate secret if not provided
         let secret = secret.unwrap_or_else(generate_webhook_secret);
+        let encrypted_secret = self.encrypt_secret(tenant_id, &secret).await?;
 
         let endpoint = self
             .db
             .webhooks()
-            .create_endpoint(tenant_id, name, url, events, secret, description, headers)
+            .create_endpoint(
+                tenant_id,
+                name,
+                url,
+                events,
+                encrypted_secret,
+                description,
+                headers,
+            )
             .await?;
 
         info!(
@@ -102,6 +118,12 @@ impl WebhookService {
                     anyhow::bail!("Invalid event type: {}", event);
                 }
             }
+        }
+
+        let mut updates = updates;
+        if let Some(secret) = updates.secret.take() {
+            let encrypted = self.encrypt_secret(tenant_id, &secret).await?;
+            updates.secret = Some(encrypted);
         }
 
         let endpoint = self
@@ -289,7 +311,20 @@ impl WebhookService {
         let payload_str = serde_json::to_string(&delivery.payload)?;
         let signature_payload = format!("{}.{}", delivery.id, payload_str);
 
-        let mut mac = HmacSha256::new_from_slice(endpoint.secret.as_bytes())
+        let secret = match self.decrypt_secret(&endpoint.tenant_id, &endpoint.secret).await {
+            Ok(value) => value,
+            Err(e) => {
+                warn!(
+                    tenant_id = %endpoint.tenant_id,
+                    endpoint_id = %endpoint.id,
+                    error = %e,
+                    "Webhook secret decryption failed; falling back to stored value"
+                );
+                endpoint.secret.clone()
+            }
+        };
+
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
             .map_err(|_| anyhow::anyhow!("Invalid secret"))?;
         mac.update(signature_payload.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
@@ -335,6 +370,27 @@ impl WebhookService {
                 response_body.as_deref().unwrap_or("No response body")
             ))
         }
+    }
+
+    async fn encrypt_secret(&self, tenant_id: &str, secret: &str) -> Result<String> {
+        let key = self
+            .tenant_keys
+            .get_data_key(tenant_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to load tenant key: {}", e))?;
+        crate::security::encryption::encrypt_to_base64(&key, secret.as_bytes())
+            .map_err(|e| anyhow::anyhow!("Failed to encrypt webhook secret: {}", e))
+    }
+
+    async fn decrypt_secret(&self, tenant_id: &str, encrypted: &str) -> Result<String> {
+        let key = self
+            .tenant_keys
+            .get_data_key(tenant_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to load tenant key: {}", e))?;
+        let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted)
+            .map_err(|e| anyhow::anyhow!("Failed to decrypt webhook secret: {}", e))?;
+        String::from_utf8(bytes).map_err(|e| anyhow::anyhow!("Invalid webhook secret: {}", e))
     }
 
     /// Get pending deliveries that need to be processed

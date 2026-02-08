@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::crypto::VaultPasswordHasher;
+use crate::db::set_connection_context;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -62,6 +63,15 @@ impl OidcRepository {
         Self { pool }
     }
 
+    async fn tenant_conn(
+        &self,
+        tenant_id: &str,
+    ) -> Result<sqlx::pool::PoolConnection<sqlx::Postgres>> {
+        let mut conn = self.pool.acquire().await?;
+        set_connection_context(&mut conn, tenant_id).await?;
+        Ok(conn)
+    }
+
     pub async fn create_client(
         &self,
         tenant_id: &str,
@@ -74,6 +84,7 @@ impl OidcRepository {
         pkce_required: bool,
         token_endpoint_auth_method: &str,
     ) -> Result<OauthClient> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let secret_hash = match client_secret {
             Some(secret) => Some(VaultPasswordHasher::hash(secret)?),
             None => None,
@@ -99,13 +110,14 @@ impl OidcRepository {
         .bind(serde_json::json!(allowed_scopes))
         .bind(pkce_required)
         .bind(token_endpoint_auth_method)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(client)
     }
 
     pub async fn list_clients(&self, tenant_id: &str) -> Result<Vec<OauthClient>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let clients = sqlx::query_as::<_, OauthClient>(
             r#"
             SELECT id::text, tenant_id::text, client_id, client_secret_hash, name, client_type::text,
@@ -116,13 +128,14 @@ impl OidcRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(clients)
     }
 
     pub async fn get_client(&self, tenant_id: &str, client_id: &str) -> Result<Option<OauthClient>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let client = sqlx::query_as::<_, OauthClient>(
             r#"
             SELECT id::text, tenant_id::text, client_id, client_secret_hash, name, client_type::text,
@@ -133,7 +146,7 @@ impl OidcRepository {
         )
         .bind(tenant_id)
         .bind(client_id)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *conn)
         .await?;
 
         Ok(client)
@@ -148,6 +161,7 @@ impl OidcRepository {
         allowed_scopes: Option<&[String]>,
         pkce_required: Option<bool>,
     ) -> Result<OauthClient> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let client = sqlx::query_as::<_, OauthClient>(
             r#"
             UPDATE oauth_clients
@@ -167,19 +181,20 @@ impl OidcRepository {
         .bind(redirect_uris.map(|v| serde_json::json!(v)))
         .bind(allowed_scopes.map(|v| serde_json::json!(v)))
         .bind(pkce_required)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(client)
     }
 
     pub async fn delete_client(&self, tenant_id: &str, client_id: &str) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"DELETE FROM oauth_clients WHERE tenant_id = $1::uuid AND client_id = $2"#,
         )
         .bind(tenant_id)
         .bind(client_id)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())
@@ -198,6 +213,7 @@ impl OidcRepository {
         nonce: Option<&str>,
         expires_at: DateTime<Utc>,
     ) -> Result<AuthorizationCode> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let code_hash = VaultPasswordHasher::hash(code)?;
 
         let record = sqlx::query_as::<_, AuthorizationCode>(
@@ -220,7 +236,7 @@ impl OidcRepository {
         .bind(code_challenge_method)
         .bind(nonce)
         .bind(expires_at)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(record)
@@ -232,6 +248,7 @@ impl OidcRepository {
         client_id: &str,
         code: &str,
     ) -> Result<Option<AuthorizationCode>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let codes = sqlx::query_as::<_, AuthorizationCode>(
             r#"
             SELECT id::text, tenant_id::text, client_id, user_id::text, code_hash, redirect_uri,
@@ -243,7 +260,7 @@ impl OidcRepository {
         )
         .bind(tenant_id)
         .bind(client_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         for code_record in codes {
@@ -252,7 +269,7 @@ impl OidcRepository {
                     r#"UPDATE oauth_authorization_codes SET consumed_at = NOW() WHERE id = $1::uuid"#,
                 )
                 .bind(&code_record.id)
-                .execute(&*self.pool)
+                .execute(&mut *conn)
                 .await?;
                 return Ok(Some(code_record));
             }
@@ -271,6 +288,7 @@ impl OidcRepository {
         scope: Option<&str>,
         expires_at: DateTime<Utc>,
     ) -> Result<OauthToken> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let refresh_token_hash = match refresh_token {
             Some(token) => Some(VaultPasswordHasher::hash(token)?),
             None => None,
@@ -292,13 +310,14 @@ impl OidcRepository {
         .bind(refresh_token_hash)
         .bind(scope)
         .bind(expires_at)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(record)
     }
 
     pub async fn revoke_token_by_refresh(&self, tenant_id: &str, refresh_token: &str) -> Result<bool> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let tokens = sqlx::query_as::<_, OauthToken>(
             r#"
             SELECT id::text, tenant_id::text, client_id, user_id::text, access_token_jti, refresh_token_hash,
@@ -308,7 +327,7 @@ impl OidcRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         for token in tokens {
@@ -318,7 +337,7 @@ impl OidcRepository {
                         r#"UPDATE oauth_tokens SET revoked_at = NOW() WHERE id = $1::uuid"#,
                     )
                     .bind(&token.id)
-                    .execute(&*self.pool)
+                    .execute(&mut *conn)
                     .await?;
                     return Ok(true);
                 }
@@ -328,7 +347,56 @@ impl OidcRepository {
         Ok(false)
     }
 
+    pub async fn consume_refresh_token(
+        &self,
+        tenant_id: &str,
+        refresh_token: &str,
+    ) -> Result<Option<OauthToken>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        let tokens = sqlx::query_as::<_, OauthToken>(
+            r#"
+            SELECT id::text, tenant_id::text, client_id, user_id::text, access_token_jti, refresh_token_hash,
+                   scope, expires_at, revoked_at, created_at
+            FROM oauth_tokens
+            WHERE tenant_id = $1::uuid AND revoked_at IS NULL AND refresh_token_hash IS NOT NULL
+            "#,
+        )
+        .bind(tenant_id)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        for token in tokens {
+            if let Some(hash) = token.refresh_token_hash.as_ref() {
+                if VaultPasswordHasher::verify(refresh_token, hash)? {
+                    sqlx::query(
+                        r#"UPDATE oauth_tokens SET revoked_at = NOW() WHERE id = $1::uuid"#,
+                    )
+                    .bind(&token.id)
+                    .execute(&mut *conn)
+                    .await?;
+                    return Ok(Some(token));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    pub async fn revoke_token_by_jti(&self, tenant_id: &str, jti: &str) -> Result<bool> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        let result = sqlx::query(
+            r#"UPDATE oauth_tokens SET revoked_at = NOW() WHERE tenant_id = $1::uuid AND access_token_jti = $2"#,
+        )
+        .bind(tenant_id)
+        .bind(jti)
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn get_token_by_jti(&self, tenant_id: &str, jti: &str) -> Result<Option<OauthToken>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let token = sqlx::query_as::<_, OauthToken>(
             r#"
             SELECT id::text, tenant_id::text, client_id, user_id::text, access_token_jti, refresh_token_hash,
@@ -339,7 +407,7 @@ impl OidcRepository {
         )
         .bind(tenant_id)
         .bind(jti)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *conn)
         .await?;
 
         Ok(token)

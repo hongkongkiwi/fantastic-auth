@@ -15,6 +15,7 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -1126,7 +1127,7 @@ async fn initialize_default_permissions(
             // Assign permissions to role
             let perm_patterns = default_role_permissions(role_name);
             for pattern in perm_patterns {
-                let like_pattern = pattern.replace('*', '%');
+                let like_pattern = pattern.replace('*', "%");
                 
                 sqlx::query(
                     r#"

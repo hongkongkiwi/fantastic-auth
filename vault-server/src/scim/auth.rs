@@ -17,6 +17,7 @@ use sqlx::FromRow;
 use std::sync::Arc;
 
 use crate::state::AppState;
+use vault_core::db::set_connection_context;
 
 /// SCIM Token for authentication
 #[derive(Debug, Clone, FromRow)]
@@ -101,6 +102,9 @@ pub async fn create_scim_token(
 
     let expires_at = expires_in_days.map(|days| Utc::now() + chrono::Duration::days(days as i64));
 
+    let mut conn = state.db.pool().acquire().await?;
+    set_connection_context(&mut conn, tenant_id).await?;
+
     let token = sqlx::query_as::<_, ScimToken>(
         r#"
         INSERT INTO scim_tokens (id, tenant_id, token_hash, name, status, created_at, expires_at, created_by)
@@ -114,7 +118,7 @@ pub async fn create_scim_token(
     .bind(name)
     .bind(expires_at)
     .bind(created_by)
-    .fetch_one(state.db.pool())
+    .fetch_one(&mut *conn)
     .await?;
 
     Ok(ScimTokenWithValue { token, token_value })
@@ -131,8 +135,7 @@ pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimTo
     let result = sqlx::query_as::<_, ScimToken>(
         r#"
         SELECT id, tenant_id, token_hash, name, status, created_at, expires_at, last_used_at, created_by
-        FROM scim_tokens
-        WHERE token_hash = $1 AND status = 'active'
+        FROM get_scim_token_by_hash($1)
         "#
     )
     .bind(&token_hash)
@@ -154,16 +157,24 @@ pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimTo
 }
 
 /// Update last used timestamp for a token
-pub async fn update_token_last_used(state: &AppState, token_id: &str) -> anyhow::Result<()> {
+pub async fn update_token_last_used(
+    state: &AppState,
+    tenant_id: &str,
+    token_id: &str,
+) -> anyhow::Result<()> {
+    let mut conn = state.db.pool().acquire().await?;
+    set_connection_context(&mut conn, tenant_id).await?;
+
     sqlx::query(
         r#"
         UPDATE scim_tokens
         SET last_used_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND tenant_id = $2
         "#,
     )
     .bind(token_id)
-    .execute(state.db.pool())
+    .bind(tenant_id)
+    .execute(&mut *conn)
     .await?;
 
     Ok(())
@@ -175,6 +186,9 @@ pub async fn revoke_scim_token(
     tenant_id: &str,
     token_id: &str,
 ) -> anyhow::Result<bool> {
+    let mut conn = state.db.pool().acquire().await?;
+    set_connection_context(&mut conn, tenant_id).await?;
+
     let result = sqlx::query(
         r#"
         UPDATE scim_tokens
@@ -184,7 +198,7 @@ pub async fn revoke_scim_token(
     )
     .bind(token_id)
     .bind(tenant_id)
-    .execute(state.db.pool())
+    .execute(&mut *conn)
     .await?;
 
     Ok(result.rows_affected() > 0)
@@ -192,6 +206,9 @@ pub async fn revoke_scim_token(
 
 /// List active SCIM tokens for a tenant
 pub async fn list_scim_tokens(state: &AppState, tenant_id: &str) -> anyhow::Result<Vec<ScimToken>> {
+    let mut conn = state.db.pool().acquire().await?;
+    set_connection_context(&mut conn, tenant_id).await?;
+
     let tokens = sqlx::query_as::<_, ScimToken>(
         r#"
         SELECT id, tenant_id, token_hash, name, status, created_at, expires_at, last_used_at, created_by
@@ -201,7 +218,7 @@ pub async fn list_scim_tokens(state: &AppState, tenant_id: &str) -> anyhow::Resu
         "#
     )
     .bind(tenant_id)
-    .fetch_all(state.db.pool())
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(tokens)
@@ -213,6 +230,9 @@ pub async fn delete_scim_token(
     tenant_id: &str,
     token_id: &str,
 ) -> anyhow::Result<bool> {
+    let mut conn = state.db.pool().acquire().await?;
+    set_connection_context(&mut conn, tenant_id).await?;
+
     let result = sqlx::query(
         r#"
         DELETE FROM scim_tokens
@@ -221,7 +241,7 @@ pub async fn delete_scim_token(
     )
     .bind(token_id)
     .bind(tenant_id)
-    .execute(state.db.pool())
+    .execute(&mut *conn)
     .await?;
 
     Ok(result.rows_affected() > 0)

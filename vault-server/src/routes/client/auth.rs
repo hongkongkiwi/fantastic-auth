@@ -11,6 +11,7 @@ use std::net::SocketAddr;
 use validator::Validate;
 
 use crate::{
+    actions,
     audit::{AuditLogger, RequestContext},
     auth::{
         create_anonymous_session, convert_to_full_account, AuthProvider, CreateAnonymousSessionRequest,
@@ -27,7 +28,7 @@ use crate::{
     security::{EnforcementMode, LoginContext, RiskAction, UserInfo},
     state::{AppState, CurrentUser, SessionLimitStatus},
 };
-use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType};
+use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType, HybridJwt};
 
 /// Auth routes
 ///
@@ -248,6 +249,48 @@ fn extract_tenant_id(headers: &axum::http::HeaderMap) -> String {
         .unwrap_or_else(|| "default".to_string())
 }
 
+async fn apply_token_issue_actions(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    access_token: &str,
+) -> Result<String, ApiError> {
+    if access_token.is_empty() {
+        return Ok(access_token.to_string());
+    }
+    let decision = actions::run_actions(
+        state,
+        tenant_id,
+        "token_issue",
+        Some(user_id),
+        serde_json::json!({
+            "user_id": user_id,
+            "access_token": access_token,
+        }),
+    )
+    .await?;
+
+    if !decision.allowed {
+        return Err(ApiError::Forbidden);
+    }
+
+    if decision.claims.is_empty() {
+        return Ok(access_token.to_string());
+    }
+
+    let mut claims = HybridJwt::decode(access_token, state.auth_service.verifying_key())
+        .map_err(|_| ApiError::Internal)?;
+
+    for (k, v) in decision.claims.into_iter() {
+        claims.custom.insert(k, v);
+    }
+
+    let new_token = HybridJwt::encode(&claims, state.auth_service.signing_key())
+        .map_err(|_| ApiError::Internal)?;
+
+    Ok(new_token)
+}
+
 // ============ Handlers ============
 
 /// Get CAPTCHA site key for frontend integration
@@ -348,6 +391,23 @@ async fn register(
         ));
     }
 
+    // Pre-register actions/rules
+    let pre_register = actions::run_actions(
+        &state,
+        &tenant_id,
+        "pre_register",
+        None,
+        serde_json::json!({
+            "email": email.clone(),
+            "ip": ip,
+            "user_agent": headers.get("user-agent").and_then(|h| h.to_str().ok())
+        }),
+    )
+    .await?;
+    if !pre_register.allowed {
+        return Err(ApiError::Forbidden);
+    }
+
     // Register user
     match state
         .auth_service
@@ -388,6 +448,19 @@ async fn register(
                 &user.id,
                 &user.email,
                 user.profile.name.as_deref(),
+            )
+            .await;
+
+            // Post-register actions/rules
+            let _ = actions::run_actions(
+                &state,
+                &tenant_id,
+                "post_register",
+                Some(&user.id),
+                serde_json::json!({
+                    "user_id": user.id,
+                    "email": user.email.clone(),
+                }),
             )
             .await;
 
@@ -470,8 +543,16 @@ async fn register(
                             warning: None,
                         });
 
+                    let access_token = apply_token_issue_actions(
+                        &state,
+                        &tenant_id,
+                        &auth_result.user.id,
+                        &auth_result.access_token,
+                    )
+                    .await?;
+
                     Ok(Json(AuthResponse {
-                        access_token: auth_result.access_token,
+                        access_token,
                         refresh_token: auth_result.refresh_token,
                         user: UserResponse {
                             id: user.id,
@@ -617,6 +698,24 @@ async fn login(
     // Clone email and password for potential LDAP fallback
     let email_for_ldap = req.email.clone();
     let password_for_ldap = req.password.clone();
+
+    // Pre-login actions/rules
+    let pre_payload = serde_json::json!({
+        "email": email_for_ldap,
+        "ip": ip,
+        "user_agent": headers.get("user-agent").and_then(|h| h.to_str().ok())
+    });
+    let pre_decision = actions::run_actions(
+        &state,
+        &tenant_id,
+        "pre_login",
+        None,
+        pre_payload,
+    )
+    .await?;
+    if !pre_decision.allowed {
+        return Err(ApiError::Forbidden);
+    }
 
     let credentials = vault_core::auth::LoginCredentials {
         email: req.email,
@@ -849,8 +948,39 @@ async fn login(
             )
             .await;
 
+            // JIT org auto-enrollment on login
+            if let Ok(domain_service) =
+                crate::domains::service::DomainService::new(state.db.pool().clone().into()).await
+            {
+                let _ = domain_service
+                    .auto_enroll_user(&tenant_id, &auth_result.user.id, &auth_result.user.email)
+                    .await;
+            }
+
+            // Post-login actions/rules
+            let _ = actions::run_actions(
+                &state,
+                &tenant_id,
+                "post_login",
+                Some(&auth_result.user.id),
+                serde_json::json!({
+                    "user_id": auth_result.user.id,
+                    "email": auth_result.user.email,
+                    "session_id": auth_result.session.id,
+                }),
+            )
+            .await;
+
+            let access_token = apply_token_issue_actions(
+                &state,
+                &tenant_id,
+                &auth_result.user.id,
+                &auth_result.access_token,
+            )
+            .await?;
+
             Ok(Json(AuthResponse {
-                access_token: auth_result.access_token,
+                access_token,
                 refresh_token: auth_result.refresh_token,
                 user: UserResponse {
                     id: auth_result.user.id,
@@ -943,8 +1073,16 @@ async fn login(
                     )
                     .await;
 
+                    let access_token = apply_token_issue_actions(
+                        &state,
+                        &tenant_id,
+                        &auth_result.user.id,
+                        &auth_result.access_token,
+                    )
+                    .await?;
+
                     return Ok(Json(AuthResponse {
-                        access_token: auth_result.access_token,
+                        access_token,
                         refresh_token: auth_result.refresh_token,
                         user: UserResponse {
                             id: auth_result.user.id,
@@ -1054,7 +1192,14 @@ async fn refresh_token(
             );
 
             Ok(Json(AuthResponse {
-                access_token: auth_result.access_token,
+                access_token: apply_token_issue_actions(
+                    &state,
+                    &tenant_id,
+                    &auth_result.user.id,
+                    &auth_result.access_token,
+                )
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?,
                 refresh_token: auth_result.refresh_token,
                 user: UserResponse {
                     id: auth_result.user.id,
@@ -1239,8 +1384,21 @@ async fn verify_magic_link(
                 None,
             );
 
+            let access_token = match apply_token_issue_actions(
+                &state,
+                &tenant_id,
+                &auth_result.user.id,
+                &auth_result.access_token,
+            )
+            .await
+            {
+                Ok(token) => token,
+                Err(ApiError::Forbidden) => return Err(StatusCode::FORBIDDEN),
+                Err(_) => return Err(StatusCode::INTERNAL_SERVER_ERROR),
+            };
+
             Ok(Json(AuthResponse {
-                access_token: auth_result.access_token,
+                access_token,
                 refresh_token: auth_result.refresh_token,
                 user: UserResponse {
                     id: auth_result.user.id,
@@ -1816,6 +1974,8 @@ async fn oauth_callback(
         location: None,
         mfa_verified: false, // OAuth users don't need MFA on first login
         expires_at: session.expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     state.db.sessions().create(session_req).await.map_err(|e| {
@@ -1831,6 +1991,14 @@ async fn oauth_callback(
             tracing::error!("Failed to generate tokens: {}", e);
             ApiError::Internal
         })?;
+
+    let access_token = apply_token_issue_actions(
+        &state,
+        &tenant_id,
+        &user.id,
+        &token_pair.access_token,
+    )
+    .await?;
 
     tracing::info!(
         "OAuth login successful: provider={}, email={}",
@@ -1859,7 +2027,7 @@ async fn oauth_callback(
         });
 
     Ok(Json(AuthResponse {
-        access_token: token_pair.access_token,
+        access_token,
         refresh_token: token_pair.refresh_token,
         user: UserResponse {
             id: user.id,
@@ -2186,6 +2354,8 @@ async fn process_oauth_login(
         location: None,
         mfa_verified: false,
         expires_at: session.expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     state.db.sessions().create(session_req).await.map_err(|e| {
@@ -2201,6 +2371,14 @@ async fn process_oauth_login(
             tracing::error!("Failed to generate tokens: {}", e);
             ApiError::Internal
         })?;
+
+    let access_token = apply_token_issue_actions(
+        &state,
+        tenant_id,
+        &user.id,
+        &token_pair.access_token,
+    )
+    .await?;
 
     tracing::info!(
         "OAuth login successful: provider={}, email={}",
@@ -2227,7 +2405,7 @@ async fn process_oauth_login(
         });
 
     Ok(Json(AuthResponse {
-        access_token: token_pair.access_token,
+        access_token,
         refresh_token: token_pair.refresh_token,
         user: UserResponse {
             id: user.id,
@@ -2784,6 +2962,8 @@ async fn webauthn_authenticate_finish(
         location: None,
         mfa_verified: auth_result.user_verified,
         expires_at: session.expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     if let Err(e) = state.db.sessions().create(session_req).await {
@@ -2799,6 +2979,14 @@ async fn webauthn_authenticate_finish(
             return Err(ApiError::Internal);
         }
     };
+
+    let access_token = apply_token_issue_actions(
+        &state,
+        &tenant_id,
+        &user.id,
+        &token_pair.access_token,
+    )
+    .await?;
 
     tracing::info!(
         "WebAuthn authentication successful for user: {}",
@@ -2854,7 +3042,7 @@ async fn webauthn_authenticate_finish(
         });
 
     Ok(Json(AuthResponse {
-        access_token: token_pair.access_token,
+        access_token,
         refresh_token: token_pair.refresh_token,
         user: UserResponse {
             id: user.id,
@@ -3030,6 +3218,13 @@ async fn step_up(
 
             // Generate elevated token
             let token = generate_step_up_token(&state, &user, &session, &methods).await?;
+            let access_token = apply_token_issue_actions(
+                &state,
+                &user.tenant_id,
+                &user.user_id,
+                &token,
+            )
+            .await?;
 
             // Log successful step-up
             audit.log(
@@ -3052,7 +3247,7 @@ async fn step_up(
                 .unwrap_or_else(|| chrono::Utc::now());
 
             Ok(Json(StepUpTokenResponse {
-                access_token: token,
+                access_token,
                 token_type: "Bearer".to_string(),
                 expires_in: (state.step_up_max_age_minutes * 60) as u64,
                 level: format!("{:?}", level).to_lowercase(),
@@ -3146,11 +3341,18 @@ async fn verify_totp_step_up(
         .map_err(|e| StepUpFailureReason::InternalError(e.to_string()))?
         .ok_or(StepUpFailureReason::MfaNotConfigured)?;
 
-    let secret = crate::security::encryption::decrypt_from_base64(
-        &state.data_encryption_key,
-        &secret_encrypted,
-    )
-    .map_err(|_| StepUpFailureReason::InternalError("Failed to decrypt secret".to_string()))?;
+    let key = state
+        .tenant_key_service
+        .get_data_key(&user.tenant_id)
+        .await
+        .map_err(|e| {
+            StepUpFailureReason::InternalError(format!(
+                "Failed to load tenant data key: {}",
+                e
+            ))
+        })?;
+    let secret = crate::security::encryption::decrypt_from_base64(&key, &secret_encrypted)
+        .map_err(|_| StepUpFailureReason::InternalError("Failed to decrypt secret".to_string()))?;
     let secret = String::from_utf8(secret)
         .map_err(|_| StepUpFailureReason::InternalError("Invalid secret format".to_string()))?;
 
@@ -3618,6 +3820,8 @@ async fn web3_verify(
         location: None,
         mfa_verified: false,
         expires_at: session.expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     state.db.sessions().create(session_req).await.map_err(|e| {
@@ -3633,6 +3837,14 @@ async fn web3_verify(
             tracing::error!("Failed to generate Web3 tokens: {}", e);
             ApiError::Internal
         })?;
+
+    let access_token = apply_token_issue_actions(
+        &state,
+        &tenant_id,
+        &user.id,
+        &token_pair.access_token,
+    )
+    .await?;
 
     tracing::info!(
         "Web3 login successful: wallet={} user={} chain={}",
@@ -3698,7 +3910,7 @@ async fn web3_verify(
         });
 
     Ok(Json(Web3AuthResponse {
-        access_token: token_pair.access_token,
+        access_token,
         refresh_token: token_pair.refresh_token,
         user: UserResponse {
             id: user.id,
@@ -4462,6 +4674,8 @@ async fn biometric_authenticate(
         location: None,
         mfa_verified: true, // Biometric is considered strong authentication
         expires_at: session.expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     if let Err(e) = state.db.sessions().create(session_req).await {
@@ -4477,6 +4691,14 @@ async fn biometric_authenticate(
             return Err(ApiError::Internal);
         }
     };
+
+    let access_token = apply_token_issue_actions(
+        &state,
+        &tenant_id,
+        &user.id,
+        &token_pair.access_token,
+    )
+    .await?;
 
     tracing::info!(
         "Biometric authentication successful for user: {} (type: {:?})",
@@ -4541,7 +4763,7 @@ async fn biometric_authenticate(
         });
 
     Ok(Json(AuthResponse {
-        access_token: token_pair.access_token,
+        access_token,
         refresh_token: token_pair.refresh_token,
         user: UserResponse {
             id: user.id,

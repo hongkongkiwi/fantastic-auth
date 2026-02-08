@@ -237,7 +237,7 @@ async fn setup_totp(
     let totp_config = vault_core::auth::mfa::TotpConfig::generate("Vault", &current_user.email);
 
     // Encrypt the secret for storage
-    let secret_encrypted = encrypt_secret(&state, &totp_config.secret)?;
+    let secret_encrypted = encrypt_secret(&state, &current_user.tenant_id, &totp_config.secret).await?;
 
     // Store in database
     state
@@ -323,7 +323,7 @@ async fn verify_totp_setup(
             ApiError::Internal
         })?;
 
-    let encrypted_secret = encrypt_secret(&state, &totp_config.secret)?;
+    let encrypted_secret = encrypt_secret(&state, &current_user.tenant_id, &totp_config.secret).await?;
     let mut mfa_config = state
         .db
         .users()
@@ -391,7 +391,7 @@ async fn verify_totp_code(
     };
 
     // Decrypt secret
-    let secret = decrypt_secret(&state, &secret_encrypted)?;
+    let secret = decrypt_secret(&state, &current_user.tenant_id, &secret_encrypted).await?;
 
     // Create TOTP config and verify
     let totp_config = vault_core::auth::mfa::TotpConfig {
@@ -1336,20 +1336,43 @@ async fn update_backup_codes_config(
     Ok(())
 }
 
-fn encrypt_secret(state: &AppState, secret: &str) -> Result<String, ApiError> {
-    crate::security::encryption::encrypt_to_base64(&state.data_encryption_key, secret.as_bytes())
+async fn encrypt_secret(
+    state: &AppState,
+    tenant_id: &str,
+    secret: &str,
+) -> Result<String, ApiError> {
+    let key = state
+        .tenant_key_service
+        .get_data_key(tenant_id)
+        .await
         .map_err(|e| {
-            tracing::error!("Failed to encrypt secret: {}", e);
+            tracing::error!("Failed to load tenant data key: {}", e);
             ApiError::Internal
-        })
+        })?;
+
+    crate::security::encryption::encrypt_to_base64(&key, secret.as_bytes()).map_err(|e| {
+        tracing::error!("Failed to encrypt secret: {}", e);
+        ApiError::Internal
+    })
 }
 
-fn decrypt_secret(state: &AppState, encrypted: &str) -> Result<String, ApiError> {
-    let bytes =
-        crate::security::encryption::decrypt_from_base64(&state.data_encryption_key, encrypted)
-            .map_err(|e| {
-                tracing::error!("Failed to decrypt secret: {}", e);
-                ApiError::Internal
-            })?;
+async fn decrypt_secret(
+    state: &AppState,
+    tenant_id: &str,
+    encrypted: &str,
+) -> Result<String, ApiError> {
+    let key = state
+        .tenant_key_service
+        .get_data_key(tenant_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load tenant data key: {}", e);
+            ApiError::Internal
+        })?;
+
+    let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted).map_err(|e| {
+        tracing::error!("Failed to decrypt secret: {}", e);
+        ApiError::Internal
+    })?;
     String::from_utf8(bytes).map_err(|_| ApiError::Internal)
 }

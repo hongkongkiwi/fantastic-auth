@@ -12,6 +12,7 @@ pub mod password_policy;
 pub mod risk;
 pub mod session_binding;
 pub mod session_binding_notifications;
+pub mod tenant_keys;
 
 pub use bot_protection::{verify_captcha_token, BotProtectionError, BotProtectionResult};
 pub use device_fingerprint::{
@@ -39,6 +40,10 @@ pub use session_binding::{
     SessionBindingConfig, SessionBindingInfo, ViolationDetails, ViolationType,
 };
 pub use session_binding_notifications::SessionBindingNotificationService;
+pub use tenant_keys::{
+    KmsProvider, KmsProviderKind, KmsRegistry, LocalMasterKeyProvider, TenantKeyError,
+    TenantKeyService, WrappedKey,
+};
 
 use std::sync::Arc;
 

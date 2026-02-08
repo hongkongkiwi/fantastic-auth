@@ -726,6 +726,8 @@ async fn impersonate_user(
         location: None,
         mfa_verified: true, // Admin bypasses MFA for impersonation
         expires_at: chrono::Utc::now() + chrono::Duration::minutes(req.duration_minutes),
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     state

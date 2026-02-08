@@ -8,7 +8,9 @@ use std::time::Duration;
 use tower_http::{compression::CompressionLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
 use tracing::info;
 
+mod ai;
 mod analytics;
+mod actions;
 mod audit;
 mod auth;
 mod background;
@@ -21,12 +23,15 @@ mod domains;
 mod i18n;
 mod impersonation;
 mod ldap;
+mod m2m;
 mod metrics_internal;
 mod middleware;
 mod monitoring;
 mod observability;
+mod oidc;
 mod permissions;
 mod routes;
+mod saml;
 mod scim;
 mod security;
 mod settings;
@@ -117,10 +122,16 @@ fn create_app(state: AppState, config: &Config) -> Router {
         .route("/health", get(routes::health::simple_health_check))
         // API routes
         .nest("/api/v1", routes::api_routes())
+        // OAuth2/OIDC IdP routes
+        .merge(routes::oidc::routes())
         // Hosted UI routes
         .nest("/hosted/api", routes::hosted::hosted_routes())
         // SCIM 2.0 routes (separate from main API)
         .nest("/scim/v2", routes::scim_routes())
+        // SAML 2.0 routes for SSO
+        .merge(saml::handlers::routes())
+        // AI Security routes
+        .merge(ai::router())
         // 404 handler
         .fallback(routes::not_found)
         // Add state first (innermost layer) - clone for i18n middleware

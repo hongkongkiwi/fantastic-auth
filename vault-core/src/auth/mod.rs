@@ -23,6 +23,7 @@ use crate::models::session::Session;
 use crate::models::user::{User, UserStatus};
 use crate::sms::SmsService;
 use chrono::{DateTime, Duration, Utc};
+use async_trait::async_trait;
 use std::sync::Arc;
 
 pub mod biometric;
@@ -31,6 +32,11 @@ pub mod mfa;
 pub mod oauth;
 pub mod password;
 pub mod token_store;
+
+#[async_trait]
+pub trait DataKeyResolver: Send + Sync {
+    async fn resolve_key(&self, tenant_id: &str) -> Result<Vec<u8>>;
+}
 
 pub use biometric::{
     BiometricChallenge, BiometricError, BiometricKey, BiometricType,
@@ -84,6 +90,8 @@ pub struct AuthService {
     token_store: Arc<dyn TokenStore>,
     /// Optional data encryption key (AES-256-GCM)
     data_encryption_key: Option<Vec<u8>>,
+    /// Optional per-tenant data key resolver (DEK provider)
+    data_key_resolver: Option<Arc<dyn DataKeyResolver>>,
     /// Optional SMS service for MFA
     sms_service: Option<Arc<SmsService>>,
 }
@@ -107,6 +115,7 @@ impl AuthService {
             base_url: base_url.into(),
             token_store: Arc::new(InMemoryTokenStore::new()),
             data_encryption_key: None,
+            data_key_resolver: None,
             sms_service: None,
         }
     }
@@ -136,6 +145,7 @@ impl AuthService {
             base_url: base_url.into(),
             token_store: Arc::new(token_store),
             data_encryption_key: None,
+            data_key_resolver: None,
             sms_service: None,
         })
     }
@@ -159,6 +169,7 @@ impl AuthService {
             base_url: base_url.into(),
             token_store,
             data_encryption_key: None,
+            data_key_resolver: None,
             sms_service: None,
         }
     }
@@ -166,6 +177,12 @@ impl AuthService {
     /// Set data encryption key (AES-256-GCM)
     pub fn with_data_encryption_key(mut self, key: Vec<u8>) -> Self {
         self.data_encryption_key = Some(key);
+        self
+    }
+
+    /// Set per-tenant data key resolver (DEK provider)
+    pub fn with_data_key_resolver(mut self, resolver: Arc<dyn DataKeyResolver>) -> Self {
+        self.data_key_resolver = Some(resolver);
         self
     }
 
@@ -904,6 +921,11 @@ impl AuthService {
         &self.signing_key
     }
 
+    /// Get database context reference
+    pub fn db(&self) -> &DbContext {
+        &self.db
+    }
+
     // Helper methods
 
     async fn create_session(
@@ -967,8 +989,14 @@ impl AuthService {
                                 VaultError::authentication("Invalid TOTP configuration")
                             })?;
 
-                        let secret = if let Some(key) = &self.data_encryption_key {
-                            let decrypted = crate::crypto::decrypt_from_base64(key, secret)
+                        let resolved_key = if let Some(resolver) = &self.data_key_resolver {
+                            Some(resolver.resolve_key(&tenant_id).await?)
+                        } else {
+                            self.data_encryption_key.clone()
+                        };
+
+                        let secret = if let Some(key) = resolved_key {
+                            let decrypted = crate::crypto::decrypt_from_base64(&key, secret)
                                 .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?;
                             String::from_utf8(decrypted)
                                 .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?
@@ -1248,7 +1276,7 @@ impl BiometricAuthService {
         key_id: impl Into<String>,
         device_name: impl Into<String>,
         biometric_type: biometric::BiometricType,
-    ) -> Result<biometric::BiometricKey, biometric::BiometricError> {
+    ) -> std::result::Result<biometric::BiometricKey, biometric::BiometricError> {
         let user_id = user_id.into();
         let tenant_id = tenant_id.into();
         let key_id = key_id.into();
@@ -1297,7 +1325,7 @@ impl BiometricAuthService {
     pub async fn generate_challenge(
         &self,
         key_id: impl Into<String>,
-    ) -> Result<biometric::BiometricChallenge, biometric::BiometricError> {
+    ) -> std::result::Result<biometric::BiometricChallenge, biometric::BiometricError> {
         let key_id = key_id.into();
 
         // Verify the key exists
@@ -1327,7 +1355,7 @@ impl BiometricAuthService {
         key_id: impl Into<String>,
         signature: Vec<u8>,
         challenge: impl Into<String>,
-    ) -> Result<biometric::BiometricAuthSuccess, biometric::BiometricError> {
+    ) -> std::result::Result<biometric::BiometricAuthSuccess, biometric::BiometricError> {
         let key_id = key_id.into();
         let challenge_str = challenge.into();
 
@@ -1390,7 +1418,7 @@ impl BiometricAuthService {
         &self,
         user_id: impl Into<String>,
         tenant_id: impl Into<String>,
-    ) -> Result<Vec<biometric::BiometricKey>, biometric::BiometricError> {
+    ) -> std::result::Result<Vec<biometric::BiometricKey>, biometric::BiometricError> {
         let user_id = user_id.into();
         let tenant_id = tenant_id.into();
 
@@ -1401,7 +1429,7 @@ impl BiometricAuthService {
     pub async fn revoke_key(
         &self,
         key_id: impl Into<String>,
-    ) -> Result<(), biometric::BiometricError> {
+    ) -> std::result::Result<(), biometric::BiometricError> {
         let key_id = key_id.into();
 
         // Verify the key exists
@@ -1418,7 +1446,7 @@ impl BiometricAuthService {
     }
 
     /// Clean up expired challenges
-    pub async fn cleanup_expired_challenges(&self) -> Result<u64, biometric::BiometricError> {
+    pub async fn cleanup_expired_challenges(&self) -> std::result::Result<u64, biometric::BiometricError> {
         self.challenge_store.cleanup_expired().await
     }
 }

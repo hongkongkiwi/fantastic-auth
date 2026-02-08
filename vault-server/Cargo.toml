@@ -14,6 +14,8 @@ path = "src/main.rs"
 [features]
 default = []
 # stripe = ["async-stripe"]  # Disabled - async-stripe has compilation issues
+aws-kms = ["aws-config", "aws-sdk-kms"]
+azure-kv = ["azure_core", "azure_identity"]
 
 [dependencies]
 vault-core = { path = "../vault-core" }
@@ -95,6 +97,9 @@ rand = "0.8"
 
 # HTTP client for webhooks
 reqwest = { version = "0.12", features = ["json"] }
+rdkafka = { version = "0.36", features = ["tokio"] }
+wasmtime = "15"
+wasmtime-wasi = "15"
 
 # i18n / Localization
 fluent = { workspace = true }
@@ -115,6 +120,23 @@ k256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 sha3 = "0.10"
 ed25519-dalek = "2.1"
 bs58 = "0.5"
+
+# URL encoding
+urlencoding = "2.1"
+
+# Encryption (optional - for security/encryption.rs)
+ring = "0.17"
+
+# Cloud KMS (optional)
+aws-config = { workspace = true, optional = true }
+aws-sdk-kms = { workspace = true, optional = true }
+azure_core = { workspace = true, optional = true }
+azure_identity = { workspace = true, optional = true }
+
+# SAML 2.0 Support
+openssl = { version = "0.10", features = ["vendored"] }
+quick-xml = "0.31"
+flate2 = "1.0"
 
 [dev-dependencies]
 tokio-test.workspace = true

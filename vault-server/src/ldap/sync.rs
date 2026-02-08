@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -103,6 +104,7 @@ pub struct LdapSyncJob {
     connection_id: Uuid,
     tenant_id: Uuid,
     sync_type: SyncType,
+    tenant_keys: Arc<crate::security::TenantKeyService>,
     stats: SyncStats,
     log_entries: Vec<SyncLogEntry>,
     started_at: DateTime<Utc>,
@@ -152,12 +154,14 @@ impl LdapSyncJob {
         tenant_id: Uuid,
         sync_type: SyncType,
         triggered_by: String,
+        tenant_keys: Arc<crate::security::TenantKeyService>,
     ) -> Self {
         Self {
             pool,
             connection_id,
             tenant_id,
             sync_type,
+            tenant_keys,
             stats: SyncStats::default(),
             log_entries: Vec::new(),
             started_at: Utc::now(),
@@ -786,8 +790,11 @@ impl LdapSyncJob {
         .await
         .map_err(|_| SyncError::ConnectionNotFound)?;
 
-        // TODO: Decrypt bind_password_encrypted
-        let bind_password = String::new(); // Placeholder
+        let encrypted: Option<String> = row.get("bind_password_encrypted");
+        let bind_password = match encrypted {
+            Some(value) => self.decrypt_bind_password(&value).await.unwrap_or_default(),
+            None => String::new(),
+        };
 
         let config = LdapConfig {
             enabled: row.get("enabled"),
@@ -816,6 +823,18 @@ impl LdapSyncJob {
         };
 
         Ok(config)
+    }
+
+    async fn decrypt_bind_password(&self, encrypted: &str) -> Result<String, SyncError> {
+        let key = self
+            .tenant_keys
+            .get_data_key(&self.tenant_id.to_string())
+            .await
+            .map_err(|e| SyncError::Config(format!("Failed to load tenant key: {}", e)))?;
+        let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted)
+            .map_err(|e| SyncError::Config(format!("Failed to decrypt bind password: {}", e)))?;
+        String::from_utf8(bytes)
+            .map_err(|_| SyncError::Config("Invalid bind password format".to_string()))
     }
 
     /// Get existing user mappings for this connection
@@ -1173,12 +1192,13 @@ struct GroupMapping {
 /// Sync scheduler for periodic LDAP synchronization
 pub struct LdapSyncScheduler {
     pool: sqlx::PgPool,
+    tenant_keys: Arc<crate::security::TenantKeyService>,
 }
 
 impl LdapSyncScheduler {
     /// Create a new sync scheduler
-    pub fn new(pool: sqlx::PgPool) -> Self {
-        Self { pool }
+    pub fn new(pool: sqlx::PgPool, tenant_keys: Arc<crate::security::TenantKeyService>) -> Self {
+        Self { pool, tenant_keys }
     }
 
     /// Run scheduled syncs for all enabled connections
@@ -1195,6 +1215,7 @@ impl LdapSyncScheduler {
                 tenant_id,
                 SyncType::Incremental,
                 "system".to_string(),
+                self.tenant_keys.clone(),
             );
 
             match job.run().await {

@@ -3,10 +3,12 @@
 pub mod anonymous;
 pub mod audit;
 pub mod auth;
+pub mod admin_roles;
 pub mod bot_protection;
 pub mod consent;
 pub mod geo;
 pub mod i18n;
+pub mod m2m_auth;
 pub mod permission;
 pub mod rate_limit;
 pub mod security;

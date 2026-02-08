@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 
+use crate::db::set_connection_context;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -44,7 +45,17 @@ impl LogStreamsRepository {
         Self { pool }
     }
 
+    async fn tenant_conn(
+        &self,
+        tenant_id: &str,
+    ) -> Result<sqlx::pool::PoolConnection<sqlx::Postgres>> {
+        let mut conn = self.pool.acquire().await?;
+        set_connection_context(&mut conn, tenant_id).await?;
+        Ok(conn)
+    }
+
     pub async fn list_streams(&self, tenant_id: &str) -> Result<Vec<LogStream>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let streams = sqlx::query_as::<_, LogStream>(
             r#"
             SELECT id::text, tenant_id::text, name, destination_type::text, config, filter,
@@ -55,13 +66,14 @@ impl LogStreamsRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(streams)
     }
 
     pub async fn get_stream(&self, tenant_id: &str, stream_id: &str) -> Result<Option<LogStream>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let stream = sqlx::query_as::<_, LogStream>(
             r#"
             SELECT id::text, tenant_id::text, name, destination_type::text, config, filter,
@@ -72,7 +84,7 @@ impl LogStreamsRepository {
         )
         .bind(tenant_id)
         .bind(stream_id)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *conn)
         .await?;
 
         Ok(stream)
@@ -87,6 +99,7 @@ impl LogStreamsRepository {
         filter: serde_json::Value,
         status: &str,
     ) -> Result<LogStream> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let stream = sqlx::query_as::<_, LogStream>(
             r#"
             INSERT INTO log_streams (tenant_id, name, destination_type, config, filter, status, created_at, updated_at)
@@ -101,7 +114,7 @@ impl LogStreamsRepository {
         .bind(config)
         .bind(filter)
         .bind(status)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(stream)
@@ -116,6 +129,7 @@ impl LogStreamsRepository {
         filter: Option<serde_json::Value>,
         status: Option<&str>,
     ) -> Result<LogStream> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let stream = sqlx::query_as::<_, LogStream>(
             r#"
             UPDATE log_streams
@@ -135,19 +149,20 @@ impl LogStreamsRepository {
         .bind(config)
         .bind(filter)
         .bind(status)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(stream)
     }
 
     pub async fn delete_stream(&self, tenant_id: &str, stream_id: &str) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"DELETE FROM log_streams WHERE tenant_id = $1::uuid AND id = $2::uuid"#,
         )
         .bind(tenant_id)
         .bind(stream_id)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())
@@ -159,6 +174,7 @@ impl LogStreamsRepository {
         stream_id: &str,
         audit_log_id: &str,
     ) -> Result<LogDelivery> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let delivery = sqlx::query_as::<_, LogDelivery>(
             r#"
             INSERT INTO log_stream_deliveries (
@@ -171,55 +187,84 @@ impl LogStreamsRepository {
         .bind(tenant_id)
         .bind(stream_id)
         .bind(audit_log_id)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(delivery)
     }
 
-    pub async fn list_pending_deliveries(&self, stream_id: &str, limit: i64) -> Result<Vec<LogDelivery>> {
+    pub async fn list_pending_deliveries(
+        &self,
+        tenant_id: &str,
+        stream_id: &str,
+        limit: i64,
+    ) -> Result<Vec<LogDelivery>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let deliveries = sqlx::query_as::<_, LogDelivery>(
             r#"
             SELECT id::text, tenant_id::text, stream_id::text, audit_log_id::text, status::text,
                    attempt_count, last_attempt_at, next_attempt_at, error, created_at, delivered_at
             FROM log_stream_deliveries
             WHERE stream_id = $1::uuid AND status = 'pending'
+              AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())
             ORDER BY created_at ASC
             LIMIT $2
             "#,
         )
         .bind(stream_id)
         .bind(limit)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(deliveries)
     }
 
-    pub async fn mark_delivery(
+    pub async fn mark_delivery_delivered(
         &self,
+        tenant_id: &str,
         delivery_id: &str,
-        status: &str,
-        error: Option<&str>,
     ) -> Result<()> {
-        let delivered_at = if status == "delivered" { Some(Utc::now()) } else { None };
-
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"
             UPDATE log_stream_deliveries
-            SET status = $2::log_delivery_status,
-                error = $3,
+            SET status = 'delivered',
                 attempt_count = attempt_count + 1,
                 last_attempt_at = NOW(),
-                delivered_at = COALESCE($4, delivered_at)
+                delivered_at = NOW()
             WHERE id = $1::uuid
             "#,
         )
         .bind(delivery_id)
-        .bind(status)
+        .execute(&mut *conn)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn mark_delivery_failed(
+        &self,
+        tenant_id: &str,
+        delivery_id: &str,
+        error: Option<&str>,
+        next_attempt_at: DateTime<Utc>,
+    ) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        sqlx::query(
+            r#"
+            UPDATE log_stream_deliveries
+            SET status = 'pending',
+                error = $2,
+                attempt_count = attempt_count + 1,
+                last_attempt_at = NOW(),
+                next_attempt_at = $3
+            WHERE id = $1::uuid
+            "#,
+        )
+        .bind(delivery_id)
         .bind(error)
-        .bind(delivered_at)
-        .execute(&*self.pool)
+        .bind(next_attempt_at)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())
@@ -232,6 +277,7 @@ impl LogStreamsRepository {
         last_delivered_at: DateTime<Utc>,
         last_error: Option<&str>,
     ) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"
             UPDATE log_streams
@@ -245,7 +291,7 @@ impl LogStreamsRepository {
         .bind(stream_id)
         .bind(last_delivered_at)
         .bind(last_error)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())

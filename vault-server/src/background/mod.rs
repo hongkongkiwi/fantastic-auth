@@ -8,6 +8,7 @@ use tracing::info;
 mod analytics;
 mod audit_prune;
 mod audit_rotation;
+mod log_streams;
 pub mod webhook_worker;
 pub mod webhooks;
 
@@ -47,4 +48,8 @@ pub fn start(config: &Config, _db: &Database, state: &AppState) {
     } else {
         info!("Webhook worker disabled");
     }
+
+    // Start log streaming worker
+    log_streams::start(state.clone());
+    info!("Log streaming worker started");
 }

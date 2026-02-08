@@ -317,6 +317,8 @@ async fn create_anonymous_db_session(
         location: None,
         mfa_verified: false,
         expires_at,
+        bind_to_ip: state.config.security.session_binding.bind_to_ip,
+        bind_to_device: state.config.security.session_binding.bind_to_device,
     };
 
     state.db.sessions().create(session_req).await
@@ -440,7 +442,7 @@ pub async fn convert_to_full_account(
     }
 
     // Hash the password
-    let password_hash = crate::crypto::VaultPasswordHasher::hash(&req.password)
+    let password_hash = VaultPasswordHasher::hash(&req.password)
         .map_err(|e| VaultError::crypto(format!("Failed to hash password: {}", e)))?;
 
     // Update the user to a full account

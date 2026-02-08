@@ -5,8 +5,10 @@ use axum::{
     routing::get,
     Extension, Json, Router,
 };
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 
+use crate::permissions::checker::PermissionChecker;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
@@ -35,6 +37,29 @@ pub struct ServiceStatusResponse {
     pub status: String,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct SupportTicketRow {
+    id: String,
+    subject: String,
+    status: String,
+    priority: String,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct SupportIncidentRow {
+    id: String,
+    title: String,
+    status: String,
+    started_at: DateTime<Utc>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ServiceStatusRow {
+    service: String,
+    status: String,
+}
+
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/support/tickets", get(list_tickets))
@@ -42,64 +67,124 @@ pub fn routes() -> Router<AppState> {
         .route("/support/status", get(list_status))
 }
 
+async fn require_support_read(
+    state: &AppState,
+    current_user: &CurrentUser,
+) -> Result<(), ApiError> {
+    state
+        .set_tenant_context(&current_user.tenant_id)
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
+    let allowed = checker
+        .has_permission(&current_user.user_id, "settings:read")
+        .await;
+    if !allowed {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(())
+}
+
 async fn list_tickets(
-    State(_state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<SupportTicketResponse>>, ApiError> {
-    Ok(Json(vec![
-        SupportTicketResponse {
-            id: "SUP-1023".to_string(),
-            subject: "Login failures for tenant Acme Inc".to_string(),
-            status: "open".to_string(),
-            priority: "high".to_string(),
-            updated_at: "2024-02-08T09:20:00Z".to_string(),
-        },
-        SupportTicketResponse {
-            id: "SUP-1019".to_string(),
-            subject: "Webhook retry delays".to_string(),
-            status: "pending".to_string(),
-            priority: "medium".to_string(),
-            updated_at: "2024-02-08T07:00:00Z".to_string(),
-        },
-    ]))
+    require_support_read(&state, &current_user).await?;
+
+    let rows = sqlx::query_as::<_, SupportTicketRow>(
+        r#"
+        SELECT id::text as id,
+               subject,
+               status,
+               priority,
+               updated_at
+        FROM support_tickets
+        WHERE tenant_id = $1::uuid
+        ORDER BY updated_at DESC
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let tickets = rows
+        .into_iter()
+        .map(|row| SupportTicketResponse {
+            id: row.id,
+            subject: row.subject,
+            status: row.status,
+            priority: row.priority,
+            updated_at: row.updated_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(tickets))
 }
 
 async fn list_incidents(
-    State(_state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<SupportIncidentResponse>>, ApiError> {
-    Ok(Json(vec![
-        SupportIncidentResponse {
-            id: "INC-3001".to_string(),
-            title: "Email delivery delays".to_string(),
-            status: "monitoring".to_string(),
-            started_at: "2024-02-07T20:00:00Z".to_string(),
-        },
-        SupportIncidentResponse {
-            id: "INC-2997".to_string(),
-            title: "API latency spike".to_string(),
-            status: "resolved".to_string(),
-            started_at: "2024-02-06T08:00:00Z".to_string(),
-        },
-    ]))
+    require_support_read(&state, &current_user).await?;
+
+    let rows = sqlx::query_as::<_, SupportIncidentRow>(
+        r#"
+        SELECT id::text as id,
+               title,
+               status,
+               started_at
+        FROM support_incidents
+        WHERE tenant_id = $1::uuid
+        ORDER BY started_at DESC
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let incidents = rows
+        .into_iter()
+        .map(|row| SupportIncidentResponse {
+            id: row.id,
+            title: row.title,
+            status: row.status,
+            started_at: row.started_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(Json(incidents))
 }
 
 async fn list_status(
-    State(_state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<ServiceStatusResponse>>, ApiError> {
-    Ok(Json(vec![
-        ServiceStatusResponse {
-            service: "API".to_string(),
-            status: "operational".to_string(),
-        },
-        ServiceStatusResponse {
-            service: "Auth".to_string(),
-            status: "degraded".to_string(),
-        },
-        ServiceStatusResponse {
-            service: "Billing".to_string(),
-            status: "operational".to_string(),
-        },
-    ]))
+    require_support_read(&state, &current_user).await?;
+
+    let rows = sqlx::query_as::<_, ServiceStatusRow>(
+        r#"
+        SELECT service,
+               status
+        FROM service_status
+        WHERE tenant_id = $1::uuid
+        ORDER BY service ASC
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let status = rows
+        .into_iter()
+        .map(|row| ServiceStatusResponse {
+            service: row.service,
+            status: row.status,
+        })
+        .collect();
+
+    Ok(Json(status))
 }

@@ -3,7 +3,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::crypto::VaultPasswordHasher;
-use crate::error::{Result, VaultError};
+use crate::db::set_connection_context;
+use crate::error::Result;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct TenantAdmin {
@@ -38,7 +39,17 @@ impl TenantAdminRepository {
         Self { pool }
     }
 
+    async fn tenant_conn(
+        &self,
+        tenant_id: &str,
+    ) -> Result<sqlx::pool::PoolConnection<sqlx::Postgres>> {
+        let mut conn = self.pool.acquire().await?;
+        set_connection_context(&mut conn, tenant_id).await?;
+        Ok(conn)
+    }
+
     pub async fn list_admins(&self, tenant_id: &str) -> Result<Vec<TenantAdmin>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let admins = sqlx::query_as::<_, TenantAdmin>(
             r#"
             SELECT id::text, tenant_id::text, user_id::text, role::text, status::text, created_at, updated_at
@@ -48,13 +59,14 @@ impl TenantAdminRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(admins)
     }
 
     pub async fn get_roles_for_user(&self, tenant_id: &str, user_id: &str) -> Result<Vec<String>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let roles: Vec<String> = sqlx::query_scalar(
             r#"
             SELECT role::text
@@ -64,7 +76,7 @@ impl TenantAdminRepository {
         )
         .bind(tenant_id)
         .bind(user_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(roles)
@@ -77,6 +89,7 @@ impl TenantAdminRepository {
         role: &str,
         status: &str,
     ) -> Result<TenantAdmin> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let admin = sqlx::query_as::<_, TenantAdmin>(
             r#"
             INSERT INTO tenant_admins (tenant_id, user_id, role, status, created_at, updated_at)
@@ -90,19 +103,20 @@ impl TenantAdminRepository {
         .bind(user_id)
         .bind(role)
         .bind(status)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(admin)
     }
 
     pub async fn remove_admin(&self, tenant_id: &str, user_id: &str) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query(
             r#"DELETE FROM tenant_admins WHERE tenant_id = $1::uuid AND user_id = $2::uuid"#,
         )
         .bind(tenant_id)
         .bind(user_id)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())
@@ -117,6 +131,7 @@ impl TenantAdminRepository {
         invited_by: Option<&str>,
         expires_at: DateTime<Utc>,
     ) -> Result<TenantAdminInvitation> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let token_hash = VaultPasswordHasher::hash(token)?;
 
         let invitation = sqlx::query_as::<_, TenantAdminInvitation>(
@@ -136,13 +151,14 @@ impl TenantAdminRepository {
         .bind(&token_hash)
         .bind(invited_by)
         .bind(expires_at)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(invitation)
     }
 
     pub async fn list_invitations(&self, tenant_id: &str) -> Result<Vec<TenantAdminInvitation>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let invites = sqlx::query_as::<_, TenantAdminInvitation>(
             r#"
             SELECT id::text, tenant_id::text, email, role::text, token_hash, invited_by::text, expires_at, accepted_at, created_at
@@ -152,7 +168,7 @@ impl TenantAdminRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(invites)
@@ -163,6 +179,7 @@ impl TenantAdminRepository {
         tenant_id: &str,
         token: &str,
     ) -> Result<Option<TenantAdminInvitation>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let invites = sqlx::query_as::<_, TenantAdminInvitation>(
             r#"
             SELECT id::text, tenant_id::text, email, role::text, token_hash, invited_by::text, expires_at, accepted_at, created_at
@@ -171,7 +188,7 @@ impl TenantAdminRepository {
             "#,
         )
         .bind(tenant_id)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         for invite in invites {
@@ -184,6 +201,7 @@ impl TenantAdminRepository {
     }
 
     pub async fn accept_invitation(&self, invitation_id: &str) -> Result<()> {
+        let mut conn = self.pool.acquire().await?;
         sqlx::query(
             r#"
             UPDATE tenant_admin_invitations
@@ -192,7 +210,7 @@ impl TenantAdminRepository {
             "#,
         )
         .bind(invitation_id)
-        .execute(&*self.pool)
+        .execute(&mut *conn)
         .await?;
 
         Ok(())

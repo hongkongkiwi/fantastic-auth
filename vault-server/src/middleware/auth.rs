@@ -356,7 +356,11 @@ pub async fn admin_middleware(
         .claims
         .roles
         .as_ref()
-        .map(|roles| roles.iter().any(|r| r == "admin" || r == "superadmin"))
+        .map(|roles| {
+            roles.iter().any(|r| {
+                r == "admin" || r == "owner" || r == "support" || r == "viewer" || r == "superadmin"
+            })
+        })
         .unwrap_or(false);
 
     // Log admin access check

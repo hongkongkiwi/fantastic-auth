@@ -489,7 +489,7 @@ async fn get_settings_history(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<HistoryResponse>, ApiError> {
-    let (rows, total) = service.get_settings_history(
+    let (rows, total) = state.settings_service.get_settings_history(
         &current_user.tenant_id,
         query.category.as_deref(),
         query.page,

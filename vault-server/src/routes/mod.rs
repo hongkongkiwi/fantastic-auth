@@ -14,6 +14,7 @@ pub mod client;
 pub mod health;
 pub mod hosted;
 pub mod internal;
+pub mod oidc;
 
 use crate::state::AppState;
 use crate::i18n::{Language, t};
@@ -39,6 +40,34 @@ pub enum ApiError {
     NotImplemented,
     SessionLimitReached(SessionLimitError),
     TooManyRequests(String),
+    MfaRequired(String),
+}
+
+impl ApiError {
+    /// Create a bad request error
+    pub fn bad_request(msg: impl Into<String>) -> Self {
+        Self::BadRequest(msg.into())
+    }
+
+    /// Create a forbidden error
+    pub fn forbidden(msg: impl Into<String>) -> Self {
+        Self::Forbidden
+    }
+
+    /// Create a not found error
+    pub fn not_found(msg: impl Into<String>) -> Self {
+        Self::NotFound
+    }
+
+    /// Create an internal error
+    pub fn internal_error(msg: impl Into<String>) -> Self {
+        Self::Internal
+    }
+
+    /// Create an MFA required error
+    pub fn mfa_required(msg: impl Into<String>) -> Self {
+        Self::MfaRequired(msg.into())
+    }
 }
 
 /// Localized API Error that includes language information
@@ -113,6 +142,11 @@ impl IntoResponse for ApiError {
                     ApiError::TooManyRequests(msg) => (
                         StatusCode::TOO_MANY_REQUESTS,
                         "TOO_MANY_REQUESTS",
+                        msg.clone(),
+                    ),
+                    ApiError::MfaRequired(msg) => (
+                        StatusCode::UNAUTHORIZED,
+                        "MFA_REQUIRED",
                         msg.clone(),
                     ),
                 };

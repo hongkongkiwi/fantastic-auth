@@ -173,6 +173,7 @@ pub struct LdapPlugin {
 }
 
 #[derive(Debug, Default)]
+#[derive(Clone)]
 struct LdapStats {
     auth_attempts: u64,
     successful_auths: u64,
@@ -249,7 +250,7 @@ impl LdapPlugin {
         
         // Map groups to roles in metadata
         let roles = self.map_groups_to_roles(&ldap_attrs.groups);
-        if let Ok(metadata) = user.metadata.as_object_mut() {
+        if let Some(metadata) = user.metadata.as_object_mut() {
             metadata.insert(
                 "ldap_roles".to_string(),
                 serde_json::json!(roles),

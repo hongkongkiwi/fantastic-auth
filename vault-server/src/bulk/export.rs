@@ -8,7 +8,7 @@ use crate::bulk::{
     UserExportRecord,
 };
 use crate::db::Database;
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use serde::Serialize;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -96,7 +96,7 @@ impl ExportProcessor {
 
         let mut count = 0;
 
-        while let Some(result) = tokio::stream::StreamExt::next(stream).await {
+        while let Some(result) = stream.next().await {
             match result {
                 Ok(record) => {
                     let csv_row = format_csv_row(&record);

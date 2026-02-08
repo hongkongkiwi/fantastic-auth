@@ -12,9 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::audit::{AuditLogger, ResourceType};
 use crate::domains::custom::{CustomDomain, CustomDomainStatus, DomainBranding, DomainValidator};
-use crate::domains::custom_service::{
-    CustomDomainConfig, CustomDomainService, SqlxCustomDomainRepository,
-};
+use crate::domains::custom_service::{CustomDomainConfig, CustomDomainService};
+use crate::domains::SqlxCustomDomainRepository;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 

@@ -5,10 +5,11 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
-use once_cell::sync::Lazy;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use uuid::Uuid;
 
+use crate::permissions::checker::PermissionChecker;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
@@ -28,26 +29,15 @@ struct MarkReadRequest {
     ids: Vec<String>,
 }
 
-static NOTIFICATIONS: Lazy<Mutex<Vec<NotificationResponse>>> = Lazy::new(|| {
-    Mutex::new(vec![
-        NotificationResponse {
-            id: "notif-1".to_string(),
-            title: "Billing webhook failed".to_string(),
-            description: "Stripe webhook endpoint returned 500 for tenant Acme Inc.".to_string(),
-            created_at: "2024-02-08T10:00:00Z".to_string(),
-            r#type: "warning".to_string(),
-            read: false,
-        },
-        NotificationResponse {
-            id: "notif-2".to_string(),
-            title: "New admin added".to_string(),
-            description: "Jamie Liu was granted Platform Admin role.".to_string(),
-            created_at: "2024-02-08T08:00:00Z".to_string(),
-            r#type: "success".to_string(),
-            read: false,
-        },
-    ])
-});
+#[derive(Debug, sqlx::FromRow)]
+struct NotificationRow {
+    id: String,
+    title: String,
+    description: String,
+    created_at: DateTime<Utc>,
+    r#type: String,
+    read: bool,
+}
 
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -55,24 +45,142 @@ pub fn routes() -> Router<AppState> {
         .route("/notifications/mark-read", post(mark_notifications_read))
 }
 
+async fn require_notifications_read(
+    state: &AppState,
+    current_user: &CurrentUser,
+) -> Result<(), ApiError> {
+    state
+        .set_tenant_context(&current_user.tenant_id)
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
+    let allowed = checker
+        .has_permission(&current_user.user_id, "settings:read")
+        .await;
+    if !allowed {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(())
+}
+
+async fn require_notifications_write(
+    state: &AppState,
+    current_user: &CurrentUser,
+) -> Result<(), ApiError> {
+    state
+        .set_tenant_context(&current_user.tenant_id)
+        .await
+        .map_err(|_| ApiError::Internal)?;
+
+    let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
+    let allowed = checker
+        .has_permission(&current_user.user_id, "settings:write")
+        .await;
+    if !allowed {
+        return Err(ApiError::Forbidden);
+    }
+    Ok(())
+}
+
 async fn list_notifications(
-    State(_state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<NotificationResponse>>, ApiError> {
-    let items = NOTIFICATIONS.lock().map_err(|_| ApiError::Internal)?;
-    Ok(Json(items.clone()))
+    require_notifications_read(&state, &current_user).await?;
+
+    let rows = sqlx::query_as::<_, NotificationRow>(
+        r#"
+        SELECT id::text as id,
+               title,
+               description,
+               created_at,
+               "type" as "type",
+               read
+        FROM notifications
+        WHERE tenant_id = $1::uuid
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| NotificationResponse {
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            created_at: row.created_at.to_rfc3339(),
+            r#type: row.r#type,
+            read: row.read,
+        })
+        .collect();
+
+    Ok(Json(items))
 }
 
 async fn mark_notifications_read(
-    State(_state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+    Extension(current_user): Extension<CurrentUser>,
     Json(payload): Json<MarkReadRequest>,
 ) -> Result<Json<Vec<NotificationResponse>>, ApiError> {
-    let mut items = NOTIFICATIONS.lock().map_err(|_| ApiError::Internal)?;
-    for item in items.iter_mut() {
-        if payload.ids.contains(&item.id) {
-            item.read = true;
-        }
+    require_notifications_write(&state, &current_user).await?;
+
+    let ids: Vec<Uuid> = payload
+        .ids
+        .iter()
+        .filter_map(|id| Uuid::parse_str(id).ok())
+        .collect();
+
+    if ids.is_empty() {
+        return Err(ApiError::BadRequest("No valid notification ids".to_string()));
     }
-    Ok(Json(items.clone()))
+
+    sqlx::query(
+        r#"
+        UPDATE notifications
+        SET read = true
+        WHERE tenant_id = $1::uuid AND id = ANY($2)
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .bind(&ids)
+    .execute(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let rows = sqlx::query_as::<_, NotificationRow>(
+        r#"
+        SELECT id::text as id,
+               title,
+               description,
+               created_at,
+               "type" as "type",
+               read
+        FROM notifications
+        WHERE tenant_id = $1::uuid
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(&current_user.tenant_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?;
+
+    let items = rows
+        .into_iter()
+        .map(|row| NotificationResponse {
+            id: row.id,
+            title: row.title,
+            description: row.description,
+            created_at: row.created_at.to_rfc3339(),
+            r#type: row.r#type,
+            read: row.read,
+        })
+        .collect();
+
+    Ok(Json(items))
 }

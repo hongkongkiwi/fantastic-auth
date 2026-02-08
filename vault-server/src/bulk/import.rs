@@ -466,7 +466,7 @@ impl ImportProcessor {
         record: &UserImportRecord,
         row_number: usize,
     ) -> anyhow::Result<()> {
-        use vault_core::auth::password::VaultPasswordHasher;
+        use vault_core::crypto::VaultPasswordHasher;
 
         // Validate the record
         validate_record(record, row_number)

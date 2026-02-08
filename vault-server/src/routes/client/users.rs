@@ -40,10 +40,9 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/me/linked-accounts/:provider/primary",
             post(set_primary_account),
-        )
-        // Wallet endpoints
-        .route("/me/wallet", get(get_wallet_info).post(link_wallet))
-        .route("/me/wallet", delete(unlink_wallet));
+        );
+        // Note: Wallet endpoints (get_wallet_info, link_wallet, unlink_wallet) 
+        // are planned but not yet implemented
 
     // Routes requiring elevated step-up (change password)
     let elevated_routes = Router::new()

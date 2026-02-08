@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
 
+use crate::db::set_connection_context;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -41,7 +42,17 @@ impl ActionsRepository {
         Self { pool }
     }
 
+    async fn tenant_conn(
+        &self,
+        tenant_id: &str,
+    ) -> Result<sqlx::pool::PoolConnection<sqlx::Postgres>> {
+        let mut conn = self.pool.acquire().await?;
+        set_connection_context(&mut conn, tenant_id).await?;
+        Ok(conn)
+    }
+
     pub async fn list_actions(&self, tenant_id: &str, trigger: Option<&str>) -> Result<Vec<Action>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let actions = sqlx::query_as::<_, Action>(
             r#"
             SELECT id::text, tenant_id::text, name, trigger::text, status::text, runtime, code, timeout_ms,
@@ -53,13 +64,14 @@ impl ActionsRepository {
         )
         .bind(tenant_id)
         .bind(trigger)
-        .fetch_all(&*self.pool)
+        .fetch_all(&mut *conn)
         .await?;
 
         Ok(actions)
     }
 
     pub async fn get_action(&self, tenant_id: &str, action_id: &str) -> Result<Option<Action>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let action = sqlx::query_as::<_, Action>(
             r#"
             SELECT id::text, tenant_id::text, name, trigger::text, status::text, runtime, code, timeout_ms,
@@ -70,7 +82,7 @@ impl ActionsRepository {
         )
         .bind(tenant_id)
         .bind(action_id)
-        .fetch_optional(&*self.pool)
+        .fetch_optional(&mut *conn)
         .await?;
 
         Ok(action)
@@ -86,6 +98,7 @@ impl ActionsRepository {
         code: &[u8],
         timeout_ms: i32,
     ) -> Result<Action> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let action = sqlx::query_as::<_, Action>(
             r#"
             INSERT INTO actions (tenant_id, name, trigger, status, runtime, code, timeout_ms, created_at, updated_at)
@@ -101,7 +114,7 @@ impl ActionsRepository {
         .bind(runtime)
         .bind(code)
         .bind(timeout_ms)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(action)
@@ -116,6 +129,7 @@ impl ActionsRepository {
         code: Option<&[u8]>,
         timeout_ms: Option<i32>,
     ) -> Result<Action> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let action = sqlx::query_as::<_, Action>(
             r#"
             UPDATE actions
@@ -135,17 +149,18 @@ impl ActionsRepository {
         .bind(status)
         .bind(code)
         .bind(timeout_ms)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(action)
     }
 
     pub async fn delete_action(&self, tenant_id: &str, action_id: &str) -> Result<()> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         sqlx::query("DELETE FROM actions WHERE tenant_id = $1::uuid AND id = $2::uuid")
             .bind(tenant_id)
             .bind(action_id)
-            .execute(&*self.pool)
+            .execute(&mut *conn)
             .await?;
         Ok(())
     }
@@ -161,6 +176,7 @@ impl ActionsRepository {
         error: Option<&str>,
         output: Option<serde_json::Value>,
     ) -> Result<ActionExecution> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
         let execution = sqlx::query_as::<_, ActionExecution>(
             r#"
             INSERT INTO action_executions (
@@ -178,7 +194,7 @@ impl ActionsRepository {
         .bind(finished_at)
         .bind(error)
         .bind(output)
-        .fetch_one(&*self.pool)
+        .fetch_one(&mut *conn)
         .await?;
 
         Ok(execution)

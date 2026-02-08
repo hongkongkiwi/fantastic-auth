@@ -214,7 +214,7 @@ async fn withdraw_consent(
         .withdraw_consent(&user.user_id, consent_type)
         .await
         .map_err(|e| match e {
-            super::ConsentError::CannotWithdrawRequired(_) => {
+            ConsentError::CannotWithdrawRequired(_) => {
                 ApiError::BadRequest("Cannot withdraw required consent".to_string())
             }
             _ => {
@@ -225,14 +225,14 @@ async fn withdraw_consent(
 
     // Log the withdrawal
     crate::audit::log_action(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "consent_withdrawn",
+        "consent",
         &record.id,
         true,
-    )
-    .await;
+    );
 
     Ok(Json(WithdrawConsentResponse {
         success: true,
@@ -312,7 +312,7 @@ async fn request_account_deletion(
         .request_account_deletion(&user.user_id, body.reason.as_deref())
         .await
         .map_err(|e| match e {
-            super::ConsentError::Internal(msg) if msg.contains("already pending") => {
+            ConsentError::Internal(msg) if msg.contains("already pending") => {
                 ApiError::Conflict("Deletion request already pending".to_string())
             }
             _ => {
@@ -323,14 +323,14 @@ async fn request_account_deletion(
 
     // Log the deletion request
     crate::audit::log_action(
-        &state,
+        &state.db,
         &user.tenant_id,
         &user.user_id,
         "deletion_requested",
+        "user",
         &response.id,
         true,
-    )
-    .await;
+    );
 
     // Trigger webhook for deletion request
     crate::webhooks::events::trigger_event(

@@ -25,6 +25,7 @@ pub mod platform_users;
 pub mod roles;
 pub mod support;
 pub mod tenants;
+pub mod tenant_admins;
 
 use crate::state::AppState;
 
@@ -42,6 +43,7 @@ pub fn routes() -> Router<AppState> {
         .merge(maintenance::routes())
         .merge(organizations::routes())
         .merge(roles::routes())
+        .merge(tenant_admins::routes())
         .merge(api_keys::routes())
         .merge(notifications::routes())
         .merge(support::routes())

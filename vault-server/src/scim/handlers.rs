@@ -8,7 +8,7 @@
 //! - Schemas: Discovery
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Json},
     Extension,
@@ -20,8 +20,8 @@ use sqlx::FromRow;
 
 use crate::routes::ApiError;
 use crate::scim::{
-    Filter, FilterParser, ListResponse, Meta, PatchOperation, PatchRequest, ScimError, ScimGroup,
-    ScimQuery, ScimResourceType, ScimSchema, ScimUser, ServiceProviderConfig,
+    Filter, FilterParser, ListResponse, Meta, PatchOperation, PatchRequest, ScimAttribute,
+    ScimError, ScimGroup, ScimQuery, ScimResourceType, ScimSchema, ScimUser, ServiceProviderConfig,
 };
 use crate::state::AppState;
 
