@@ -218,7 +218,7 @@ pub async fn trigger_user_joined_organization(
 }
 
 /// Generic helper to trigger any webhook event
-async fn trigger_event(
+pub async fn trigger_event(
     state: &AppState,
     tenant_id: &str,
     event_type: &str,

@@ -102,7 +102,7 @@ pub fn verify_ethereum_signature(
     // Recover public key from signature
     let r_arr: [u8; 32] = r.try_into().map_err(|_| SignatureError::InvalidFormat("Invalid r component".to_string()))?;
     let s_arr: [u8; 32] = s.try_into().map_err(|_| SignatureError::InvalidFormat("Invalid s component".to_string()))?;
-    let sig = ecdsa::Signature::from_scalars(r_arr.into(), s_arr.into())
+    let sig = ecdsa::Signature::from_scalars(r_arr, s_arr)
         .map_err(|e| SignatureError::EcdsaError(format!("{:?}", e)))?;
 
     let rec_id = ecdsa::RecoveryId::try_from(recovery_id as u8)
@@ -168,7 +168,7 @@ pub fn verify_raw_ecdsa_signature(
     // Recover public key
     let r_arr: [u8; 32] = r.try_into().map_err(|_| SignatureError::InvalidFormat("Invalid r component".to_string()))?;
     let s_arr: [u8; 32] = s.try_into().map_err(|_| SignatureError::InvalidFormat("Invalid s component".to_string()))?;
-    let sig = ecdsa::Signature::from_scalars(r_arr.into(), s_arr.into())
+    let sig = ecdsa::Signature::from_scalars(r_arr, s_arr)
         .map_err(|e| SignatureError::EcdsaError(format!("{:?}", e)))?;
 
     let rec_id = ecdsa::RecoveryId::try_from(recovery_id as u8)
