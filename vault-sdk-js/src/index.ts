@@ -297,7 +297,7 @@ export type {
   BillingPlan,
   PlanTier,
   Subscription,
-  SubscriptionStatus,
+  SubscriptionStatus as SubscriptionStatusType,
   Invoice,
   InvoiceStatus,
   PaymentMethod,

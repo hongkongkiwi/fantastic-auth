@@ -88,10 +88,10 @@ export type { ProtectProps } from './Protect';
 // ============================================================================
 
 export { PricingTable } from './PricingTable';
-export type { PricingTableProps } from './PricingTable';
+export type { PricingTableProps } from '../types/billing';
 
 export { CheckoutButton, QuickCheckoutButton } from './CheckoutButton';
-export type { CheckoutButtonProps, QuickCheckoutButtonProps } from './CheckoutButton';
+export type { CheckoutButtonProps, QuickCheckoutButtonProps } from '../types/billing';
 
 export {
   CustomerPortalButton,
@@ -103,7 +103,7 @@ export {
 export type {
   CustomerPortalButtonProps,
   BillingSettingsProps,
-} from './CustomerPortal';
+} from '../types/billing';
 
 export {
   SubscriptionStatus,
@@ -114,7 +114,7 @@ export type {
   SubscriptionStatusProps,
   UsageMeterProps,
   InvoiceListProps,
-} from './SubscriptionStatus';
+} from '../types/billing';
 
 // ============================================================================
 // UI Components (Themed)

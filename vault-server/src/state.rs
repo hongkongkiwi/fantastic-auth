@@ -109,23 +109,32 @@ impl AppState {
                 None
             };
 
+        let data_encryption_key = Arc::new(load_data_encryption_key()?);
+
         // Initialize auth service with database
         let db_context = Arc::new(vault_core::db::DbContext::new(db.pool().clone()));
         let base_url = format!("https://{}:{}", config.host, config.port);
         let auth_service = match &config.redis_url {
-            Some(redis_url) => Arc::new(AuthService::with_redis(
-                &config.jwt.issuer,
-                &config.jwt.audience,
-                db_context,
-                &base_url,
-                redis_url,
-            ).await?),
-            None => Arc::new(AuthService::new(
-                &config.jwt.issuer,
-                &config.jwt.audience,
-                db_context,
-                &base_url,
-            )),
+            Some(redis_url) => Arc::new(
+                AuthService::with_redis(
+                    &config.jwt.issuer,
+                    &config.jwt.audience,
+                    db_context,
+                    &base_url,
+                    redis_url,
+                )
+                .await?
+                .with_data_encryption_key((*data_encryption_key).clone()),
+            ),
+            None => Arc::new(
+                AuthService::new(
+                    &config.jwt.issuer,
+                    &config.jwt.audience,
+                    db_context,
+                    &base_url,
+                )
+                .with_data_encryption_key((*data_encryption_key).clone()),
+            ),
         };
 
         // Initialize WebAuthn service
@@ -232,8 +241,6 @@ impl AppState {
             consent_repository,
             consent_config,
         ));
-
-        let data_encryption_key = Arc::new(load_data_encryption_key()?);
 
         Ok(Self {
             config: Arc::new(config),

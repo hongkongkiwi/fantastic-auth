@@ -250,6 +250,8 @@ async fn setup_totp(
             ApiError::Internal
         })?;
 
+    update_backup_codes_config(&state, &current_user.tenant_id, &current_user.user_id, &code_hashes).await?;
+
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
 
     // Trigger webhook
@@ -300,6 +302,40 @@ async fn verify_totp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to verify TOTP method: {}", e);
+            ApiError::Internal
+        })?;
+
+    let encrypted_secret = encrypt_secret(&state, &totp_config.secret)?;
+    let mut mfa_config = state
+        .db
+        .users()
+        .get_mfa_config(&current_user.tenant_id, &current_user.user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load MFA config: {}", e);
+            ApiError::Internal
+        })?;
+    let totp_json = serde_json::json!({
+        "secret": encrypted_secret,
+        "algorithm": "SHA1",
+        "digits": 6,
+        "period": 30
+    });
+    match mfa_config.as_object_mut() {
+        Some(obj) => {
+            obj.insert("totp".to_string(), totp_json);
+        }
+        None => {
+            mfa_config = serde_json::json!({ "totp": totp_json });
+        }
+    }
+    state
+        .db
+        .users()
+        .update_mfa_config(&current_user.tenant_id, &current_user.user_id, &mfa_config)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update MFA config: {}", e);
             ApiError::Internal
         })?;
 
@@ -542,6 +578,8 @@ async fn generate_backup_codes(
             tracing::error!("Failed to create backup codes: {}", e);
             ApiError::Internal
         })?;
+
+    update_backup_codes_config(&state, &current_user.tenant_id, &current_user.user_id, &code_hashes).await?;
 
     Ok(Json(BackupCodesResponse {
         codes: backup_codes,
@@ -953,6 +991,49 @@ async fn sync_user_mfa_methods(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update user MFA methods: {}", e);
+            ApiError::Internal
+        })?;
+
+    Ok(())
+}
+
+async fn update_backup_codes_config(
+    state: &AppState,
+    tenant_id: &str,
+    user_id: &str,
+    code_hashes: &[String],
+) -> Result<(), ApiError> {
+    let mut mfa_config = state
+        .db
+        .users()
+        .get_mfa_config(tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to load MFA config: {}", e);
+            ApiError::Internal
+        })?;
+
+    let backup_json = serde_json::json!({
+        "codes": code_hashes,
+        "used_count": 0
+    });
+
+    match mfa_config.as_object_mut() {
+        Some(obj) => {
+            obj.insert("backup_codes".to_string(), backup_json);
+        }
+        None => {
+            mfa_config = serde_json::json!({ "backup_codes": backup_json });
+        }
+    }
+
+    state
+        .db
+        .users()
+        .update_mfa_config(tenant_id, user_id, &mfa_config)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to update MFA config: {}", e);
             ApiError::Internal
         })?;
 

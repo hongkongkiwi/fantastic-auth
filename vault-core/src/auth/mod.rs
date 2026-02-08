@@ -74,6 +74,8 @@ pub struct AuthService {
     base_url: String,
     /// Token storage backend
     token_store: Arc<dyn TokenStore>,
+    /// Optional data encryption key (AES-256-GCM)
+    data_encryption_key: Option<Vec<u8>>,
 }
 
 impl AuthService {
@@ -94,6 +96,7 @@ impl AuthService {
             email_sender: None,
             base_url: base_url.into(),
             token_store: Arc::new(InMemoryTokenStore::new()),
+            data_encryption_key: None,
         }
     }
 
@@ -121,6 +124,7 @@ impl AuthService {
             email_sender: None,
             base_url: base_url.into(),
             token_store: Arc::new(token_store),
+            data_encryption_key: None,
         })
     }
 
@@ -142,7 +146,14 @@ impl AuthService {
             email_sender: None,
             base_url: base_url.into(),
             token_store,
+            data_encryption_key: None,
         }
+    }
+
+    /// Set data encryption key (AES-256-GCM)
+    pub fn with_data_encryption_key(mut self, key: Vec<u8>) -> Self {
+        self.data_encryption_key = Some(key);
+        self
     }
 
     /// Set email sender callback
@@ -866,12 +877,19 @@ impl AuthService {
             match method {
                 MfaMethod::Totp => {
                     if let Some(totp_config) = mfa_config.get("totp") {
-                        let secret = totp_config
+                        let mut secret = totp_config
                             .get("secret")
                             .and_then(|s| s.as_str())
                             .ok_or_else(|| {
                                 VaultError::authentication("Invalid TOTP configuration")
                             })?;
+
+                        if let Some(key) = &self.data_encryption_key {
+                            let decrypted = crate::crypto::decrypt_from_base64(key, secret)
+                                .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?;
+                            secret = std::str::from_utf8(&decrypted)
+                                .map_err(|_| VaultError::authentication("Invalid TOTP secret"))?;
+                        }
 
                         let config = TotpConfig {
                             secret: secret.to_string(),

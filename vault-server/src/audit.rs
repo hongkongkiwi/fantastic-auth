@@ -237,6 +237,12 @@ pub enum AuditAction {
     AccountDeletionRequested,
     AccountDeletionCancelled,
     AccountDeletionCompleted,
+
+    // Anonymous/guest authentication
+    AnonymousSessionCreated,
+    AnonymousSessionFailed,
+    AnonymousConverted,
+    AnonymousConversionFailed,
 }
 
 impl AuditAction {

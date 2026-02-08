@@ -141,9 +141,9 @@ export const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
       <div
         className={`vault-subscription-status empty ${className}`}
         style={{
-          '--vault-primary': appearance?.variables?.primary,
-          '--vault-background': appearance?.variables?.background,
-          '--vault-foreground': appearance?.variables?.foreground,
+          '--vault-primary': appearance?.variables?.colorPrimary,
+          '--vault-background': appearance?.variables?.colorBackground,
+          '--vault-foreground': appearance?.variables?.colorText,
         } as React.CSSProperties}
       >
         <div className="vault-subscription-empty">

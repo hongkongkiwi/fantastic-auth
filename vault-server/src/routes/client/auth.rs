@@ -13,9 +13,10 @@ use validator::Validate;
 use crate::{
     audit::{AuditLogger, RequestContext},
     auth::{
-        AuthProvider, LinkAccountRequest, SensitiveOperation, StepUpAuthMethod, StepUpChallenge,
-        StepUpChallengeResponse, StepUpCredentials, StepUpFailureReason, StepUpPolicy,
-        StepUpRequest, StepUpService, StepUpTokenResponse,
+        create_anonymous_session, convert_to_full_account, AuthProvider, CreateAnonymousSessionRequest,
+        ConvertAnonymousRequest, LinkAccountRequest, SensitiveOperation, StepUpAuthMethod, 
+        StepUpChallenge, StepUpChallengeResponse, StepUpCredentials, StepUpFailureReason, 
+        StepUpPolicy, StepUpRequest, StepUpService, StepUpTokenResponse,
     },
     middleware::{
         bot_protection_middleware, conditional_bot_protection_middleware,
@@ -84,6 +85,9 @@ pub fn routes() -> Router<AppState> {
         // Web3 authentication endpoints
         .route("/web3/nonce", post(web3_nonce))
         .route("/web3/verify", post(web3_verify))
+        // Anonymous/guest authentication endpoints
+        .route("/anonymous", post(create_anonymous_session_handler))
+        .route("/anonymous/convert", post(convert_anonymous_handler))
 }
 
 #[derive(Debug, Deserialize)]
@@ -3805,4 +3809,204 @@ async fn record_registration_consents(
     }
 
     Ok(())
+}
+
+
+// ============ Anonymous/Guest Authentication Handlers ============
+
+/// Create an anonymous/guest session
+///
+/// Allows users to use the app without registering.
+/// Returns an access token and anonymous session ID.
+async fn create_anonymous_session_handler(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<CreateAnonymousSessionRequest>,
+) -> Result<Json<crate::auth::AnonymousSessionResponse>, ApiError> {
+    // Validate request
+    if let Err(e) = req.validate() {
+        tracing::warn!("Anonymous session validation failed: {}", e);
+        return Err(ApiError::Validation(e.to_string()));
+    }
+
+    let tenant_id = extract_tenant_id(&headers);
+    let context = Some(RequestContext::from_request(
+        &headers,
+        Some(&ConnectInfo(addr)),
+    ));
+    let ip = addr.ip();
+    let user_agent = headers
+        .get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let audit = AuditLogger::new(state.db.clone());
+
+    match create_anonymous_session(&state, &tenant_id, Some(ip), user_agent).await {
+        Ok(response) => {
+            // Log successful anonymous session creation
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::AnonymousSessionCreated,
+                crate::audit::ResourceType::Session,
+                &response.anonymous_id,
+                None,
+                None,
+                context,
+                true,
+                None,
+                Some(serde_json::json!({
+                    "expires_at": response.expires_at,
+                    "ip": ip.to_string(),
+                })),
+            );
+
+            Ok(Json(response))
+        }
+        Err(e) => {
+            tracing::warn!("Anonymous session creation failed: {}", e);
+            
+            // Log failure
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::AnonymousSessionFailed,
+                crate::audit::ResourceType::Session,
+                "unknown",
+                None,
+                None,
+                context,
+                false,
+                Some(e.to_string()),
+                None,
+            );
+
+            if e.to_string().contains("rate limit") {
+                return Err(ApiError::TooManyRequests(
+                    "Anonymous session creation rate limit exceeded".to_string(),
+                ));
+            }
+
+            Err(ApiError::Internal)
+        }
+    }
+}
+
+/// Convert anonymous session to full account
+///
+/// Transfers all anonymous user data to a new full account.
+/// Invalidates the anonymous session and returns new tokens for the full account.
+async fn convert_anonymous_handler(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<ConvertAnonymousRequest>,
+) -> Result<Json<crate::auth::AnonymousConversionResponse>, ApiError> {
+    // Validate request
+    if let Err(e) = req.validate() {
+        tracing::warn!("Anonymous conversion validation failed: {}", e);
+        return Err(ApiError::Validation(e.to_string()));
+    }
+
+    // Validate required consents
+    if !req.terms_accepted {
+        return Err(ApiError::Validation(
+            "You must accept the Terms of Service".to_string(),
+        ));
+    }
+    if !req.privacy_accepted {
+        return Err(ApiError::Validation(
+            "You must accept the Privacy Policy".to_string(),
+        ));
+    }
+
+    let tenant_id = extract_tenant_id(&headers);
+    let context = Some(RequestContext::from_request(
+        &headers,
+        Some(&ConnectInfo(addr)),
+    ));
+    let ip = addr.ip();
+    let audit = AuditLogger::new(state.db.clone());
+
+    match convert_to_full_account(&state, &tenant_id, req, Some(ip)).await {
+        Ok(response) => {
+            // Log successful conversion
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::AnonymousConverted,
+                crate::audit::ResourceType::User,
+                &response.user.id,
+                None,
+                None,
+                context.clone(),
+                true,
+                None,
+                Some(serde_json::json!({
+                    "previous_anonymous_id": response.user.previous_anonymous_id,
+                    "data_migrated": response.data_migrated,
+                })),
+            );
+
+            // Record consents for the new full account
+            let consent_context = crate::consent::ConsentContext {
+                ip_address: Some(ip.to_string()),
+                user_agent: headers.get("user-agent").and_then(|h| h.to_str().ok()).map(|s| s.to_string()),
+                jurisdiction: headers.get("cf-ipcountry").and_then(|h| h.to_str().ok()).map(|s| s.to_string()),
+            };
+
+            // Get the consents from the request (using defaults for optional ones)
+            let _ = record_registration_consents(
+                &state,
+                &response.user.id,
+                &tenant_id,
+                true, // terms_accepted (required)
+                true, // privacy_accepted (required)
+                false, // marketing_consent - default to false for anonymous conversion
+                false, // analytics_consent - default to false for anonymous conversion
+                false, // cookies_consent - default to false for anonymous conversion
+                consent_context,
+            ).await;
+
+            // Trigger webhook event
+            crate::webhooks::events::trigger_user_created(
+                &state,
+                &tenant_id,
+                &response.user.id,
+                &response.user.email,
+                response.user.name.as_deref(),
+            )
+            .await;
+
+            Ok(Json(response))
+        }
+        Err(e) => {
+            tracing::warn!("Anonymous conversion failed: {}", e);
+
+            // Log failure
+            audit.log(
+                &tenant_id,
+                crate::audit::AuditAction::AnonymousConversionFailed,
+                crate::audit::ResourceType::User,
+                "unknown",
+                None,
+                None,
+                context,
+                false,
+                Some(e.to_string()),
+                None,
+            );
+
+            if e.to_string().contains("already registered") {
+                return Err(ApiError::Conflict(
+                    "Email address is already registered".to_string(),
+                ));
+            }
+            if e.to_string().contains("already been converted") {
+                return Err(ApiError::Conflict(
+                    "Anonymous session has already been converted".to_string(),
+                ));
+            }
+
+            Err(ApiError::BadRequest(e.to_string()))
+        }
+    }
 }
