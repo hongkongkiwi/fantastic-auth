@@ -5,6 +5,38 @@ use crate::error::{Result, VaultError};
 use sqlx::{FromRow, PgPool, Row};
 use std::sync::Arc;
 
+/// SQL column list for session queries
+/// 
+/// This constant eliminates duplication across all session queries.
+/// When adding new columns, update this constant and the Session struct.
+const SESSION_COLUMNS: &str = r#"
+    id::text as id, 
+    tenant_id::text as tenant_id, 
+    user_id::text as user_id, 
+    status as "status: SessionStatus", 
+    access_token_jti, 
+    refresh_token_hash, 
+    token_family,
+    ip_address, 
+    user_agent, 
+    device_fingerprint, 
+    device_info, 
+    location,
+    mfa_verified, 
+    mfa_verified_at, 
+    created_at, 
+    updated_at, 
+    last_activity_at,
+    expires_at, 
+    revoked_at, 
+    revoked_reason,
+    created_ip, 
+    created_device_hash, 
+    bind_to_ip, 
+    bind_to_device, 
+    binding_violation_count
+"#;
+
 /// Repository for session operations
 pub struct SessionRepository {
     pool: Arc<PgPool>,
@@ -120,12 +152,7 @@ impl SessionRepository {
                 $20::inet, $21, $22, $23, $24
             )
             RETURNING 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             "#
         )
         .bind(&id)
@@ -164,12 +191,7 @@ impl SessionRepository {
         let session = sqlx::query_as::<_, Session>(
             r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE tenant_id = $1 AND id = $2
             "#
@@ -189,12 +211,7 @@ impl SessionRepository {
         let session = sqlx::query_as::<_, Session>(
             r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE tenant_id = $1 AND refresh_token_hash = $2 AND status = 'active'
             "#
@@ -235,12 +252,7 @@ impl SessionRepository {
                 last_activity_at = $6
             WHERE tenant_id = $1 AND id = $2 AND refresh_token_hash = $3 AND status = 'active'
             RETURNING 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             "#
         )
         .bind(tenant_id)
@@ -277,12 +289,7 @@ impl SessionRepository {
                 updated_at = $5
             WHERE tenant_id = $1 AND id = $2
             RETURNING 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             "#
         )
         .bind(tenant_id)
@@ -414,12 +421,7 @@ impl SessionRepository {
         let mut conn = self.tenant_conn(tenant_id).await?;
         let mut query = r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE tenant_id = $1 AND user_id = $2
         "#.to_string();
@@ -606,12 +608,7 @@ impl SessionRepository {
         let session = sqlx::query_as::<_, Session>(
             r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE tenant_id = $1 
               AND user_id = $2 
@@ -641,12 +638,7 @@ impl SessionRepository {
         let sessions: Vec<Session> = sqlx::query_as::<_, Session>(
             r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE tenant_id = $1 
               AND user_id = $2 
@@ -802,12 +794,7 @@ impl SessionRepository {
         let sessions: Vec<Session> = sqlx::query_as(
             r#"
             SELECT 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             FROM sessions 
             WHERE user_id = $1 AND tenant_id = $2 AND status = 'active' AND expires_at > NOW()
             ORDER BY created_at DESC
@@ -941,12 +928,7 @@ impl SessionRepository {
                 updated_at = NOW()
             WHERE tenant_id = $1 AND id = $2
             RETURNING 
-                id::text as id, tenant_id::text as tenant_id, user_id::text as user_id, status as "status: SessionStatus", 
-                access_token_jti, refresh_token_hash, token_family,
-                ip_address, user_agent, device_fingerprint, device_info, location,
-                mfa_verified, mfa_verified_at, created_at, updated_at, last_activity_at,
-                expires_at, revoked_at, revoked_reason,
-                created_ip, created_device_hash, bind_to_ip, bind_to_device, binding_violation_count
+                $SESSION_COLUMNS
             "#
         )
         .bind(tenant_id)

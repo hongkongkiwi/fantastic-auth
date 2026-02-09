@@ -486,6 +486,9 @@ impl UserRepository {
     }
 
     /// List users with pagination and filters
+    /// 
+    /// SECURITY: Uses type-safe query building with compile-time checked queries.
+    /// No dynamic SQL construction or downcasting to prevent runtime panics.
     pub async fn list(
         &self,
         tenant_id: &str,
@@ -497,61 +500,128 @@ impl UserRepository {
         let offset = (page - 1) * per_page;
         let mut conn = self.tenant_conn(tenant_id).await?;
 
-        // Build query dynamically
-        let mut where_clauses = vec![
-            "tenant_id = $1::uuid".to_string(),
-            "deleted_at IS NULL".to_string(),
-        ];
-        let mut params: Vec<Box<dyn std::any::Any + Send + Sync>> =
-            vec![Box::new(tenant_id.to_string())];
+        // Type-safe query building with all 4 filter combinations
+        // This avoids dynamic SQL and downcasting while maintaining performance
+        match (status, email) {
+            (None, None) => {
+                // No filters - base query
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM users WHERE tenant_id = $1::uuid AND deleted_at IS NULL"
+                )
+                .bind(tenant_id)
+                .fetch_one(&mut *conn)
+                .await?;
 
-        let mut param_idx = 2;
-        if let Some(s) = status {
-            where_clauses.push(format!("status = ${}", param_idx));
-            params.push(Box::new(s.to_string()));
-            param_idx += 1;
+                let rows = sqlx::query_as::<_, UserWithPasswordRow>(
+                    r#"SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
+                        status::text as status, password_hash,
+                        failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
+                        profile, mfa_enabled, mfa_methods, created_at, updated_at
+                     FROM users 
+                     WHERE tenant_id = $1::uuid AND deleted_at IS NULL
+                     ORDER BY created_at DESC
+                     LIMIT $2 OFFSET $3"#
+                )
+                .bind(tenant_id)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&mut *conn)
+                .await?;
+
+                Ok((rows.into_iter().map(|r| r.into()).collect(), total))
+            }
+            (Some(status), None) => {
+                // Status filter only
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM users WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $2"
+                )
+                .bind(tenant_id)
+                .bind(status)
+                .fetch_one(&mut *conn)
+                .await?;
+
+                let rows = sqlx::query_as::<_, UserWithPasswordRow>(
+                    r#"SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
+                        status::text as status, password_hash,
+                        failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
+                        profile, mfa_enabled, mfa_methods, created_at, updated_at
+                     FROM users 
+                     WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $2
+                     ORDER BY created_at DESC
+                     LIMIT $3 OFFSET $4"#
+                )
+                .bind(tenant_id)
+                .bind(status)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&mut *conn)
+                .await?;
+
+                Ok((rows.into_iter().map(|r| r.into()).collect(), total))
+            }
+            (None, Some(email)) => {
+                // Email filter only
+                let email_pattern = format!("%{}%", email);
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM users WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND email ILIKE $2"
+                )
+                .bind(tenant_id)
+                .bind(&email_pattern)
+                .fetch_one(&mut *conn)
+                .await?;
+
+                let rows = sqlx::query_as::<_, UserWithPasswordRow>(
+                    r#"SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
+                        status::text as status, password_hash,
+                        failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
+                        profile, mfa_enabled, mfa_methods, created_at, updated_at
+                     FROM users 
+                     WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND email ILIKE $2
+                     ORDER BY created_at DESC
+                     LIMIT $3 OFFSET $4"#
+                )
+                .bind(tenant_id)
+                .bind(&email_pattern)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&mut *conn)
+                .await?;
+
+                Ok((rows.into_iter().map(|r| r.into()).collect(), total))
+            }
+            (Some(status), Some(email)) => {
+                // Both filters
+                let email_pattern = format!("%{}%", email);
+                let total = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM users WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $2 AND email ILIKE $3"
+                )
+                .bind(tenant_id)
+                .bind(status)
+                .bind(&email_pattern)
+                .fetch_one(&mut *conn)
+                .await?;
+
+                let rows = sqlx::query_as::<_, UserWithPasswordRow>(
+                    r#"SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
+                        status::text as status, password_hash,
+                        failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
+                        profile, mfa_enabled, mfa_methods, created_at, updated_at
+                     FROM users 
+                     WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $2 AND email ILIKE $3
+                     ORDER BY created_at DESC
+                     LIMIT $4 OFFSET $5"#
+                )
+                .bind(tenant_id)
+                .bind(status)
+                .bind(&email_pattern)
+                .bind(per_page)
+                .bind(offset)
+                .fetch_all(&mut *conn)
+                .await?;
+
+                Ok((rows.into_iter().map(|r| r.into()).collect(), total))
+            }
         }
-        if let Some(e) = email {
-            where_clauses.push(format!("email ILIKE ${}", param_idx));
-            params.push(Box::new(format!("%{}%", e)));
-            param_idx += 1;
-        }
-
-        let where_clause = where_clauses.join(" AND ");
-
-        // Get total count
-        let count_query = format!("SELECT COUNT(*) FROM users WHERE {}", where_clause);
-        let mut count_q = sqlx::query_scalar::<_, i64>(&count_query);
-        for param in &params {
-            count_q = count_q.bind(param.downcast_ref::<String>().unwrap());
-        }
-        let total: i64 = count_q.fetch_one(&mut *conn).await?;
-
-        // Get users
-        let query = format!(
-            r#"SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
-                status::text as status, password_hash,
-                failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
-                profile, mfa_enabled, mfa_methods, created_at, updated_at
-             FROM users 
-             WHERE {}
-             ORDER BY created_at DESC
-             LIMIT ${} OFFSET ${}"#,
-            where_clause,
-            param_idx,
-            param_idx + 1
-        );
-
-        let mut q = sqlx::query_as::<_, UserWithPasswordRow>(&query);
-        for param in &params {
-            q = q.bind(param.downcast_ref::<String>().unwrap());
-        }
-        q = q.bind(per_page).bind(offset);
-
-        let rows = q.fetch_all(&mut *conn).await?;
-        let users: Vec<User> = rows.into_iter().map(|r| r.into()).collect();
-
-        Ok((users, total))
     }
 
     /// Update user status
