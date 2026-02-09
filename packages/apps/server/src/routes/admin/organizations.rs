@@ -194,7 +194,7 @@ async fn list_all_organizations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -211,7 +211,7 @@ async fn list_all_organizations(
         .bind(status)
         .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
     } else {
         sqlx::query_scalar(
             r#"SELECT COUNT(*)
@@ -221,7 +221,7 @@ async fn list_all_organizations(
         .bind(&current_user.tenant_id)
         .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
     };
 
     let orgs: Vec<OrganizationAdminRow> = if let Some(status) = query.status.as_deref() {
@@ -239,7 +239,7 @@ async fn list_all_organizations(
         .bind(status)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
     } else {
         sqlx::query_as(
             r#"SELECT id::text, name, slug, description, logo_url, website,
@@ -254,7 +254,7 @@ async fn list_all_organizations(
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
     };
 
     let total_pages = (total + per_page - 1) / per_page;
@@ -291,7 +291,7 @@ async fn get_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let org: OrganizationAdminRow = sqlx::query_as(
         r#"SELECT id::text, name, slug, description, logo_url, website,
@@ -303,7 +303,7 @@ async fn get_organization(
     .bind(&org_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
 
     let member_count = state
@@ -326,7 +326,7 @@ async fn update_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let org: OrganizationAdminRow = sqlx::query_as(
         r#"UPDATE organizations
@@ -354,7 +354,7 @@ async fn update_organization(
     .bind(&org_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
 
     let member_count = state
@@ -376,14 +376,14 @@ async fn delete_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .organizations()
         .hard_delete(&current_user.tenant_id, &org_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: format!("Organization {} deleted", org_id),
@@ -399,14 +399,14 @@ async fn list_org_members(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let members = state
         .db
         .organizations()
         .list_members(&current_user.tenant_id, &org_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut responses = Vec::new();
     for member in members {
@@ -441,7 +441,7 @@ async fn add_org_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let role = req
         .role
@@ -464,7 +464,7 @@ async fn add_org_member(
         .organizations()
         .add_member(&current_user.tenant_id, &member)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: "Member added".to_string(),
@@ -481,7 +481,7 @@ async fn update_org_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let role = req
         .role
@@ -493,7 +493,7 @@ async fn update_org_member(
         .organizations()
         .update_member_role(&current_user.tenant_id, &org_id, &user_id, role)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: "Member role updated".to_string(),
@@ -509,14 +509,14 @@ async fn remove_org_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .organizations()
         .remove_member(&current_user.tenant_id, &org_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: format!("User {} removed from organization {}", user_id, org_id),
@@ -532,14 +532,14 @@ async fn list_org_invitations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let invitations = state
         .db
         .organizations()
         .list_invitations(&current_user.tenant_id, &org_id, true)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<InvitationResponse> = invitations
         .into_iter()
@@ -564,14 +564,14 @@ async fn cancel_invitation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .organizations()
         .delete_invitation(&current_user.tenant_id, &org_id, &invitation_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: format!("Invitation {} cancelled", invitation_id),

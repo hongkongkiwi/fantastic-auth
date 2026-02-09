@@ -244,7 +244,7 @@ async fn get_data_encryption_status(
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch tenant key info: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let provider = match active.as_ref() {
@@ -289,7 +289,7 @@ async fn migrate_data_encryption_provider(
         .await
         .map_err(|e| {
             tracing::error!("Failed to migrate tenant data key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let audit = state.audit_logger();
@@ -401,7 +401,7 @@ async fn get_geo_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let config = &state.config.security.geo_restriction;
 
@@ -431,7 +431,7 @@ async fn update_geo_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Validate country codes
     if let Some(ref countries) = req.countries {
@@ -505,7 +505,7 @@ async fn get_geo_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // In a real implementation, this would query the database for:
     // - Audit logs filtered by geo-related actions
@@ -596,7 +596,7 @@ async fn get_vpn_detection_settings(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let config = &state.config.security.geo_restriction;
 
@@ -621,7 +621,7 @@ async fn update_vpn_detection_settings(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // In a real implementation, this would save to the database
 
@@ -666,7 +666,7 @@ async fn get_geo_audit_log(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // In a real implementation, this would query the audit_logs table
     // filtered by geo-related actions

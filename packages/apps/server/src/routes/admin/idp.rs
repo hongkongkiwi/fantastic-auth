@@ -107,10 +107,10 @@ async fn list_providers(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListProvidersQuery>,
 ) -> Result<Json<Vec<ProviderResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut qb = sqlx::QueryBuilder::new(
         "SELECT id::text, organization_id::text as organization_id, application_id::text as application_id, name, provider_type::text as provider_type, status::text as status, config, created_at::text as created_at, updated_at::text as updated_at FROM idp_providers WHERE tenant_id = ",
@@ -130,7 +130,7 @@ async fn list_providers(
         .build_query_as::<ProviderResponse>()
         .fetch_all(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(rows))
 }
 
@@ -139,10 +139,10 @@ async fn create_provider(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreateProviderRequest>,
 ) -> Result<Json<ProviderResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let status = req.status.unwrap_or_else(|| "active".to_string());
     let config = req.config.unwrap_or_else(|| serde_json::json!({}));
@@ -163,7 +163,7 @@ async fn create_provider(
     .bind(&config)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -174,10 +174,10 @@ async fn update_provider(
     Path(provider_id): Path<String>,
     Json(req): Json<UpdateProviderRequest>,
 ) -> Result<Json<ProviderResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, ProviderResponse>(
         r#"UPDATE idp_providers
@@ -199,7 +199,7 @@ async fn update_provider(
     .bind(&provider_id)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -209,17 +209,17 @@ async fn delete_provider(
     Extension(current_user): Extension<CurrentUser>,
     Path(provider_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("DELETE FROM idp_providers WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&provider_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }
@@ -229,10 +229,10 @@ async fn list_domains(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListDomainsQuery>,
 ) -> Result<Json<Vec<DomainResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut qb = sqlx::QueryBuilder::new(
         "SELECT id::text, organization_id::text as organization_id, application_id::text as application_id, provider_id::text as provider_id, domain, created_at::text as created_at FROM idp_domains WHERE tenant_id = ",
@@ -248,7 +248,7 @@ async fn list_domains(
         .build_query_as::<DomainResponse>()
         .fetch_all(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(rows))
 }
 
@@ -257,10 +257,10 @@ async fn create_domain(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreateDomainRequest>,
 ) -> Result<Json<DomainResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, DomainResponse>(
         r#"INSERT INTO idp_domains (tenant_id, organization_id, application_id, provider_id, domain)
@@ -275,7 +275,7 @@ async fn create_domain(
     .bind(&req.domain)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -285,17 +285,17 @@ async fn delete_domain(
     Extension(current_user): Extension<CurrentUser>,
     Path(domain_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("DELETE FROM idp_domains WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&domain_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }

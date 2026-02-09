@@ -64,7 +64,7 @@ async fn query_audit_logs(
     state
         .set_tenant_context(&tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -74,7 +74,7 @@ async fn query_audit_logs(
         .audit()
         .list_filtered(&tenant_id, query.user_id.as_deref(), page, per_page)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let total_pages = (total + per_page - 1) / per_page;
 

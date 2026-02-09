@@ -320,7 +320,7 @@ impl ConsentService {
         let version_id = uuid::Uuid::new_v4().to_string();
 
         // Create the version
-        let row = repo
+        let _row = repo
             .create_consent_version(
                 &version_id,
                 tenant_id,
@@ -331,6 +331,7 @@ impl ConsentService {
                 request.summary.as_deref(),
                 request.effective_date,
                 request.url.as_deref(),
+                false,
                 request.consent_type.is_required(),
             )
             .await?;
@@ -341,18 +342,23 @@ impl ConsentService {
                 .await?;
         }
 
+        let refreshed = repo
+            .get_version_by_id(&version_id)
+            .await?
+            .ok_or_else(|| ConsentError::VersionNotFound(version_id.clone()))?;
+
         Ok(ConsentVersionResponse {
-            id: row.id,
-            consent_type: row.consent_type,
-            consent_type_display: row.consent_type.display_name().to_string(),
-            version: row.version,
-            title: row.title,
-            summary: row.summary,
-            effective_date: row.effective_date,
-            url: row.url,
-            is_current: row.is_current,
-            required: row.required,
-            created_at: row.created_at,
+            id: refreshed.id,
+            consent_type: refreshed.consent_type,
+            consent_type_display: refreshed.consent_type.display_name().to_string(),
+            version: refreshed.version,
+            title: refreshed.title,
+            summary: refreshed.summary,
+            effective_date: refreshed.effective_date,
+            url: refreshed.url,
+            is_current: refreshed.is_current,
+            required: refreshed.required,
+            created_at: refreshed.created_at,
         })
     }
 

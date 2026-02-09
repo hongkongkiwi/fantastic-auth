@@ -324,14 +324,14 @@ async fn apply_token_issue_actions(
     }
 
     let mut claims = HybridJwt::decode(access_token, state.auth_service.verifying_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     for (k, v) in decision.claims.into_iter() {
         claims.custom.insert(k, v);
     }
 
     let new_token = HybridJwt::encode(&claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(new_token)
 }
@@ -621,7 +621,7 @@ async fn register(
                 }
                 Err(e) => {
                     tracing::error!("Auto-login after registration failed: {}", e);
-                    Err(ApiError::Internal)
+                    Err(ApiError::internal())
                 }
             }
         }
@@ -842,7 +842,7 @@ async fn login(
                 }
                 Err(e) => {
                     tracing::error!("Failed to check session limits: {}", e);
-                    return Err(ApiError::Internal);
+                    return Err(ApiError::internal());
                 }
             }
 
@@ -1078,7 +1078,7 @@ async fn login(
                         }
                         Err(e) => {
                             tracing::error!("Failed to check session limits: {}", e);
-                            return Err(ApiError::Internal);
+                            return Err(ApiError::internal());
                         }
                     }
 
@@ -1850,7 +1850,7 @@ async fn oauth_callback(
         .await
         .map_err(|e| {
             tracing::error!("OAuth token exchange failed: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Fetch user info from provider
@@ -1859,7 +1859,7 @@ async fn oauth_callback(
         .await
         .map_err(|e| {
             tracing::error!("OAuth user info fetch failed: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Extract email - required for account creation/linking
@@ -1931,12 +1931,12 @@ async fn oauth_callback(
 
             state.db.users().create(create_req).await.map_err(|e| {
                 tracing::error!("Failed to create OAuth user: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?
         }
         Err(e) => {
             tracing::error!("Database error looking up user: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -1999,7 +1999,7 @@ async fn oauth_callback(
         }
         Err(e) => {
             tracing::error!("Failed to check session limits: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     }
 
@@ -2019,7 +2019,7 @@ async fn oauth_callback(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create session: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Store session in database
@@ -2044,7 +2044,7 @@ async fn oauth_callback(
 
     state.db.sessions().create(session_req).await.map_err(|e| {
         tracing::error!("Failed to store session: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Generate tokens
@@ -2053,7 +2053,7 @@ async fn oauth_callback(
         .generate_tokens(&user, &session.id)
         .map_err(|e| {
             tracing::error!("Failed to generate tokens: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let access_token = apply_token_issue_actions(
@@ -2156,7 +2156,7 @@ async fn apple_oauth_callback(
         .await
         .map_err(|e| {
             tracing::error!("Apple OAuth token exchange failed: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Get user info from ID token (Apple doesn't have a userinfo endpoint)
@@ -2165,7 +2165,7 @@ async fn apple_oauth_callback(
         // Decode the ID token to get user info
         decode_apple_id_token(id_token)?
     } else {
-        return Err(ApiError::Internal);
+        return Err(ApiError::internal());
     };
 
     // Merge Apple user info from form (only on first auth) with ID token claims
@@ -2317,12 +2317,12 @@ async fn process_oauth_login(
 
             state.db.users().create(create_req).await.map_err(|e| {
                 tracing::error!("Failed to create OAuth user: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?
         }
         Err(e) => {
             tracing::error!("Database error looking up user: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -2380,7 +2380,7 @@ async fn process_oauth_login(
         }
         Err(e) => {
             tracing::error!("Failed to check session limits: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     }
 
@@ -2400,7 +2400,7 @@ async fn process_oauth_login(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create session: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Store session in database
@@ -2425,7 +2425,7 @@ async fn process_oauth_login(
 
     state.db.sessions().create(session_req).await.map_err(|e| {
         tracing::error!("Failed to store session: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Generate tokens
@@ -2434,7 +2434,7 @@ async fn process_oauth_login(
         .generate_tokens(&user, &session.id)
         .map_err(|e| {
             tracing::error!("Failed to generate tokens: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let access_token = apply_token_issue_actions(
@@ -2518,7 +2518,7 @@ fn get_oauth_config(
 
     let config = provider_config.ok_or_else(|| {
         tracing::warn!("OAuth provider not configured: {}", provider);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     let provider_enum = match provider_lower.as_str() {
@@ -2580,7 +2580,7 @@ async fn verify_oauth_state(
             .await
             .map_err(|e| {
                 tracing::error!("Redis error reading OAuth state: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?;
 
         let stored = stored.ok_or_else(|| {
@@ -2617,7 +2617,7 @@ async fn verify_oauth_state(
     // Without Redis, we can't properly verify state
     // This is a fallback that should not be used in production
     tracing::error!("Redis not available for OAuth state verification");
-    Err(ApiError::Internal)
+    Err(ApiError::internal())
 }
 
 /// SSO redirect - returns provider redirect URL
@@ -2920,7 +2920,7 @@ async fn webauthn_authenticate_finish(
     // Set tenant context
     if let Err(e) = state.set_tenant_context(&auth_result.tenant_id).await {
         tracing::error!("Failed to set tenant context: {}", e);
-        return Err(ApiError::Internal);
+        return Err(ApiError::internal());
     }
 
     // Get user from database
@@ -2932,7 +2932,7 @@ async fn webauthn_authenticate_finish(
         Ok(u) => u,
         Err(e) => {
             tracing::error!("User not found after WebAuthn authentication: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -2994,7 +2994,7 @@ async fn webauthn_authenticate_finish(
         }
         Err(e) => {
             tracing::error!("Failed to check session limits: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     }
 
@@ -3007,7 +3007,7 @@ async fn webauthn_authenticate_finish(
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to create session: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -3034,7 +3034,7 @@ async fn webauthn_authenticate_finish(
 
     if let Err(e) = state.db.sessions().create(session_req).await {
         tracing::error!("Failed to store session: {}", e);
-        return Err(ApiError::Internal);
+        return Err(ApiError::internal());
     }
 
     // Generate tokens
@@ -3042,7 +3042,7 @@ async fn webauthn_authenticate_finish(
         Ok(tp) => tp,
         Err(e) => {
             tracing::error!("Failed to generate tokens: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -3257,7 +3257,7 @@ async fn step_up(
     state
         .set_tenant_context(&user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify the step-up authentication based on method
     let result = match req.method {
@@ -3528,7 +3528,7 @@ async fn generate_step_up_token(
     .with_auth_methods(methods.to_vec());
 
     let token = HybridJwt::encode(&claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(token)
 }
@@ -3631,7 +3631,7 @@ async fn web3_nonce(
         .await
         .map_err(|e| {
             tracing::error!("Failed to generate nonce: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(Web3NonceResponse {
@@ -3769,7 +3769,7 @@ async fn web3_verify(
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to create Web3 user: {}", e);
-                    ApiError::Internal
+                    ApiError::internal()
                 })?;
 
             // Trigger webhook for new user
@@ -3786,7 +3786,7 @@ async fn web3_verify(
         }
         Err(e) => {
             tracing::error!("Database error looking up Web3 user: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -3844,7 +3844,7 @@ async fn web3_verify(
         }
         Err(e) => {
             tracing::error!("Failed to check session limits: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     }
 
@@ -3864,7 +3864,7 @@ async fn web3_verify(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create Web3 session: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Store session in database
@@ -3891,7 +3891,7 @@ async fn web3_verify(
 
     state.db.sessions().create(session_req).await.map_err(|e| {
         tracing::error!("Failed to store Web3 session: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Generate tokens
@@ -3900,7 +3900,7 @@ async fn web3_verify(
         .generate_tokens(&user, &session.id)
         .map_err(|e| {
             tracing::error!("Failed to generate Web3 tokens: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let access_token = apply_token_issue_actions(
@@ -4019,7 +4019,7 @@ async fn oauth_link_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Parse provider
     let provider_enum = provider
@@ -4035,7 +4035,7 @@ async fn oauth_link_account(
             &req.provider_user_id,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if existing.is_some() {
         audit.log_account_linked(
@@ -4110,7 +4110,7 @@ async fn oauth_link_account(
                 crate::auth::AccountLinkingError::AlreadyLinkedToUser => Err(ApiError::Conflict(
                     "Account already linked to this user".to_string(),
                 )),
-                _ => Err(ApiError::Internal),
+                _ => Err(ApiError::internal()),
             }
         }
     }
@@ -4267,7 +4267,7 @@ async fn create_anonymous_session_handler(
                 ));
             }
 
-            Err(ApiError::Internal)
+            Err(ApiError::internal())
         }
     }
 }
@@ -4626,7 +4626,7 @@ async fn biometric_authenticate(
         Ok(u) => u,
         Err(e) => {
             tracing::error!("User not found after biometric authentication: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -4704,7 +4704,7 @@ async fn biometric_authenticate(
         }
         Err(e) => {
             tracing::error!("Failed to check session limits: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     }
 
@@ -4717,7 +4717,7 @@ async fn biometric_authenticate(
         Ok(s) => s,
         Err(e) => {
             tracing::error!("Failed to create session: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -4745,7 +4745,7 @@ async fn biometric_authenticate(
 
     if let Err(e) = state.db.sessions().create(session_req).await {
         tracing::error!("Failed to store session: {}", e);
-        return Err(ApiError::Internal);
+        return Err(ApiError::internal());
     }
 
     // Generate tokens
@@ -4753,7 +4753,7 @@ async fn biometric_authenticate(
         Ok(tp) => tp,
         Err(e) => {
             tracing::error!("Failed to generate tokens: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -4957,11 +4957,11 @@ impl From<vault_core::auth::BiometricError> for ApiError {
             BiometricError::RateLimited => ApiError::TooManyRequests("Rate limit exceeded".to_string()),
             BiometricError::DatabaseError(msg) => {
                 tracing::error!("Biometric database error: {}", msg);
-                ApiError::Internal
+                ApiError::internal()
             }
             BiometricError::Internal(msg) => {
                 tracing::error!("Biometric internal error: {}", msg);
-                ApiError::Internal
+                ApiError::internal()
             }
         }
     }

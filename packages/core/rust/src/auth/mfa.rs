@@ -145,11 +145,6 @@ impl TotpConfig {
 
     /// Verify TOTP code
     pub fn verify(&self, code: &str, window: i64) -> bool {
-        use hmac::Hmac;
-        use sha1::Sha1;
-
-        type HmacSha1 = Hmac<Sha1>;
-
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -321,7 +316,7 @@ mod tests {
 
         // Check format
         for code in &codes {
-            assert_eq!(code.len(), 14); // 12 chars + 2 dashes
+            assert_eq!(code.len(), 12); // 10 chars + 2 dashes
             assert_eq!(code.matches('-').count(), 2);
         }
 

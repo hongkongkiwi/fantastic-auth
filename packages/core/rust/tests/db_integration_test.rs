@@ -5,9 +5,12 @@
 //! Database URL: postgres://vault:vault@localhost:5432/vault
 
 use sqlx::PgPool;
-use std::sync::Arc;
-use vault_core::db::{users::CreateUserRequest, DbContext};
-use vault_core::models::user::UserStatus;
+use fantasticauth_core::db::{users::CreateUserRequest, DbContext};
+use fantasticauth_core::models::user::UserStatus;
+
+fn should_run() -> bool {
+    std::env::var("RUN_DB_INTEGRATION_TESTS").ok().as_deref() == Some("1")
+}
 
 /// Setup test database connection
 async fn setup_db() -> DbContext {
@@ -29,6 +32,10 @@ fn test_email() -> String {
 /// Test user creation
 #[tokio::test]
 async fn test_user_create() {
+    if !should_run() {
+        return;
+    }
+
     let db = setup_db().await;
 
     // Set tenant context
@@ -57,6 +64,10 @@ async fn test_user_create() {
 /// Test finding user by email
 #[tokio::test]
 async fn test_user_find_by_email() {
+    if !should_run() {
+        return;
+    }
+
     let db = setup_db().await;
 
     db.set_tenant_context("test-tenant", None, None)
@@ -90,6 +101,10 @@ async fn test_user_find_by_email() {
 /// Test finding non-existent user
 #[tokio::test]
 async fn test_user_find_not_found() {
+    if !should_run() {
+        return;
+    }
+
     let db = setup_db().await;
 
     db.set_tenant_context("test-tenant", None, None)
@@ -108,6 +123,10 @@ async fn test_user_find_not_found() {
 /// Test email exists check
 #[tokio::test]
 async fn test_user_email_exists() {
+    if !should_run() {
+        return;
+    }
+
     let db = setup_db().await;
 
     db.set_tenant_context("test-tenant", None, None)

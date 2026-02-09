@@ -145,7 +145,7 @@
   
   /* Card hover effect */
   .card-hover {
-    @apply transition-all duration-200 ease-out;
+    @apply transition-colors transition-shadow duration-200 ease-out;
   }
   
   .card-hover:hover {

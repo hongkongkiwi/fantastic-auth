@@ -197,7 +197,7 @@ async fn list_api_keys(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -219,7 +219,7 @@ async fn list_api_keys(
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         let total: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM admin_api_keys WHERE tenant_id = $1::uuid AND is_active = true",
@@ -227,7 +227,7 @@ async fn list_api_keys(
         .bind(&current_user.tenant_id)
         .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         (rows, total)
     } else {
@@ -245,7 +245,7 @@ async fn list_api_keys(
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         let total: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM admin_api_keys WHERE tenant_id = $1::uuid",
@@ -253,7 +253,7 @@ async fn list_api_keys(
         .bind(&current_user.tenant_id)
         .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         (rows, total)
     };
@@ -298,7 +298,7 @@ async fn create_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let id = Uuid::new_v4();
     let prefix = format!("vault_{}", &Uuid::new_v4().to_string()[..12]);
@@ -308,7 +308,7 @@ async fn create_api_key(
     let created_at = Utc::now();
     let expires_at = req.expires_in_days.map(|days| created_at + Duration::days(days));
 
-    let scope_json = serde_json::to_value(&req.scope).map_err(|_| ApiError::Internal)?;
+    let scope_json = serde_json::to_value(&req.scope).map_err(|_| ApiError::internal())?;
     let allowed_ips_json = req
         .allowed_ips
         .as_ref()
@@ -336,7 +336,7 @@ async fn create_api_key(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create API key: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Log the creation
@@ -384,7 +384,7 @@ async fn get_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row: Option<ApiKeyRow> = sqlx::query_as(
         r#"SELECT id::text, name, description, prefix, key_hash, scope,
@@ -397,7 +397,7 @@ async fn get_api_key(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let row = row.ok_or(ApiError::NotFound)?;
 
@@ -432,7 +432,7 @@ async fn update_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if key exists
     let exists: bool = sqlx::query_scalar(
@@ -442,7 +442,7 @@ async fn update_api_key(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if !exists {
         return Err(ApiError::NotFound);
@@ -455,7 +455,7 @@ async fn update_api_key(
             .bind(&id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(description) = req.description {
@@ -464,27 +464,27 @@ async fn update_api_key(
             .bind(&id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(scope) = req.scope {
-        let scope_json = serde_json::to_value(scope).map_err(|_| ApiError::Internal)?;
+        let scope_json = serde_json::to_value(scope).map_err(|_| ApiError::internal())?;
         sqlx::query("UPDATE admin_api_keys SET scope = $1 WHERE id = $2::uuid")
             .bind(scope_json)
             .bind(&id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(allowed_ips) = req.allowed_ips {
-        let ips_json = serde_json::to_value(allowed_ips).map_err(|_| ApiError::Internal)?;
+        let ips_json = serde_json::to_value(allowed_ips).map_err(|_| ApiError::internal())?;
         sqlx::query("UPDATE admin_api_keys SET allowed_ips = $1 WHERE id = $2::uuid")
             .bind(ips_json)
             .bind(&id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(rate_limit) = req.rate_limit_per_minute {
@@ -493,7 +493,7 @@ async fn update_api_key(
             .bind(&id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     // Log the update
@@ -524,7 +524,7 @@ async fn revoke_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let result = sqlx::query(
         "UPDATE admin_api_keys SET is_active = false, revoked_at = NOW(), revoked_by = $1
@@ -535,7 +535,7 @@ async fn revoke_api_key(
     .bind(&current_user.tenant_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);
@@ -571,7 +571,7 @@ async fn rotate_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get the old key details
     let old_key: Option<ApiKeyRow> = sqlx::query_as(
@@ -585,7 +585,7 @@ async fn rotate_api_key(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let old_key = old_key.ok_or(ApiError::NotFound)?;
 
@@ -598,7 +598,7 @@ async fn rotate_api_key(
     .bind(&id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Create new key with same settings
     let new_id = Uuid::new_v4();
@@ -628,7 +628,7 @@ async fn rotate_api_key(
     .bind(old_key.rate_limit_per_minute)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the rotation
     let audit = AuditLogger::new(state.db.clone());
@@ -674,7 +674,7 @@ async fn get_api_key_stats(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify key exists and belongs to tenant
     let exists: bool = sqlx::query_scalar(
@@ -684,7 +684,7 @@ async fn get_api_key_stats(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if !exists {
         return Err(ApiError::NotFound);

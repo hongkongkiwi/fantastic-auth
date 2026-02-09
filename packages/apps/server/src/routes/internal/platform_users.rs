@@ -141,7 +141,7 @@ async fn search_platform_users(
     Extension(_current_user): Extension<CurrentUser>,
     Query(query): Query<SearchUsersQuery>,
 ) -> Result<Json<PaginatedUsersResponse>, ApiError> {
-    let users = USERS.lock().map_err(|_| ApiError::Internal)?;
+    let users = USERS.lock().map_err(|_| ApiError::internal())?;
     let email_filter = query.email.unwrap_or_default().to_lowercase();
     let tenant_filter = query.tenant_id;
 
@@ -199,7 +199,7 @@ async fn get_platform_user(
     Extension(_current_user): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> Result<Json<PlatformUserDetailResponse>, ApiError> {
-    let users = USERS.lock().map_err(|_| ApiError::Internal)?;
+    let users = USERS.lock().map_err(|_| ApiError::internal())?;
     let user = users.iter().find(|u| u.id == user_id);
     match user {
         Some(user) => Ok(Json(get_platform_user_detail(user))),

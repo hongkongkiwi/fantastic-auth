@@ -194,13 +194,13 @@ pub async fn require_any_permission_loaded(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::Request;
+    use axum::{body::Body, extract::Request};
 
     #[test]
     fn test_extract_path_param() {
         let request = Request::builder()
             .uri("/documents/123e4567-e89b-12d3-a456-426614174000")
-            .body(())
+            .body(Body::empty())
             .unwrap();
 
         assert_eq!(
@@ -210,7 +210,7 @@ mod tests {
 
         let request = Request::builder()
             .uri("/folders/folder-123/documents/doc-456")
-            .body(())
+            .body(Body::empty())
             .unwrap();
 
         assert_eq!(

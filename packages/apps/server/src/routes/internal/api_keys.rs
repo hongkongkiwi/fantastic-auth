@@ -67,7 +67,7 @@ async fn require_settings_manage(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -102,7 +102,7 @@ async fn list_api_keys(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let keys = rows
         .into_iter()
@@ -154,7 +154,7 @@ async fn create_api_key(
     .bind(created_at)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let api_key = ApiKeyResponse {
         id: id.to_string(),
@@ -183,7 +183,7 @@ async fn delete_api_key(
     .bind(&current_user.tenant_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);

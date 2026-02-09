@@ -111,7 +111,7 @@ async fn list_saml_connections(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let rows = list_connections_by_type(&state, &current_user.tenant_id, "saml").await?;
     Ok(Json(serde_json::json!({"data": rows})))
 }
@@ -124,7 +124,7 @@ async fn create_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = create_connection(&state, &current_user.tenant_id, "saml", req).await?;
     Ok(Json(response))
 }
@@ -137,7 +137,7 @@ async fn get_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = get_connection(&state, &current_user.tenant_id, &connection_id).await?;
     Ok(Json(response))
 }
@@ -151,7 +151,7 @@ async fn update_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = update_connection(&state, &current_user.tenant_id, &connection_id, req).await?;
     Ok(Json(response))
 }
@@ -164,7 +164,7 @@ async fn delete_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     delete_connection(&state, &current_user.tenant_id, &_connection_id).await?;
     Ok(())
 }
@@ -176,7 +176,7 @@ async fn list_oidc_connections(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let rows = list_connections_by_type(&state, &current_user.tenant_id, "oidc").await?;
     Ok(Json(serde_json::json!({"data": rows})))
 }
@@ -189,7 +189,7 @@ async fn create_oidc_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = create_connection(&state, &current_user.tenant_id, "oidc", req).await?;
     Ok(Json(response))
 }
@@ -202,7 +202,7 @@ async fn get_oidc_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = get_connection(&state, &current_user.tenant_id, &connection_id).await?;
     Ok(Json(response))
 }
@@ -216,7 +216,7 @@ async fn update_oidc_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let response = update_connection(&state, &current_user.tenant_id, &connection_id, req).await?;
     Ok(Json(response))
 }
@@ -229,7 +229,7 @@ async fn delete_oidc_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     delete_connection(&state, &current_user.tenant_id, &_connection_id).await?;
     Ok(())
 }
@@ -243,11 +243,11 @@ async fn update_org_sso(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let row = sqlx::query_as::<_, (String, Option<String>, bool, bool, String)>(
         r#"
         INSERT INTO org_sso_settings (tenant_id, organization_id, connection_id, required, jit_enabled, default_role)
@@ -269,7 +269,7 @@ async fn update_org_sso(
     .bind(req.default_role.unwrap_or_else(|| "member".to_string()))
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(OrganizationSsoResponse {
         org_id: row.0,
@@ -285,10 +285,10 @@ async fn list_connections_by_type(
     tenant_id: &str,
     connection_type: &str,
 ) -> Result<Vec<SsoConnectionResponse>, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let rows = sqlx::query_as::<_, SsoConnectionRow>(
         r#"
         SELECT id, type::text, name, status, config, created_at, updated_at
@@ -301,7 +301,7 @@ async fn list_connections_by_type(
     .bind(connection_type)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let mut responses = Vec::with_capacity(rows.len());
     for row in rows {
@@ -328,10 +328,10 @@ async fn create_connection(
     req: SsoConnectionRequest,
 ) -> Result<SsoConnectionResponse, ApiError> {
     let id = uuid::Uuid::new_v4().to_string();
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query(
         r#"
@@ -347,7 +347,7 @@ async fn create_connection(
     .bind(&req.config)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Insert domains if provided
     if let Some(domains) = req.domains {
@@ -364,7 +364,7 @@ async fn create_connection(
             .bind(domain)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
     }
 
@@ -376,10 +376,10 @@ async fn get_connection(
     tenant_id: &str,
     connection_id: &str,
 ) -> Result<SsoConnectionResponse, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let row = sqlx::query_as::<_, SsoConnectionRow>(
         r#"
         SELECT id, type::text, name, status, config, created_at, updated_at
@@ -413,10 +413,10 @@ async fn update_connection(
     connection_id: &str,
     req: UpdateSsoConnectionRequest,
 ) -> Result<SsoConnectionResponse, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     if let Some(name) = req.name {
         sqlx::query("UPDATE sso_connections SET name = $1 WHERE id = $2 AND tenant_id = $3")
             .bind(name)
@@ -424,7 +424,7 @@ async fn update_connection(
             .bind(tenant_id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(status) = req.status {
@@ -434,7 +434,7 @@ async fn update_connection(
             .bind(tenant_id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     if let Some(config) = req.config {
@@ -444,7 +444,7 @@ async fn update_connection(
             .bind(tenant_id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
 
     // Update domains if provided
@@ -455,7 +455,7 @@ async fn update_connection(
             .bind(tenant_id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         // Insert new domains
         for domain in domains {
@@ -471,7 +471,7 @@ async fn update_connection(
             .bind(domain)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
     }
 
@@ -483,16 +483,16 @@ async fn delete_connection(
     tenant_id: &str,
     connection_id: &str,
 ) -> Result<(), ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     sqlx::query("DELETE FROM sso_connections WHERE id = $1 AND tenant_id = $2")
         .bind(connection_id)
         .bind(tenant_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(())
 }
@@ -502,10 +502,10 @@ async fn load_domains(
     tenant_id: &str,
     connection_id: &str,
 ) -> Result<Vec<String>, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let rows: Vec<(String,)> = sqlx::query_as(
         "SELECT domain FROM sso_domains WHERE connection_id = $1 AND tenant_id = $2",
     )
@@ -513,7 +513,7 @@ async fn load_domains(
     .bind(tenant_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(rows.into_iter().map(|r| r.0).collect())
 }

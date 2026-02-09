@@ -116,11 +116,11 @@ async fn saml_login(
     
     // Create and encode authentication request
     let authn_request = service.create_authn_request(Some(relay_state.clone()))
-        .map_err(|e| ApiError::Internal)?;
+        .map_err(|e| ApiError::internal())?;
     
     // Build redirect URL
     let redirect_url = service.build_redirect_url(&authn_request)
-        .map_err(|e| ApiError::Internal)?;
+        .map_err(|e| ApiError::internal())?;
     
     tracing::info!(
         tenant_id = %tenant_id,
@@ -242,7 +242,7 @@ async fn saml_metadata(
     let metadata = generate_sp_metadata(&saml_config)
         .map_err(|e| {
             tracing::error!("Failed to generate metadata: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     
     Ok((
@@ -289,7 +289,7 @@ async fn handle_logout_request(
     );
     
     let response_xml = logout_response.to_xml()
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Build redirect URL with logout response
     let encoded_response = base64::engine::general_purpose::STANDARD.encode(&response_xml);
@@ -384,7 +384,7 @@ async fn load_saml_config(
     .await
     .map_err(|e| {
         tracing::error!("Failed to load SAML config: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
     
     let (idp_entity_id, idp_sso_url, idp_slo_url, idp_cert_pem,
@@ -397,7 +397,7 @@ async fn load_saml_config(
     // Parse certificates
     let sp_certificate = if let Some(cert_pem) = sp_cert_pem {
         Some(X509Certificate::from_pem(&cert_pem)
-            .map_err(|_| ApiError::Internal)?)
+            .map_err(|_| ApiError::internal())?)
     } else {
         None
     };
@@ -428,7 +428,7 @@ async fn create_saml_service(
 ) -> Result<SamlService, ApiError> {
     // Load IdP config (in production, from database)
     let idp_cert = X509Certificate::from_pem("-----BEGIN CERTIFICATE-----\nMIIDXTCCAkWgAwIBAgIJAKLdQVPy90XJMA0GCSqGSIb3DQEBCwUAMEUxCzAJBgNV\n-----END CERTIFICATE-----")
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let idp_config = IdentityProviderConfig {
         entity_id: config.entity_id.clone(),
@@ -442,7 +442,7 @@ async fn create_saml_service(
     };
     
     let service = SamlService::new(config.clone())
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .with_identity_provider(idp_config);
     
     Ok(service)
@@ -469,7 +469,7 @@ async fn store_relay_state(
             .arg(tenant_id)
             .query_async(&mut redis.clone())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
     
     Ok(())
@@ -486,7 +486,7 @@ async fn take_relay_state_tenant(
             .arg(&key)
             .query_async(&mut redis.clone())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         if value.is_none() {
             return Ok(None);
@@ -496,7 +496,7 @@ async fn take_relay_state_tenant(
             .arg(&key)
             .query_async(&mut redis.clone())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         return Ok(value);
     }
@@ -531,7 +531,7 @@ async fn resolve_tenant_id_by_issuer(state: &AppState, issuer: &str) -> Result<S
     .await
     .map_err(|e| {
         tracing::error!("Failed to resolve tenant by issuer: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     row.map(|r| r.0).ok_or(ApiError::Unauthorized)
@@ -556,7 +556,7 @@ async fn resolve_tenant_id(state: &AppState, identifier: &str) -> Result<String,
         .await
         .map_err(|e| {
             tracing::error!("Failed to resolve tenant by id: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
         if let Some((tenant_id,)) = row {
@@ -576,7 +576,7 @@ async fn resolve_tenant_id(state: &AppState, identifier: &str) -> Result<String,
         .await
         .map_err(|e| {
             tracing::error!("Failed to resolve tenant by connection id: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
         if let Some((tenant_id,)) = row {
@@ -597,7 +597,7 @@ async fn resolve_tenant_id(state: &AppState, identifier: &str) -> Result<String,
     .await
     .map_err(|e| {
         tracing::error!("Failed to resolve tenant by slug: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     row.map(|r| r.0).ok_or(ApiError::Unauthorized)
@@ -696,7 +696,7 @@ async fn find_or_create_user(
     .bind(&attributes.email)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     if let Some((id, email)) = existing {
         return Ok(SamlUser {
@@ -727,7 +727,7 @@ async fn find_or_create_user(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create user: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
     
     tracing::info!(

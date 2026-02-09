@@ -423,7 +423,7 @@ async fn list_connections(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).min(100);
@@ -457,7 +457,7 @@ async fn list_connections(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list LDAP connections: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Get total count
@@ -492,7 +492,7 @@ async fn create_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Validate request
     if req.name.is_empty() {
@@ -556,14 +556,14 @@ async fn create_connection(
         if e.to_string().contains("unique constraint") {
             ApiError::Conflict("A connection with this name already exists".to_string())
         } else {
-            ApiError::Internal
+            ApiError::internal()
         }
     })?;
 
     // Fetch the created connection
     let row = fetch_connection_row(state.db.pool(), &connection_id, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok((StatusCode::CREATED, Json(row_to_response(row))))
 }
@@ -577,7 +577,7 @@ async fn get_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -599,7 +599,7 @@ async fn update_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -720,7 +720,7 @@ async fn update_connection(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update LDAP connection: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(row_to_response(row)))
@@ -735,7 +735,7 @@ async fn delete_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -745,7 +745,7 @@ async fn delete_connection(
         .bind(&current_user.tenant_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);
@@ -763,7 +763,7 @@ async fn test_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -831,12 +831,12 @@ async fn trigger_sync(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
 
-    let tenant_uuid = Uuid::parse_str(&current_user.tenant_id).map_err(|_| ApiError::Internal)?;
+    let tenant_uuid = Uuid::parse_str(&current_user.tenant_id).map_err(|_| ApiError::internal())?;
 
     // Check if connection exists and is enabled
     let connection_exists: bool = sqlx::query_scalar(
@@ -846,7 +846,7 @@ async fn trigger_sync(
     .bind(&tenant_uuid)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if !connection_exists {
         return Err(ApiError::NotFound);
@@ -859,7 +859,7 @@ async fn trigger_sync(
     .bind(&connection_uuid)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if is_running {
         return Err(ApiError::Conflict(
@@ -896,7 +896,7 @@ async fn trigger_sync(
     .bind(&connection_uuid)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TriggerSyncResponse {
         sync_id: sync_id.unwrap_or_else(|| "pending".to_string()),
@@ -914,7 +914,7 @@ async fn get_sync_status(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -928,7 +928,7 @@ async fn get_sync_status(
     .bind(&connection_uuid)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Get last completed sync
     let last_sync: Option<(String, String, DateTime<Utc>, Option<DateTime<Utc>>)> = sqlx::query_as(
@@ -939,7 +939,7 @@ async fn get_sync_status(
     .bind(&connection_uuid)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let current_sync_info = current_sync.map(|(id, started, triggered)| CurrentSyncInfo {
         sync_id: id,
@@ -963,7 +963,7 @@ async fn get_sync_status(
         .bind(&last.sync_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .map(|(users_found, users_created, users_updated, users_disabled, users_failed, groups_found, groups_created, groups_updated, groups_failed)| {
             SyncStatsResponse {
                 users_found: users_found as usize,
@@ -1000,7 +1000,7 @@ async fn list_sync_logs(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let connection_uuid = Uuid::parse_str(&connection_id)
         .map_err(|_| ApiError::BadRequest("Invalid connection ID".to_string()))?;
@@ -1031,7 +1031,7 @@ async fn list_sync_logs(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list sync logs: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let total: i64 =
@@ -1080,7 +1080,7 @@ async fn get_sync_log(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Fetch log with connection verification
     #[derive(sqlx::FromRow)]
@@ -1118,7 +1118,7 @@ async fn get_sync_log(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let row = row.ok_or(ApiError::NotFound)?;
 
@@ -1175,7 +1175,7 @@ async fn ldap_authenticate(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let jit_auth = LdapJitAuth::new(state.db.pool().clone(), state.tenant_key_service.clone());
 
@@ -1203,7 +1203,7 @@ async fn ldap_authenticate(
         })),
         Err(e) => {
             tracing::error!("LDAP authentication error: {}", e);
-            Err(ApiError::Internal)
+            Err(ApiError::internal())
         }
     }
 }
@@ -1393,11 +1393,11 @@ async fn encrypt_bind_password(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     crate::security::encryption::encrypt_to_base64(&key, password.as_bytes()).map_err(|e| {
         tracing::error!("Failed to encrypt bind password: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })
 }
 
@@ -1412,13 +1412,13 @@ async fn decrypt_bind_password(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted).map_err(|e| {
         tracing::error!("Failed to decrypt bind password: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
-    String::from_utf8(bytes).map_err(|_| ApiError::Internal)
+    String::from_utf8(bytes).map_err(|_| ApiError::internal())
 }
 
 fn row_to_response(row: LdapConnectionRow) -> LdapConnectionResponse {

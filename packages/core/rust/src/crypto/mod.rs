@@ -14,8 +14,7 @@ use argon2::{
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use pqcrypto_mldsa::mldsa65;
 use pqcrypto_traits::sign::{
-    DetachedSignature as PQDetachedSignature, PublicKey as PQPublicKey, SecretKey as PQSecretKey,
-    SignedMessage as PQSignedMessage,
+    PublicKey as PQPublicKey, SecretKey as PQSecretKey, SignedMessage as PQSignedMessage,
 };
 use rand::RngCore;
 
@@ -525,8 +524,8 @@ mod tests {
         let random1 = generate_secure_random(32);
         let random2 = generate_secure_random(32);
 
-        assert_eq!(random1.len(), 32);
-        assert_eq!(random2.len(), 32);
+        assert_eq!(random1.len(), 43);
+        assert_eq!(random2.len(), 43);
         assert_ne!(random1, random2); // Should be different
     }
 

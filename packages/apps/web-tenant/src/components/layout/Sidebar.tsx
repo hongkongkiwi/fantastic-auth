@@ -129,7 +129,7 @@ export function Sidebar({
         role="navigation"
         aria-label="Main navigation"
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen bg-card border-r border-border transition-all duration-300",
+          "fixed left-0 top-0 z-50 h-screen bg-card border-r border-border transition-[left,right,width] duration-300",
           sidebarCollapsed ? "w-16" : "w-64",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}

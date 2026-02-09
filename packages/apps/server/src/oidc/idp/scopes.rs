@@ -606,7 +606,19 @@ pub struct ClaimRequest {
 
 /// Parse a claims request parameter
 pub fn parse_claims_request(claims_json: &str) -> Result<ClaimsRequest, serde_json::Error> {
-    serde_json::from_str(claims_json)
+    let mut value: serde_json::Value = serde_json::from_str(claims_json)?;
+
+    for target in ["userinfo", "id_token"] {
+        if let Some(target_obj) = value.get_mut(target).and_then(|v| v.as_object_mut()) {
+            for (_, claim_request) in target_obj.iter_mut() {
+                if claim_request.is_null() {
+                    *claim_request = serde_json::json!({});
+                }
+            }
+        }
+    }
+
+    serde_json::from_value(value)
 }
 
 #[cfg(test)]

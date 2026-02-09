@@ -249,6 +249,14 @@ impl ImpersonationService {
         impersonator_roles: &[String],
         target_roles: &[String],
     ) -> bool {
+        Self::is_impersonation_allowed_for_roles(impersonator_roles, target_roles)
+    }
+
+    /// Check if impersonation is allowed based on role sets only.
+    pub fn is_impersonation_allowed_for_roles(
+        impersonator_roles: &[String],
+        target_roles: &[String],
+    ) -> bool {
         let is_admin = impersonator_roles.iter().any(|r| r == "admin" || r == "superadmin");
         let is_superadmin = impersonator_roles.iter().any(|r| r == "superadmin");
         
@@ -466,42 +474,40 @@ mod tests {
 
     #[test]
     fn test_is_impersonation_allowed() {
-        let service = ImpersonationService::new(Database::new("postgres://dummy").unwrap());
-
         // Superadmin can impersonate anyone
-        assert!(service.is_impersonation_allowed(
+        assert!(ImpersonationService::is_impersonation_allowed_for_roles(
             &["superadmin".to_string()],
             &["admin".to_string()]
         ));
-        assert!(service.is_impersonation_allowed(
+        assert!(ImpersonationService::is_impersonation_allowed_for_roles(
             &["superadmin".to_string()],
             &["superadmin".to_string()]
         ));
-        assert!(service.is_impersonation_allowed(
+        assert!(ImpersonationService::is_impersonation_allowed_for_roles(
             &["superadmin".to_string()],
             &["user".to_string()]
         ));
 
         // Admin can impersonate regular users but not other admins
-        assert!(service.is_impersonation_allowed(
+        assert!(ImpersonationService::is_impersonation_allowed_for_roles(
             &["admin".to_string()],
             &["user".to_string()]
         ));
-        assert!(!service.is_impersonation_allowed(
+        assert!(!ImpersonationService::is_impersonation_allowed_for_roles(
             &["admin".to_string()],
             &["admin".to_string()]
         ));
-        assert!(!service.is_impersonation_allowed(
+        assert!(!ImpersonationService::is_impersonation_allowed_for_roles(
             &["admin".to_string()],
             &["superadmin".to_string()]
         ));
 
         // Regular users cannot impersonate
-        assert!(!service.is_impersonation_allowed(
+        assert!(!ImpersonationService::is_impersonation_allowed_for_roles(
             &["user".to_string()],
             &["user".to_string()]
         ));
-        assert!(!service.is_impersonation_allowed(
+        assert!(!ImpersonationService::is_impersonation_allowed_for_roles(
             &["user".to_string()],
             &["admin".to_string()]
         ));

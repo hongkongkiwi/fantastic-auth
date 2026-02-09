@@ -305,9 +305,12 @@ impl SessionBindingChecker {
         let current_ip = request.ip_address.map(|ip| ip.to_string());
 
         // Check for violations
-        let ip_mismatch = self.check_ip_mismatch(&session.created_ip, &current_ip);
-        let device_mismatch =
-            self.check_device_mismatch(&session.created_device_hash, &current_device);
+        let ip_mismatch = self.check_ip_mismatch(session.bind_to_ip, &session.created_ip, &current_ip);
+        let device_mismatch = self.check_device_mismatch(
+            session.bind_to_device,
+            &session.created_device_hash,
+            &current_device,
+        );
 
         // Determine violation type
         let violation_type = match (ip_mismatch, device_mismatch) {
@@ -363,9 +366,14 @@ impl SessionBindingChecker {
     }
 
     /// Check if IP addresses match
-    fn check_ip_mismatch(&self, expected: &Option<String>, actual: &Option<String>) -> bool {
-        // If session doesn't require IP binding, no mismatch
-        if !self.config.bind_ip {
+    fn check_ip_mismatch(
+        &self,
+        session_bind_to_ip: bool,
+        expected: &Option<String>,
+        actual: &Option<String>,
+    ) -> bool {
+        // A session only mismatches on IP when this specific session is bound to IP.
+        if !session_bind_to_ip {
             return false;
         }
 
@@ -398,9 +406,14 @@ impl SessionBindingChecker {
     }
 
     /// Check if device fingerprints match
-    fn check_device_mismatch(&self, expected: &Option<String>, actual: &Option<String>) -> bool {
-        // If session doesn't require device binding, no mismatch
-        if !self.config.bind_device {
+    fn check_device_mismatch(
+        &self,
+        session_bind_to_device: bool,
+        expected: &Option<String>,
+        actual: &Option<String>,
+    ) -> bool {
+        // A session only mismatches on device when this specific session is bound to a device.
+        if !session_bind_to_device {
             return false;
         }
 
@@ -649,12 +662,12 @@ mod tests {
 
     #[test]
     fn test_session_binding_ip_mismatch() {
-        let checker = SessionBindingChecker::new();
+        let checker = SessionBindingChecker::strict();
         let session = SessionBindingInfo {
             session_id: "sess_123".to_string(),
             user_id: "user_456".to_string(),
             tenant_id: "tenant_789".to_string(),
-            created_ip: Some("192.168.1.1".to_string()),
+            created_ip: Some("8.8.8.8".to_string()),
             created_device_hash: Some("abc123".to_string()),
             bind_to_ip: true,
             bind_to_device: false,
@@ -662,7 +675,7 @@ mod tests {
         };
 
         let request = BindingRequestContext {
-            ip_address: "192.168.1.2".parse().ok(),
+            ip_address: "1.1.1.1".parse().ok(),
             headers: axum::http::HeaderMap::new(),
             device_fingerprint: Some("abc123".to_string()),
         };
@@ -707,12 +720,12 @@ mod tests {
 
     #[test]
     fn test_session_binding_both_mismatch() {
-        let checker = SessionBindingChecker::new();
+        let checker = SessionBindingChecker::strict();
         let session = SessionBindingInfo {
             session_id: "sess_123".to_string(),
             user_id: "user_456".to_string(),
             tenant_id: "tenant_789".to_string(),
-            created_ip: Some("192.168.1.1".to_string()),
+            created_ip: Some("8.8.8.8".to_string()),
             created_device_hash: Some("abc123".to_string()),
             bind_to_ip: true,
             bind_to_device: true,

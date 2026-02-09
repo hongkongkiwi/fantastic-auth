@@ -834,6 +834,7 @@ mod tests {
 
     #[test]
     fn test_migration_result_calculations() {
+        let job_id = "job-123";
         let mut result = MigrationResult::new(job_id.to_string(), false);
         result.total = 100;
         result.migrated = 75;

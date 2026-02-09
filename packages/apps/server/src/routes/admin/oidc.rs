@@ -305,7 +305,7 @@ async fn list_clients(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let clients = state
         .auth_service
@@ -313,7 +313,7 @@ async fn list_clients(
         .oidc()
         .list_clients(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let total = clients.len();
 
@@ -361,7 +361,7 @@ async fn create_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Validate client type
     let client_type = req.client_type.as_deref().unwrap_or("confidential");
@@ -424,7 +424,7 @@ async fn create_client(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create client: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     tracing::info!(
@@ -457,7 +457,7 @@ async fn get_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let client = state
         .auth_service
@@ -465,7 +465,7 @@ async fn get_client(
         .oidc()
         .get_client(&current_user.tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ClientResponse {
@@ -501,7 +501,7 @@ async fn update_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Update the client
     let client = state
@@ -519,7 +519,7 @@ async fn update_client(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update client: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     tracing::info!(
@@ -560,7 +560,7 @@ async fn delete_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -570,7 +570,7 @@ async fn delete_client(
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete client: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     tracing::info!(
@@ -594,7 +594,7 @@ async fn rotate_client_secret(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get the client
     let client = state
@@ -603,7 +603,7 @@ async fn rotate_client_secret(
         .oidc()
         .get_client(&current_user.tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Only confidential clients have secrets
@@ -642,7 +642,7 @@ async fn get_client_usage(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify client exists
     let _client = state
@@ -651,7 +651,7 @@ async fn get_client_usage(
         .oidc()
         .get_client(&current_user.tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     let authorization_requests: i64 = sqlx::query_scalar(
@@ -661,7 +661,7 @@ async fn get_client_usage(
     .bind(&client_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let token_requests: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM oauth_tokens WHERE tenant_id = $1::uuid AND client_id = $2"#,
@@ -670,7 +670,7 @@ async fn get_client_usage(
     .bind(&client_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let active_tokens: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM oauth_tokens 
@@ -680,7 +680,7 @@ async fn get_client_usage(
     .bind(&client_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let active_refresh_tokens: i64 = match sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM oauth_refresh_tokens 
@@ -702,7 +702,7 @@ async fn get_client_usage(
     .bind(&client_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ClientUsageResponse {
         client_id: client_id.clone(),

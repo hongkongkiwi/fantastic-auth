@@ -300,10 +300,17 @@ impl EmailService for SmtpEmailService {
             );
         }
 
-        // TODO: Add custom headers when lettre supports it
-        // for (key, value) in request.headers {
-        //     email_builder = email_builder.header(...);
-        // }
+        // Add custom headers
+        for (key, value) in request.headers {
+            // Create header name from ASCII string (validates header name format)
+            if let Ok(header_name) =
+                lettre::message::header::HeaderName::new_from_ascii(key.clone())
+            {
+                // Create header value and add to the builder
+                let header_value = lettre::message::header::HeaderValue::new(header_name, value);
+                email_builder = email_builder.raw_header(header_value);
+            }
+        }
 
         let email = email_builder
             .multipart(

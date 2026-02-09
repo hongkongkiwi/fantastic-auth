@@ -234,7 +234,7 @@ async fn list_domains(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows: Vec<DomainRow> = sqlx::query_as(
         r#"SELECT id::text, domain, status, is_primary, created_at, verified_at,
@@ -247,7 +247,7 @@ async fn list_domains(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let domains: Vec<CustomDomainResponse> = rows
         .into_iter()
@@ -321,7 +321,7 @@ async fn add_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check domain limit
     let current_count: i64 = sqlx::query_scalar(
@@ -330,7 +330,7 @@ async fn add_domain(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let max_domains: i32 = sqlx::query_scalar(
         "SELECT COALESCE((settings->>'max_custom_domains')::int, 5) FROM tenants WHERE id = $1::uuid",
@@ -354,7 +354,7 @@ async fn add_domain(
     .bind(&req.domain)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if exists {
         return Err(ApiError::Conflict(
@@ -376,7 +376,7 @@ async fn add_domain(
         .bind(&current_user.tenant_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     }
 
     sqlx::query(
@@ -390,12 +390,12 @@ async fn add_domain(
     .bind(is_primary)
     .bind(&verification_method)
     .bind(&verification_token)
-    .bind(serde_json::to_value(DomainSettings::default()).map_err(|_| ApiError::Internal)?)
+    .bind(serde_json::to_value(DomainSettings::default()).map_err(|_| ApiError::internal())?)
     .execute(state.db.pool())
     .await
     .map_err(|e| {
         tracing::error!("Failed to add domain: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Log the action
@@ -449,7 +449,7 @@ async fn get_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row: Option<DomainRow> = sqlx::query_as(
         r#"SELECT id::text, domain, status, is_primary, created_at, verified_at,
@@ -462,7 +462,7 @@ async fn get_domain(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let row = row.ok_or(ApiError::NotFound)?;
 
@@ -513,7 +513,7 @@ async fn remove_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get domain info for audit log
     let domain_info: Option<(String, String)> = sqlx::query_as(
@@ -523,7 +523,7 @@ async fn remove_domain(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (domain_id, domain_name) = domain_info.ok_or(ApiError::NotFound)?;
 
@@ -533,7 +533,7 @@ async fn remove_domain(
         .bind(&current_user.tenant_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log the action
     let audit = AuditLogger::new(state.db.clone());
@@ -568,7 +568,7 @@ async fn verify_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get domain info
     let domain_info: Option<(String, String, Option<String>)> = sqlx::query_as(
@@ -579,7 +579,7 @@ async fn verify_domain(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (domain, method, token) = domain_info.ok_or(ApiError::NotFound)?;
     let token = token.ok_or(ApiError::BadRequest(
@@ -603,7 +603,7 @@ async fn verify_domain(
         .bind(&id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         // Trigger SSL certificate provisioning (async)
         // In production, this would queue a background job
@@ -642,7 +642,7 @@ async fn verify_domain(
         .bind(&id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         Ok(Json(VerificationResponse {
             success: false,
@@ -669,7 +669,7 @@ async fn get_verification_status(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row: Option<(String, String, String, Option<String>, Option<DateTime<Utc>>, Option<String>)> = sqlx::query_as(
         r#"SELECT domain, status, verification_method, verification_token, 
@@ -681,7 +681,7 @@ async fn get_verification_status(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (domain, status, method, token, last_check, error) = row.ok_or(ApiError::NotFound)?;
 
@@ -712,7 +712,7 @@ async fn renew_ssl(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify domain exists and is verified
     let domain_info: Option<(String, String)> = sqlx::query_as(
@@ -723,7 +723,7 @@ async fn renew_ssl(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (_, domain) = domain_info.ok_or(ApiError::BadRequest(
         "Domain not found or not verified".to_string(),
@@ -763,7 +763,7 @@ async fn get_domain_health(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get domain info
     let row: Option<(String, String, Option<DateTime<Utc>>)> = sqlx::query_as(
@@ -774,7 +774,7 @@ async fn get_domain_health(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (domain, status, ssl_expires) = row.ok_or(ApiError::NotFound)?;
 

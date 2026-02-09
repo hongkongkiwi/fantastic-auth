@@ -163,7 +163,7 @@ async fn list_permissions(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListResponse<PermissionResponse>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -177,7 +177,7 @@ async fn list_permissions(
     .bind(tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Fetch permissions
     let permissions: Vec<Permission> = sqlx::query_as(
@@ -193,7 +193,7 @@ async fn list_permissions(
     .bind(query.offset())
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let total_pages = (total as f64 / query.limit() as f64).ceil() as i64;
     
@@ -213,7 +213,7 @@ async fn get_permission(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PermissionResponse>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -227,7 +227,7 @@ async fn get_permission(
     .bind(tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
     
     Ok(Json(permission.into()))
@@ -238,7 +238,7 @@ async fn create_permission(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreatePermissionRequest>,
 ) -> Result<(StatusCode, Json<PermissionResponse>), ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     let id = Uuid::new_v4();
@@ -262,7 +262,7 @@ async fn create_permission(
     .await
     .map_err(|e| {
         warn!("Failed to create permission: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
     
     info!(
@@ -279,7 +279,7 @@ async fn delete_permission(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -294,7 +294,7 @@ async fn delete_permission(
     .bind(tenant_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);
@@ -316,7 +316,7 @@ async fn list_roles(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListResponse<RoleResponse>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -329,7 +329,7 @@ async fn list_roles(
     .bind(tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let roles: Vec<Role> = sqlx::query_as(
         r#"
@@ -344,7 +344,7 @@ async fn list_roles(
     .bind(query.offset())
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Fetch permissions for each role
     let mut responses = Vec::new();
@@ -359,7 +359,7 @@ async fn list_roles(
         .bind(role.id)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
         
         responses.push(RoleResponse {
             id: role.id.to_string(),
@@ -390,7 +390,7 @@ async fn get_role(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<RoleResponse>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -404,7 +404,7 @@ async fn get_role(
     .bind(tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
     
     let permissions: Vec<Permission> = sqlx::query_as(
@@ -417,7 +417,7 @@ async fn get_role(
     .bind(role.id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     Ok(Json(RoleResponse {
         id: role.id.to_string(),
@@ -435,7 +435,7 @@ async fn create_role(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreateRoleRequest>,
 ) -> Result<(StatusCode, Json<RoleResponse>), ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     let id = Uuid::new_v4();
@@ -467,7 +467,7 @@ async fn create_role(
         if e.to_string().contains("duplicate") {
             ApiError::Conflict("Role with this name already exists".to_string())
         } else {
-            ApiError::Internal
+            ApiError::internal()
         }
     })?;
     
@@ -484,7 +484,7 @@ async fn create_role(
         .bind(perm_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     }
     
     // Fetch permissions for response
@@ -498,7 +498,7 @@ async fn create_role(
     .bind(id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     info!(
         user_id = %current_user.user_id,
@@ -523,7 +523,7 @@ async fn update_role(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateRoleRequest>,
 ) -> Result<Json<RoleResponse>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     let now = chrono::Utc::now();
@@ -539,7 +539,7 @@ async fn update_role(
     .bind(tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
     
     // Update role
@@ -560,7 +560,7 @@ async fn update_role(
     .bind(id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Update permissions if provided
     if let Some(permission_ids) = req.permission_ids {
@@ -569,7 +569,7 @@ async fn update_role(
             .bind(id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         
         // Add new permissions
         for perm_id in permission_ids {
@@ -584,7 +584,7 @@ async fn update_role(
             .bind(perm_id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
     }
     
@@ -599,7 +599,7 @@ async fn update_role(
     .bind(id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate permission caches for users with this role
     invalidate_role_cache(&state, id).await;
@@ -620,7 +620,7 @@ async fn delete_role(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -634,7 +634,7 @@ async fn delete_role(
     .bind(tenant_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);
@@ -653,7 +653,7 @@ async fn get_role_permissions(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<PermissionResponse>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let permissions: Vec<Permission> = sqlx::query_as(
         r#"
@@ -665,7 +665,7 @@ async fn get_role_permissions(
     .bind(id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     Ok(Json(permissions.into_iter().map(PermissionResponse::from).collect()))
 }
@@ -675,7 +675,7 @@ async fn add_permission_to_role(
     Extension(current_user): Extension<CurrentUser>,
     Path((role_id, permission_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         r#"
@@ -688,7 +688,7 @@ async fn add_permission_to_role(
     .bind(permission_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate caches
     invalidate_role_cache(&state, role_id).await;
@@ -701,7 +701,7 @@ async fn remove_permission_from_role(
     Extension(current_user): Extension<CurrentUser>,
     Path((role_id, permission_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         "DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2"
@@ -710,7 +710,7 @@ async fn remove_permission_from_role(
     .bind(permission_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate caches
     invalidate_role_cache(&state, role_id).await;
@@ -725,7 +725,7 @@ async fn list_user_roles(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListResponse<UserRoleResponse>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -739,7 +739,7 @@ async fn list_user_roles(
     .bind(tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let user_roles: Vec<UserRole> = sqlx::query_as(
         r#"
@@ -755,7 +755,7 @@ async fn list_user_roles(
     .bind(query.offset())
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let total_pages = (total as f64 / query.limit() as f64).ceil() as i64;
     
@@ -775,7 +775,7 @@ async fn assign_role(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<AssignRoleRequest>,
 ) -> Result<(StatusCode, Json<UserRoleResponse>), ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let assigned_by = Uuid::parse_str(&current_user.user_id).ok();
     let now = chrono::Utc::now();
@@ -796,7 +796,7 @@ async fn assign_role(
     .bind(assigned_by)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate user's permission cache
     let checker = PermissionChecker::new(
@@ -821,7 +821,7 @@ async fn remove_role_from_user(
     Extension(current_user): Extension<CurrentUser>,
     Path((user_id, role_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         "DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2"
@@ -830,7 +830,7 @@ async fn remove_role_from_user(
     .bind(role_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate user's permission cache
     let checker = PermissionChecker::new(
@@ -848,7 +848,7 @@ async fn get_user_roles(
     Extension(current_user): Extension<CurrentUser>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<RoleResponse>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let checker = PermissionChecker::new(
         state.db.pool().clone(),
@@ -858,7 +858,7 @@ async fn get_user_roles(
     let roles_with_perms = checker
         .get_user_roles_with_permissions(&user_id.to_string())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let responses: Vec<RoleResponse> = roles_with_perms
         .into_iter()
@@ -881,7 +881,7 @@ async fn get_user_permissions(
     Extension(current_user): Extension<CurrentUser>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<String>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let checker = PermissionChecker::new(
         state.db.pool().clone(),
@@ -891,7 +891,7 @@ async fn get_user_permissions(
     let permissions = checker
         .get_user_permissions(&user_id.to_string())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     Ok(Json(permissions))
 }
@@ -903,14 +903,14 @@ async fn list_resource_permissions(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListResponse<ResourcePermission>>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let total: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM resource_permissions WHERE expires_at IS NULL OR expires_at > NOW()"
     )
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let permissions: Vec<ResourcePermission> = sqlx::query_as(
         r#"
@@ -924,7 +924,7 @@ async fn list_resource_permissions(
     .bind(query.offset())
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let total_pages = (total as f64 / query.limit() as f64).ceil() as i64;
     
@@ -944,7 +944,7 @@ async fn grant_resource_permission(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<GrantResourcePermissionRequest>,
 ) -> Result<(StatusCode, Json<ResourcePermission>), ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let granted_by = Uuid::parse_str(&current_user.user_id).ok();
     let id = Uuid::new_v4();
@@ -968,7 +968,7 @@ async fn grant_resource_permission(
     .bind(req.expires_at)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Invalidate user's permission cache
     let checker = PermissionChecker::new(
@@ -994,7 +994,7 @@ async fn revoke_resource_permission(
     Extension(current_user): Extension<CurrentUser>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     // Get the permission first to invalidate cache
     let perm: Option<ResourcePermission> = sqlx::query_as(
@@ -1003,13 +1003,13 @@ async fn revoke_resource_permission(
     .bind(id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     sqlx::query("DELETE FROM resource_permissions WHERE id = $1")
         .bind(id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Invalidate cache
     if let Some(p) = perm {
@@ -1031,7 +1031,7 @@ async fn check_permission(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CheckPermissionRequest>,
 ) -> Result<Json<CheckPermissionResponse>, ApiError> {
-    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::Internal)?;
+    state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
     
     let checker = PermissionChecker::new(
         state.db.pool().clone(),

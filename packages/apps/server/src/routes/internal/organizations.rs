@@ -72,7 +72,7 @@ async fn require_org_read(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -115,7 +115,7 @@ async fn list_organizations(
     .bind(&current_user.user_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let orgs = rows
         .into_iter()
@@ -165,7 +165,7 @@ async fn get_organization(
     .bind(&org_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     match row {
         Some(row) => Ok(Json(OrganizationResponse {
@@ -206,7 +206,7 @@ async fn list_members(
     .bind(&org_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let members = rows
         .into_iter()

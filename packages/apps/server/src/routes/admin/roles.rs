@@ -71,10 +71,10 @@ async fn list_org_roles(
     Extension(current_user): Extension<CurrentUser>,
     Path(org_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, OrganizationRoleRow>(
         r#"SELECT id::text as id, name, permissions, created_at, updated_at
@@ -86,7 +86,7 @@ async fn list_org_roles(
     .bind(&org_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<OrganizationRoleResponse> = rows
         .into_iter()
@@ -108,10 +108,10 @@ async fn create_org_role(
     Path(org_id): Path<String>,
     Json(req): Json<CreateOrganizationRoleRequest>,
 ) -> Result<Json<OrganizationRoleResponse>, ApiError> {
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let permissions = serde_json::Value::Array(
         req.permissions
@@ -135,7 +135,7 @@ async fn create_org_role(
     .bind(chrono::Utc::now())
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(OrganizationRoleResponse {
         id: row.id,
@@ -153,10 +153,10 @@ async fn update_org_role(
     Json(req): Json<UpdateOrganizationRoleRequest>,
 ) -> Result<Json<OrganizationRoleResponse>, ApiError> {
     let org_id = _org_id;
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let existing = sqlx::query_as::<_, OrganizationRoleRow>(
         r#"SELECT id::text as id, name, permissions, created_at, updated_at
@@ -168,7 +168,7 @@ async fn update_org_role(
     .bind(&role_id)
     .fetch_optional(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::NotFound)?;
 
     let name = req.name.unwrap_or(existing.name);
@@ -197,7 +197,7 @@ async fn update_org_role(
     .bind(&role_id)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(OrganizationRoleResponse {
         id: row.id,
@@ -215,10 +215,10 @@ async fn delete_org_role(
 ) -> Result<(), ApiError> {
     let org_id = _org_id;
     let role_id = _role_id;
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let result = sqlx::query(
         r#"DELETE FROM organization_roles
@@ -229,7 +229,7 @@ async fn delete_org_role(
     .bind(&role_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);

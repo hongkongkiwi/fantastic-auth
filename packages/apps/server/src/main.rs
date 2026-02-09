@@ -79,12 +79,10 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_health_check() {
         // Test the health check function directly
-        let response = routes::health::simple_health_check().await;
+        let response = vault_server::routes::health::simple_health_check().await;
         assert_eq!(response.0.status, "healthy");
     }
 }

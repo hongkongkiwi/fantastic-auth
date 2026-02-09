@@ -17,8 +17,8 @@
 //!
 //! ## Example Usage
 //!
-//! ```rust
-//! use vault_core::ai::{AiSecurityEngine, RiskScore, AuthContext};
+//! ```rust,ignore
+//! use fantasticauth_core::ai::{AiSecurityEngine, RiskScore, AuthContext, RiskLevel};
 //!
 //! // Create AI security engine
 //! let engine = AiSecurityEngine::new(config, db, models).await?;

@@ -173,7 +173,7 @@ function OrganizationSwitchContent() {
                   <button type="button"
                     onClick={() => handleSwitch(org.id)}
                     disabled={switchingOrgId === org.id}
-                    className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-all text-left ${
+                    className={`w-full flex items-center gap-4 p-4 rounded-lg border transition-colors transition-shadow text-left ${
                       organizationId === org.id
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50 hover:bg-muted/50'

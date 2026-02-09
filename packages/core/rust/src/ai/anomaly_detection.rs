@@ -493,7 +493,7 @@ impl AnomalyDetector {
     /// Check for velocity anomaly
     async fn check_velocity_anomaly(
         &self,
-        user_id: &str,
+        _user_id: &str,
         context: &AuthContext,
     ) -> AiResult<Option<Anomaly>> {
         // Simple velocity check
@@ -530,7 +530,7 @@ impl AnomalyDetector {
     /// Check for impossible travel
     async fn check_impossible_travel(
         &self,
-        profile: &UserBehaviorProfile,
+        _profile: &UserBehaviorProfile,
         context: &AuthContext,
     ) -> AiResult<Option<Anomaly>> {
         let Some((curr_lat, curr_lon)) = context.geo_location else {

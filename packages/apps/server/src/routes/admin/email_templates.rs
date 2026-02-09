@@ -233,7 +233,7 @@ async fn list_templates(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let templates = vec![
         get_template_summary(&state, &current_user.tenant_id, TemplateType::Welcome).await?,
@@ -261,7 +261,7 @@ async fn get_template(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let template_type = template_type
         .parse::<TemplateType>()
@@ -285,7 +285,7 @@ async fn update_template(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let template_type = template_type
         .parse::<TemplateType>()
@@ -335,7 +335,7 @@ async fn update_template(
     .bind(&current_user.user_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the change
     let audit = AuditLogger::new(state.db.clone());
@@ -367,7 +367,7 @@ async fn preview_template(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let template_type = template_type
         .parse::<TemplateType>()
@@ -412,7 +412,7 @@ async fn send_test_email(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let template_type = template_type
         .parse::<TemplateType>()
@@ -479,7 +479,7 @@ async fn send_test_email(
             }
             Err(e) => {
                 tracing::error!("Failed to send test email: {}", e);
-                Err(ApiError::Internal)
+                Err(ApiError::internal())
             }
         }
     } else {
@@ -498,7 +498,7 @@ async fn reset_template(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let template_type = template_type
         .parse::<TemplateType>()
@@ -512,7 +512,7 @@ async fn reset_template(
     .bind(template_type.to_string())
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the action
     let audit = AuditLogger::new(state.db.clone());
@@ -639,7 +639,7 @@ async fn get_template_summary(
     .bind(template_type.to_string())
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let last_modified: Option<DateTime<Utc>> = if is_customized {
         sqlx::query_scalar(
@@ -649,7 +649,7 @@ async fn get_template_summary(
         .bind(template_type.to_string())
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .flatten()
     } else {
         None
@@ -680,7 +680,7 @@ async fn get_template_details(
     .bind(template_type.to_string())
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (name, description) = get_template_info(&template_type);
     let default = get_default_template(&template_type);

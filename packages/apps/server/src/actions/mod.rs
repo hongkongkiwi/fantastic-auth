@@ -36,7 +36,7 @@ pub async fn run_actions(
         .actions()
         .list_actions(tenant_id, Some(trigger))
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut decision = ActionDecision {
         allowed: true,
@@ -71,7 +71,7 @@ pub async fn run_actions(
             .await
             .ok();
 
-        let output = output.map_err(|_| ApiError::Internal)?;
+        let output = output.map_err(|_| ApiError::internal())?;
 
         if output.deny.unwrap_or(false) || output.allow == Some(false) {
             decision.allowed = false;

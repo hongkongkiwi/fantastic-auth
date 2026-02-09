@@ -279,15 +279,15 @@ async fn decrypt_secret(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant data key: {}", e);
-            crate::routes::ApiError::Internal
+            crate::routes::ApiError::internal()
         })?;
 
     let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted).map_err(|e| {
         tracing::error!("Failed to decrypt secret: {}", e);
-        crate::routes::ApiError::Internal
+        crate::routes::ApiError::internal()
     })?;
 
-    String::from_utf8(bytes).map_err(|_| crate::routes::ApiError::Internal)
+    String::from_utf8(bytes).map_err(|_| crate::routes::ApiError::internal())
 }
 
 async fn apply_whatsapp_overrides(

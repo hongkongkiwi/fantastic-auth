@@ -73,7 +73,7 @@ async fn list_admins(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let admins = state
         .auth_service
@@ -81,7 +81,7 @@ async fn list_admins(
         .tenant_admins()
         .list_admins(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         admins
@@ -105,7 +105,7 @@ async fn create_admin(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let admin = state
         .auth_service
@@ -113,7 +113,7 @@ async fn create_admin(
         .tenant_admins()
         .upsert_admin(&current_user.tenant_id, &req.user_id, &req.role, "active")
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TenantAdminResponse {
         id: admin.id,
@@ -133,7 +133,7 @@ async fn update_admin(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let admin = state
         .auth_service
@@ -146,7 +146,7 @@ async fn update_admin(
             req.status.as_deref().unwrap_or("active"),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TenantAdminResponse {
         id: admin.id,
@@ -165,7 +165,7 @@ async fn remove_admin(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -173,7 +173,7 @@ async fn remove_admin(
         .tenant_admins()
         .remove_admin(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"message": "Admin removed"})))
 }
@@ -185,7 +185,7 @@ async fn list_invitations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let invites = state
         .auth_service
@@ -193,7 +193,7 @@ async fn list_invitations(
         .tenant_admins()
         .list_invitations(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         invites
@@ -218,7 +218,7 @@ async fn create_invitation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let token = generate_secure_random(32);
     let expires_at = chrono::Utc::now() + chrono::Duration::days(7);
@@ -236,7 +236,7 @@ async fn create_invitation(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if let Some(sender) = state
         .communications

@@ -118,10 +118,13 @@ impl DomainService {
         domain_id: &str,
     ) -> anyhow::Result<()> {
         // Verify the domain belongs to the organization
-        if let Some(domain) = self.repository.get_by_id(tenant_id, domain_id).await? {
-            if domain.organization_id != organization_id {
-                anyhow::bail!("Domain does not belong to this organization");
-            }
+        let domain = self
+            .repository
+            .get_by_id(tenant_id, domain_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Domain not found"))?;
+        if domain.organization_id != organization_id {
+            anyhow::bail!("Domain does not belong to this organization");
         }
 
         self.repository.delete(tenant_id, domain_id).await?;
@@ -143,10 +146,13 @@ impl DomainService {
         request: UpdateDomainRequest,
     ) -> anyhow::Result<DomainResponse> {
         // Verify the domain belongs to the organization
-        if let Some(domain) = self.repository.get_by_id(tenant_id, domain_id).await? {
-            if domain.organization_id != organization_id {
-                anyhow::bail!("Domain does not belong to this organization");
-            }
+        let domain = self
+            .repository
+            .get_by_id(tenant_id, domain_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Domain not found"))?;
+        if domain.organization_id != organization_id {
+            anyhow::bail!("Domain does not belong to this organization");
         }
 
         let domain = self
@@ -598,8 +604,8 @@ impl AutoEnrollmentService {
                 )
                 .await;
 
-                // TODO: Send notification to org admins
-                // This would typically be handled by a notification service
+                // NOTE: Notification to org admins is a planned feature.
+                // This would typically be handled by a notification service once implemented.
                 info!(
                     "User {} auto-enrolled in organization {}. Admins should be notified.",
                     user_id, org_id

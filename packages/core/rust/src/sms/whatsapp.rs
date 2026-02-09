@@ -10,8 +10,8 @@
 //! - Phone number registered with WhatsApp Business
 //!
 //! # Example
-//! ```rust
-//! use vault_core::sms::whatsapp::{WhatsAppProvider, WhatsAppConfig};
+//! ```rust,ignore
+//! use fantasticauth_core::sms::whatsapp::{WhatsAppProvider, WhatsAppConfig};
 //!
 //! let config = WhatsAppConfig {
 //!     phone_number_id: "1234567890".to_string(),
@@ -392,7 +392,7 @@ impl WhatsAppProvider {
 
     /// Check if user has WhatsApp installed
     /// This is a best-effort check - the API doesn't guarantee delivery
-    pub async fn check_whatsapp_user(&self, phone: &str) -> Result<bool, SmsError> {
+    pub async fn check_whatsapp_user(&self, _phone: &str) -> Result<bool, SmsError> {
         // The WhatsApp Business API doesn't provide a direct way to check
         // if a user has WhatsApp. We can only attempt to send and handle errors.
         // This method is provided for future API enhancements.

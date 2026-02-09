@@ -247,13 +247,13 @@ async fn list_providers(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let service = FederationService::new(state.db.clone());
     let providers = service
         .list_providers(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<ProviderResponse> = providers
         .into_iter()
@@ -274,7 +274,7 @@ async fn create_provider(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let provider_type = ProviderType::from_str(&req.provider_type)
         .ok_or_else(|| ApiError::Validation(format!("Invalid provider type: {}", req.provider_type)))?;
@@ -294,7 +294,7 @@ async fn create_provider(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create provider: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(provider_to_response(provider)))
@@ -308,13 +308,13 @@ async fn get_provider(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let service = FederationService::new(state.db.clone());
     let provider = service
         .get_provider(&provider_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant ownership
@@ -334,14 +334,14 @@ async fn update_provider(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify provider exists and belongs to tenant
     let service = FederationService::new(state.db.clone());
     let existing = service
         .get_provider(&provider_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if existing.tenant_id != current_user.tenant_id {
@@ -358,7 +358,7 @@ async fn update_provider(
     let provider = service
         .update_provider(&provider_id, updates)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(provider_to_response(provider)))
 }
@@ -371,14 +371,14 @@ async fn delete_provider(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify provider exists and belongs to tenant
     let service = FederationService::new(state.db.clone());
     let existing = service
         .get_provider(&provider_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if existing.tenant_id != current_user.tenant_id {
@@ -388,7 +388,7 @@ async fn delete_provider(
     service
         .delete_provider(&provider_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(())
 }
@@ -400,13 +400,13 @@ async fn list_realm_mappings(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let discovery = HomeRealmDiscovery::new(state.db.clone());
     let mappings = discovery
         .list_mappings(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<RealmMappingResponse> = mappings
         .into_iter()
@@ -427,7 +427,7 @@ async fn create_realm_mapping(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let discovery = HomeRealmDiscovery::new(state.db.clone());
     let mapping = discovery
@@ -438,7 +438,7 @@ async fn create_realm_mapping(
             req.is_default,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(realm_mapping_to_response(mapping)))
 }
@@ -451,13 +451,13 @@ async fn delete_realm_mapping(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let discovery = HomeRealmDiscovery::new(state.db.clone());
     discovery
         .delete_mapping(&mapping_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(())
 }
@@ -469,13 +469,13 @@ async fn list_trusts(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_manager = TrustManager::new(state.db.clone());
     let trusts = trust_manager
         .list_trusts(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<TrustResponse> = trusts
         .into_iter()
@@ -496,13 +496,13 @@ async fn get_trust(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_manager = TrustManager::new(state.db.clone());
     let trust = trust_manager
         .get_trust(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if trust.tenant_id != current_user.tenant_id {
@@ -520,7 +520,7 @@ async fn create_trust(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_level = TrustLevel::from_str(&req.trust_level)
         .ok_or_else(|| ApiError::Validation(format!("Invalid trust level: {}", req.trust_level)))?;
@@ -538,7 +538,7 @@ async fn create_trust(
             req.allowed_claims,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(trust_to_response(trust)))
 }
@@ -552,7 +552,7 @@ async fn update_trust(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_manager = TrustManager::new(state.db.clone());
     
@@ -560,7 +560,7 @@ async fn update_trust(
     let existing = trust_manager
         .get_trust(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if existing.tenant_id != current_user.tenant_id {
@@ -579,7 +579,7 @@ async fn update_trust(
     let trust = trust_manager
         .update_trust(&trust_id, updates)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(trust_to_response(trust)))
 }
@@ -592,13 +592,13 @@ async fn delete_trust(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_manager = TrustManager::new(state.db.clone());
     trust_manager
         .delete_trust(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(())
 }
@@ -611,7 +611,7 @@ async fn refresh_trust_metadata(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let trust_manager = TrustManager::new(state.db.clone());
     
@@ -619,7 +619,7 @@ async fn refresh_trust_metadata(
     let existing = trust_manager
         .get_trust(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if existing.tenant_id != current_user.tenant_id {
@@ -629,13 +629,13 @@ async fn refresh_trust_metadata(
     trust_manager
         .refresh_metadata(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Fetch updated trust
     let trust = trust_manager
         .get_trust(&trust_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(trust_to_response(trust)))
@@ -649,13 +649,13 @@ async fn discover_provider(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let service = FederationService::new(state.db.clone());
     let provider = service
         .discover_provider(&req.email)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let domain = req.email
         .split('@')

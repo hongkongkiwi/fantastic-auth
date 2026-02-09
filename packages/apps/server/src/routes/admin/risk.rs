@@ -198,7 +198,7 @@ async fn get_risk_analytics(
         .risk_engine
         .get_tenant_analytics(&tenant_id, query.days)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(RiskAnalyticsResponse {
         tenant_id,
@@ -232,7 +232,7 @@ async fn get_recent_assessments(
     .bind(&tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let assessments: Vec<crate::security::RiskAssessment> =
         assessments.into_iter().map(|r| r.into()).collect();
@@ -257,7 +257,7 @@ async fn get_user_risk_summary(
     .bind(&tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let email = match user_row {
         Some(row) => row.email,
@@ -278,7 +278,7 @@ async fn get_user_risk_summary(
     .bind(&user_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(UserRiskSummary {
         user_id,

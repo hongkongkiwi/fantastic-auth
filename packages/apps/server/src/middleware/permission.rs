@@ -320,6 +320,7 @@ fn extract_resource_id(request: &Request, resource_type: &str) -> Option<String>
     
     // Look for patterns like "resource_type/:id" or ":resource_type_id"
     let singular = resource_type.trim_end_matches('s');
+    let plural = format!("{}s", singular);
     let id_patterns = [
         format!("{}_id", singular),
         "id".to_string(),
@@ -328,8 +329,9 @@ fn extract_resource_id(request: &Request, resource_type: &str) -> Option<String>
     
     // Find the resource type in the path
     for (i, segment) in segments.iter().enumerate() {
-        if segment.to_lowercase() == resource_type.to_lowercase() 
-            || segment.to_lowercase() == singular.to_lowercase() {
+        if segment.to_lowercase() == resource_type.to_lowercase()
+            || segment.to_lowercase() == singular.to_lowercase()
+            || segment.to_lowercase() == plural {
             // Next segment should be the ID
             if i + 1 < segments.len() {
                 return Some(segments[i + 1].to_string());
@@ -492,11 +494,11 @@ mod tests {
     
     #[test]
     fn test_extract_resource_id() {
-        use axum::http::Request;
+        use axum::{body::Body, extract::Request};
         
         let request = Request::builder()
             .uri("/documents/123e4567-e89b-12d3-a456-426614174000")
-            .body(())
+            .body(Body::empty())
             .expect("Failed to build test request");
         
         assert_eq!(
@@ -506,7 +508,7 @@ mod tests {
         
         let request = Request::builder()
             .uri("/api/v1/organizations/org-123/users/user-456")
-            .body(())
+            .body(Body::empty())
             .expect("Failed to build test request");
         
         assert_eq!(

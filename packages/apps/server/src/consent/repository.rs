@@ -21,6 +21,11 @@ impl ConsentRepository {
         Self { pool }
     }
 
+    /// Get a reference to the database pool
+    pub fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     // ==================== Consent Versions ====================
 
     /// Create a new consent version
@@ -35,6 +40,7 @@ impl ConsentRepository {
         summary: Option<&str>,
         effective_date: DateTime<Utc>,
         url: Option<&str>,
+        is_current: bool,
         required: bool,
     ) -> ConsentResult<ConsentVersionRow> {
         let row = sqlx::query_as::<_, ConsentVersionRow>(
@@ -54,7 +60,7 @@ impl ConsentRepository {
         .bind(summary)
         .bind(effective_date)
         .bind(url)
-        .bind(true) // is_current
+        .bind(is_current)
         .bind(required)
         .fetch_one(&self.pool)
         .await?;
@@ -233,10 +239,18 @@ impl ConsentRepository {
         .await?;
 
         // Set current on the specified version
-        sqlx::query("UPDATE consent_versions SET is_current = true WHERE id = $1")
+        let updated = sqlx::query(
+            "UPDATE consent_versions SET is_current = true WHERE id = $1 AND tenant_id = $2 AND consent_type = $3",
+        )
             .bind(version_id)
+            .bind(tenant_id)
+            .bind(consent_type)
             .execute(&mut *tx)
             .await?;
+
+        if updated.rows_affected() == 0 {
+            return Err(super::ConsentError::VersionNotFound(version_id.to_string()));
+        }
 
         tx.commit().await?;
         Ok(())

@@ -134,7 +134,7 @@ impl LdapFederationProvider {
         }
         
         // Build DN using base DN
-        format!("uid={},{})", username, self.config.base_dn)
+        format!("uid={},{}", username, self.config.base_dn)
     }
 
     /// Build search filter for finding a user

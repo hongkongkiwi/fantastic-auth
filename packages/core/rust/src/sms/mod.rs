@@ -885,6 +885,7 @@ mod tests {
             rate_limit_window_secs: 600,
             code_expiry_minutes: 10,
             code_length: 6,
+            fallback_to_sms: true,
         };
 
         let service = SmsService::new(Some(Box::new(mock_provider.clone())), code_store, config);

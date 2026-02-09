@@ -130,7 +130,7 @@ async fn authorize(
         .oidc()
         .get_client(&tenant_id, &query.client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or_else(|| ApiError::BadRequest("Invalid client_id".to_string()))?;
 
     // Validate redirect URI
@@ -184,7 +184,7 @@ async fn authorize(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Build redirect URL with code
     let mut redirect_url = format!(
@@ -233,7 +233,7 @@ async fn token(
         .oidc()
         .get_client(&tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or_else(|| ApiError::BadRequest("Invalid client_id".to_string()))?;
 
     // Validate client authentication for confidential clients
@@ -293,7 +293,7 @@ async fn handle_authorization_code_grant(
         .oidc()
         .consume_authorization_code(tenant_id, &client.client_id, &code)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or_else(|| ApiError::BadRequest("Invalid or expired authorization code".to_string()))?;
 
     // Validate redirect URI
@@ -322,7 +322,7 @@ async fn handle_authorization_code_grant(
         .users()
         .find_by_id(tenant_id, &code_record.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or_else(|| ApiError::BadRequest("User not found".to_string()))?;
 
     // Build access token claims
@@ -343,7 +343,7 @@ async fn handle_authorization_code_grant(
 
     // Encode access token
     let access_token = HybridJwt::encode(&access_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Build and encode ID token if openid scope requested
     let mut id_token = None;
@@ -368,7 +368,7 @@ async fn handle_authorization_code_grant(
 
         id_token = Some(
             HybridJwt::encode(&id_claims, state.auth_service.signing_key())
-                .map_err(|_| ApiError::Internal)?,
+                .map_err(|_| ApiError::internal())?,
         );
     }
 
@@ -388,7 +388,7 @@ async fn handle_authorization_code_grant(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     tracing::info!(
         "Token issued via authorization_code: client_id={}, user_id={}",
@@ -422,7 +422,7 @@ async fn handle_client_credentials_grant(
     .with_custom("client_id", serde_json::json!(client_id));
 
     let access_token = HybridJwt::encode(&access_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let expires_at = Utc::now() + chrono::Duration::minutes(15);
     state
@@ -439,7 +439,7 @@ async fn handle_client_credentials_grant(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     tracing::info!("Token issued via client_credentials: client_id={}", client_id);
 
@@ -500,7 +500,7 @@ async fn userinfo(
         .users()
         .find_by_id(&claims.tenant_id, &claims.sub)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or_else(|| ApiError::NotFound)?;
 
     // Build UserInfo response based on scopes
@@ -590,7 +590,7 @@ async fn introspect(
         .oidc()
         .get_token_by_jti(&tenant_id, &claims.jti)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let active = token_record
         .as_ref()
@@ -634,7 +634,7 @@ async fn revoke(
         .oidc()
         .revoke_token_by_refresh(&tenant_id, &req.token)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // If not found as refresh token, try to decode as access token
     // and revoke by JTI

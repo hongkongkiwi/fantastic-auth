@@ -424,12 +424,35 @@ impl AnalyticsRepository {
         // Get signup sources
         let signup_sources = self.get_signup_sources(tenant_id, start_date, end_date).await?;
 
+        // Calculate churn: users active in previous period but not in current period
+        let churned_users: i64 = sqlx::query_scalar(
+            r#"SELECT COUNT(DISTINCT e1.user_id)
+               FROM analytics_events e1
+               LEFT JOIN analytics_events e2 
+                 ON e1.user_id = e2.user_id 
+                 AND e1.tenant_id = e2.tenant_id
+                 AND e2.event_type = 'login'
+                 AND e2.created_at >= $2 
+                 AND e2.created_at <= $3
+               WHERE e1.tenant_id = $1
+                 AND e1.event_type = 'login'
+                 AND e1.created_at >= $4 
+                 AND e1.created_at < $2
+                 AND e2.user_id IS NULL"#,
+        )
+        .bind(tenant_id)
+        .bind(start_date)
+        .bind(end_date)
+        .bind(previous_start)
+        .fetch_one(&self.pool)
+        .await?;
+
         Ok(UserMetrics {
             total_users,
             new_signups,
             active_users,
             retention_rate,
-            churned_users: 0, // TODO: Calculate churn
+            churned_users,
             growth_rate,
             trend,
             signup_sources,

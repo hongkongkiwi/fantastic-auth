@@ -286,7 +286,7 @@ pub fn parse_device_info(user_agent: &str) -> ParsedDeviceInfo {
     let ua = user_agent.to_lowercase();
 
     // Detect device type
-    let device_type = if ua.contains("mobile") {
+    let device_type = if ua.contains("mobile") || ua.contains("iphone") || ua.contains("android") {
         "mobile"
     } else if ua.contains("tablet") || ua.contains("ipad") {
         "tablet"
@@ -297,14 +297,14 @@ pub fn parse_device_info(user_agent: &str) -> ParsedDeviceInfo {
     // Detect OS
     let os = if ua.contains("windows") {
         "Windows"
+    } else if ua.contains("ios") || ua.contains("iphone") || ua.contains("ipad") {
+        "iOS"
     } else if ua.contains("macintosh") || ua.contains("mac os") {
         "macOS"
     } else if ua.contains("linux") {
         "Linux"
     } else if ua.contains("android") {
         "Android"
-    } else if ua.contains("ios") || ua.contains("iphone") || ua.contains("ipad") {
-        "iOS"
     } else {
         "Unknown"
     };
@@ -483,7 +483,10 @@ mod tests {
         let fingerprinter = DeviceFingerprinter::strict();
         let components = FingerprintComponents {
             user_agent: "Test".to_string(),
+            accept: "text/html".to_string(),
             accept_language: "en".to_string(),
+            screen_resolution: Some("1920x1080".to_string()),
+            canvas_hash: Some("canvas-hash".to_string()),
             ..Default::default()
         };
 

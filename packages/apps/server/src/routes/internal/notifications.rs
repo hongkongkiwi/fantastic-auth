@@ -52,7 +52,7 @@ async fn require_notifications_read(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -71,7 +71,7 @@ async fn require_notifications_write(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -105,7 +105,7 @@ async fn list_notifications(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let items = rows
         .into_iter()
@@ -150,7 +150,7 @@ async fn mark_notifications_read(
     .bind(&ids)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, NotificationRow>(
         r#"
@@ -168,7 +168,7 @@ async fn mark_notifications_read(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let items = rows
         .into_iter()

@@ -11,8 +11,8 @@
 //!
 //! ## Example
 //!
-//! ```rust
-//! use vault_core::crypto::{HybridSigningKey, HybridJwt, Claims, TokenType};
+//! ```rust,ignore
+//! use fantasticauth_core::crypto::{HybridSigningKey, HybridJwt, Claims, TokenType};
 //!
 //! // Generate hybrid key pair
 //! let (signing_key, verifying_key) = HybridSigningKey::generate();

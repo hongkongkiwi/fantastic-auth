@@ -146,10 +146,10 @@ async fn get_tenant_settings(
 ) -> Result<Json<TenantSettingsResponse>, ApiError> {
     // For now, return default settings since tenant settings table may not exist
     // In a full implementation, this would fetch from a tenant_settings table
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let tenant_info =
         sqlx::query("SELECT id, name, slug, created_at, updated_at FROM tenants WHERE id = $1")
@@ -247,10 +247,10 @@ async fn update_tenant_settings(
 ) -> Result<Json<TenantSettingsResponse>, ApiError> {
     // Update tenant name if provided
     if let Some(name) = req.name {
-        let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+        let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
         set_connection_context(&mut conn, &current_user.tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         let _ = sqlx::query("UPDATE tenants SET name = $1, updated_at = NOW() WHERE id = $2")
             .bind(&name)
             .bind(&current_user.tenant_id)

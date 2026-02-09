@@ -13,6 +13,7 @@ pub mod mfa;
 pub mod organizations;
 pub mod privacy;
 pub mod push_mfa;
+pub mod security_dashboard;
 pub mod sessions;
 pub mod tenant_admins;
 pub mod users;
@@ -32,6 +33,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/devices", devices::routes())
         .nest("/sessions", sessions::routes())
         .nest("/privacy", privacy::routes())
+        .merge(security_dashboard::routes())
         .merge(tenant_admins::routes())
         .merge(consent::routes())
 }

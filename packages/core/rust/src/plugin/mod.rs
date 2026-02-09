@@ -14,9 +14,9 @@
 //!
 //! ## Example Usage
 //!
-//! ```rust
-//! use vault_core::plugin::{PluginRegistry, PluginConfig};
-//! use vault_core::plugin::types::{Plugin, PluginMetadata, HookType};
+//! ```rust,ignore
+//! use fantasticauth_core::plugin::{PluginRegistry, PluginConfig};
+//! use fantasticauth_core::plugin::types::{Plugin, PluginMetadata, HookType};
 //!
 //! // Create registry
 //! let registry = PluginRegistry::new_shared();
@@ -178,7 +178,7 @@ mod tests {
             &self.metadata
         }
 
-        async fn initialize(&mut self, _config: &PluginConfig) -> Result<(), PluginError> {
+        async fn initialize(&mut self, _config: &PluginConfig) -> Result<()> {
             Ok(())
         }
     }

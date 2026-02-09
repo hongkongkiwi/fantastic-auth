@@ -330,7 +330,7 @@ async fn get_mfa_status(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get MFA methods: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let mfa_enabled = methods.iter().any(|m| m.enabled);
@@ -376,7 +376,7 @@ async fn setup_totp(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create TOTP method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Generate backup codes
@@ -390,7 +390,7 @@ async fn setup_totp(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create backup codes: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     update_backup_codes_config(&state, &current_user.tenant_id, &current_user.user_id, &code_hashes).await?;
@@ -446,7 +446,7 @@ async fn verify_totp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to verify TOTP method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let encrypted_secret = encrypt_secret(&state, &current_user.tenant_id, &totp_config.secret).await?;
@@ -457,7 +457,7 @@ async fn verify_totp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load MFA config: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     let totp_json = serde_json::json!({
         "secret": encrypted_secret,
@@ -480,7 +480,7 @@ async fn verify_totp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update MFA config: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -512,7 +512,7 @@ async fn verify_totp_code(
         }
         Err(e) => {
             tracing::error!("Failed to get TOTP secret: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -588,7 +588,7 @@ async fn disable_mfa(
         .await
         .map_err(|e| {
             tracing::error!("Failed to disable MFA method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -625,11 +625,11 @@ async fn begin_webauthn_registration(
         .await
         .map_err(|e| {
             tracing::error!("Failed to begin WebAuthn registration: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(
-        serde_json::to_value(options).map_err(|_| ApiError::Internal)?,
+        serde_json::to_value(options).map_err(|_| ApiError::internal())?,
     ))
 }
 
@@ -658,7 +658,7 @@ async fn finish_webauthn_registration(
 
     // Store in database
     let public_key =
-        serde_json::to_string(&credential.public_key).map_err(|_| ApiError::Internal)?;
+        serde_json::to_string(&credential.public_key).map_err(|_| ApiError::internal())?;
 
     state
         .db
@@ -672,7 +672,7 @@ async fn finish_webauthn_registration(
         .await
         .map_err(|e| {
             tracing::error!("Failed to store WebAuthn credential: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -705,7 +705,7 @@ async fn generate_backup_codes(
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete old backup codes: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Generate new codes
@@ -720,7 +720,7 @@ async fn generate_backup_codes(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create backup codes: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     update_backup_codes_config(&state, &current_user.tenant_id, &current_user.user_id, &code_hashes).await?;
@@ -743,7 +743,7 @@ async fn verify_backup_code(
         .await
         .map_err(|e| {
             tracing::error!("Failed to verify backup code: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(VerifyCodeResponse {
@@ -792,7 +792,7 @@ async fn verify_email_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create Email MFA method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -824,7 +824,7 @@ async fn send_email_code(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load MFA methods: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let has_email = methods.iter().any(|m| {
@@ -903,7 +903,7 @@ async fn setup_sms(
                 vault_core::sms::SmsError::InvalidPhoneNumber(msg) => {
                     ApiError::BadRequest(format!("Invalid phone number: {}", msg))
                 }
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -962,7 +962,7 @@ async fn verify_sms_setup(
                 vault_core::sms::SmsError::CodeNotFound => {
                     ApiError::BadRequest("Code expired or not found".to_string())
                 }
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -985,7 +985,7 @@ async fn verify_sms_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update phone number: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Create SMS MFA method in database
@@ -1000,7 +1000,7 @@ async fn verify_sms_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create SMS MFA method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -1036,7 +1036,7 @@ async fn send_sms_code(
                 .mfa()
                 .get_user_methods(&current_user.tenant_id, &current_user.user_id)
                 .await
-                .map_err(|_| ApiError::Internal)?;
+                .map_err(|_| ApiError::internal())?;
 
             let sms_method = methods.iter().find(|m| {
                 matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Sms) && m.enabled
@@ -1050,7 +1050,7 @@ async fn send_sms_code(
                         .mfa()
                         .get_sms_phone_number(&current_user.tenant_id, &current_user.user_id)
                         .await
-                        .map_err(|_| ApiError::Internal)?
+                        .map_err(|_| ApiError::internal())?
                         .ok_or_else(|| ApiError::BadRequest("SMS MFA not configured".to_string()))?
                 }
                 None => return Err(ApiError::BadRequest("SMS MFA not enabled".to_string())),
@@ -1075,7 +1075,7 @@ async fn send_sms_code(
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
                 ),
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -1105,7 +1105,7 @@ async fn verify_sms_code(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get SMS phone number: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or_else(|| ApiError::BadRequest("SMS MFA not configured".to_string()))?;
 
@@ -1129,7 +1129,7 @@ async fn verify_sms_code(
         }
         Err(e) => {
             tracing::error!("Failed to verify SMS code: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -1173,7 +1173,7 @@ async fn disable_sms_mfa(
         .await
         .map_err(|e| {
             tracing::error!("Failed to disable SMS MFA: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -1233,7 +1233,7 @@ async fn setup_whatsapp(
                 vault_core::sms::SmsError::InvalidPhoneNumber(msg) => {
                     ApiError::BadRequest(format!("Invalid phone number: {}", msg))
                 }
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -1296,7 +1296,7 @@ async fn verify_whatsapp_setup(
                 vault_core::sms::SmsError::CodeNotFound => {
                     ApiError::BadRequest("Code expired or not found".to_string())
                 }
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -1319,7 +1319,7 @@ async fn verify_whatsapp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update phone number: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Create SMS MFA method in database (WhatsApp uses same underlying phone verification)
@@ -1334,7 +1334,7 @@ async fn verify_whatsapp_setup(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create WhatsApp MFA method: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -1370,7 +1370,7 @@ async fn send_whatsapp_code(
                 .mfa()
                 .get_user_methods(&current_user.tenant_id, &current_user.user_id)
                 .await
-                .map_err(|_| ApiError::Internal)?;
+                .map_err(|_| ApiError::internal())?;
 
             let sms_method = methods.iter().find(|m| {
                 matches!(m.method_type, vault_core::db::mfa::MfaMethodType::Sms) && m.enabled
@@ -1382,7 +1382,7 @@ async fn send_whatsapp_code(
                     .mfa()
                     .get_sms_phone_number(&current_user.tenant_id, &current_user.user_id)
                     .await
-                    .map_err(|_| ApiError::Internal)?
+                    .map_err(|_| ApiError::internal())?
                     .ok_or_else(|| ApiError::BadRequest("WhatsApp MFA not configured".to_string()))?,
                 None => return Err(ApiError::BadRequest("WhatsApp MFA not enabled".to_string())),
             }
@@ -1413,7 +1413,7 @@ async fn send_whatsapp_code(
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
                 ),
-                _ => ApiError::Internal,
+                _ => ApiError::internal(),
             }
         })?;
 
@@ -1449,7 +1449,7 @@ async fn verify_whatsapp_code(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get WhatsApp phone number: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or_else(|| ApiError::BadRequest("WhatsApp MFA not configured".to_string()))?;
 
@@ -1473,7 +1473,7 @@ async fn verify_whatsapp_code(
         }
         Err(e) => {
             tracing::error!("Failed to verify WhatsApp code: {}", e);
-            return Err(ApiError::Internal);
+            return Err(ApiError::internal());
         }
     };
 
@@ -1518,7 +1518,7 @@ async fn disable_whatsapp_mfa(
         .await
         .map_err(|e| {
             tracing::error!("Failed to disable WhatsApp MFA: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sync_user_mfa_methods(&state, &current_user.tenant_id, &current_user.user_id).await?;
@@ -1601,7 +1601,7 @@ async fn send_email_otp(
         .await
         .map_err(|e| {
             tracing::error!("Failed to store email OTP: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let sender = get_email_sender(state, tenant_id).await?;
@@ -1633,7 +1633,7 @@ async fn send_email_otp(
         .await
         .map_err(|e| {
             tracing::error!("Failed to send email OTP: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(EmailSetupResponse {
@@ -1655,7 +1655,7 @@ async fn verify_email_otp(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load MFA config: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let Some(email_config) = mfa_config.get("email") else {
@@ -1730,7 +1730,7 @@ async fn update_backup_codes_config(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load MFA config: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let backup_json = serde_json::json!({
@@ -1754,7 +1754,7 @@ async fn update_backup_codes_config(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update MFA config: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(())
@@ -1771,12 +1771,12 @@ async fn encrypt_secret(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant data key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     crate::security::encryption::encrypt_to_base64(&key, secret.as_bytes()).map_err(|e| {
         tracing::error!("Failed to encrypt secret: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })
 }
 
@@ -1791,12 +1791,12 @@ async fn decrypt_secret(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant data key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let bytes = crate::security::encryption::decrypt_from_base64(&key, encrypted).map_err(|e| {
         tracing::error!("Failed to decrypt secret: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
-    String::from_utf8(bytes).map_err(|_| ApiError::Internal)
+    String::from_utf8(bytes).map_err(|_| ApiError::internal())
 }

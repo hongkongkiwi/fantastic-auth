@@ -98,7 +98,7 @@ async fn list_service_accounts(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -109,7 +109,7 @@ async fn list_service_accounts(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list service accounts: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(ServiceAccountListResponse {
@@ -129,7 +129,7 @@ async fn get_service_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let service_account = state
         .m2m_service
@@ -137,7 +137,7 @@ async fn get_service_account(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get service account: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or(ApiError::NotFound)?;
 
@@ -158,7 +158,7 @@ async fn create_service_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create the service account
     let credentials = state
@@ -167,7 +167,7 @@ async fn create_service_account(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create service account: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the creation
@@ -201,14 +201,14 @@ async fn update_service_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -222,7 +222,7 @@ async fn update_service_account(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update service account: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the update
@@ -252,14 +252,14 @@ async fn delete_service_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let service_account = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Delete the service account (this also revokes all API keys)
@@ -269,7 +269,7 @@ async fn delete_service_account(
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete service account: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the deletion
@@ -302,14 +302,14 @@ async fn rotate_secret(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -323,7 +323,7 @@ async fn rotate_secret(
         .await
         .map_err(|e| {
             tracing::error!("Failed to rotate client secret: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the rotation
@@ -356,14 +356,14 @@ async fn list_api_keys(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -377,7 +377,7 @@ async fn list_api_keys(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list API keys: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(keys))
@@ -393,14 +393,14 @@ async fn create_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -415,7 +415,7 @@ async fn create_api_key(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create API key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the creation
@@ -448,14 +448,14 @@ async fn revoke_api_key(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &service_account_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -470,7 +470,7 @@ async fn revoke_api_key(
         .await
         .map_err(|e| {
             tracing::error!("Failed to revoke API key: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the revocation
@@ -502,14 +502,14 @@ async fn revoke_all_keys(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if service account exists
     let exists = state
         .m2m_service
         .get_service_account(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !exists {
@@ -524,7 +524,7 @@ async fn revoke_all_keys(
         .await
         .map_err(|e| {
             tracing::error!("Failed to revoke all API keys: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the revocation

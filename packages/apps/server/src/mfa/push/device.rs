@@ -228,6 +228,7 @@ pub fn validate_device_token(token: &str, device_type: DeviceType) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_device_type_from_str() {

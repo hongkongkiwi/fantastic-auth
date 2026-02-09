@@ -44,10 +44,10 @@ async fn list_keys(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<KeyResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, KeyResponse>(
         r#"SELECT id as id, key_type::text as key_type, is_active, version, created_at::text as created_at,
@@ -59,7 +59,7 @@ async fn list_keys(
     .bind(&current_user.tenant_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -69,10 +69,10 @@ async fn rotate_key(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<RotateKeyRequest>,
 ) -> Result<Json<KeyResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let key_type = match req.key_type.as_str() {
         "jwt_signing" => KeyType::JwtSigning,
@@ -89,7 +89,7 @@ async fn rotate_key(
     .bind(key_type)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let next_version = current_version.unwrap_or(0) + 1;
 
@@ -101,12 +101,12 @@ async fn rotate_key(
     .bind(key_type)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let mut key_manager = KeyManager::new((*state.data_encryption_key).clone());
     let key_pair = key_manager
         .generate_key_pair(&current_user.tenant_id, key_type, next_version as u32)
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, KeyResponse>(
         r#"INSERT INTO keys (id, tenant_id, key_type, created_at, expires_at, is_active, version, encrypted_secret, public_key)
@@ -125,7 +125,7 @@ async fn rotate_key(
     .bind(&key_pair.public_key)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -135,10 +135,10 @@ async fn deactivate_key(
     Extension(current_user): Extension<CurrentUser>,
     Path(key_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query(
         "UPDATE keys SET is_active = false, expires_at = NOW() WHERE tenant_id = $1::uuid AND id = $2",
@@ -147,7 +147,7 @@ async fn deactivate_key(
     .bind(&key_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deactivated": true})))
 }

@@ -429,6 +429,7 @@ impl TokenBucket {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn test_migration_source_from_str() {

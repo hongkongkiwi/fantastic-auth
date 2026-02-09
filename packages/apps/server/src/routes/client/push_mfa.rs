@@ -99,7 +99,7 @@ async fn list_devices(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list push devices: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let device_infos: Vec<DeviceInfo> = devices.into_iter().map(Into::into).collect();
@@ -146,7 +146,7 @@ async fn register_device(
             }
             _ => {
                 tracing::error!("Failed to register device: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -178,7 +178,7 @@ async fn remove_device(
             crate::mfa::push::PushMfaError::DeviceNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to remove device: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -224,7 +224,7 @@ async fn rename_device(
             crate::mfa::push::PushMfaError::DeviceNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to rename device: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -247,7 +247,7 @@ async fn initiate_challenge(
     let devices = service
         .get_user_devices(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if devices.is_empty() {
         return Err(ApiError::BadRequest(
@@ -271,7 +271,7 @@ async fn initiate_challenge(
             }
             _ => {
                 tracing::error!("Failed to create push request: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -300,7 +300,7 @@ async fn get_request_status(
             crate::mfa::push::PushMfaError::RequestNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to get request status: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -337,7 +337,7 @@ async fn poll_request_status(
             crate::mfa::push::PushMfaError::RequestNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to poll request: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -371,7 +371,7 @@ async fn respond_to_push(
             }
             _ => {
                 tracing::error!("Failed to respond to push: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -473,7 +473,7 @@ impl PushMfaAuthExt for AppState {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to initiate push MFA: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?;
 
         Ok(request.id)

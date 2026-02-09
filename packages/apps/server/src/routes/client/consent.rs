@@ -109,7 +109,7 @@ async fn get_consent_requirements(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get consent requirements: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(ConsentRequirementsResponse {
@@ -153,7 +153,7 @@ async fn submit_consent(
             ConsentError::VersionNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to submit consent: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -193,7 +193,7 @@ async fn get_my_consents(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get user consents: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(response))
@@ -222,7 +222,7 @@ async fn withdraw_consent(
             }
             _ => {
                 tracing::error!("Failed to withdraw consent: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -261,7 +261,7 @@ async fn request_data_export(
             }
             _ => {
                 tracing::error!("Failed to request data export: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -293,7 +293,7 @@ async fn get_export_status(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get export status: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     match status {
@@ -316,7 +316,7 @@ async fn download_export(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get export status for download: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or(ApiError::NotFound)?;
 
@@ -337,7 +337,7 @@ async fn download_export(
             "attachment; filename=\"consent-export-{}.json\"",
             export_id
         ))
-        .map_err(|_| ApiError::Internal)?,
+        .map_err(|_| ApiError::internal())?,
     );
 
     Ok((headers, bytes))
@@ -361,7 +361,7 @@ async fn request_account_deletion(
             }
             _ => {
                 tracing::error!("Failed to request account deletion: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -414,7 +414,7 @@ async fn cancel_deletion(
             ConsentError::DeletionRequestNotFound(_) => ApiError::NotFound,
             _ => {
                 tracing::error!("Failed to cancel deletion: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -448,7 +448,7 @@ async fn get_deletion_status(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get deletion status: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     match status {

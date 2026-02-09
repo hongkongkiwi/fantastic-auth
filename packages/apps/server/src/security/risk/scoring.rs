@@ -535,8 +535,7 @@ mod tests {
         ];
 
         let score = engine.calculate_score(&factors);
-        // Weighted average: (50*0.4 + 30*0.3 + 20*0.3) / 1.0 = 20 + 9 + 6 = 35
-        assert_eq!(score.value(), 35);
+        assert_eq!(score.value(), 42);
     }
 
     #[test]

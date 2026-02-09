@@ -170,6 +170,7 @@ fn test_config() -> Config {
         database_url: std::env::var("TEST_DATABASE_URL")
             .unwrap_or_else(|_| TEST_DATABASE_URL.to_string()),
         redis_url: None, // Use in-memory token store for tests
+        redis_require_tls: false,
         jwt: Default::default(),
         cors_origins: vec!["http://localhost:3000".to_string()],
         rate_limit: Default::default(),

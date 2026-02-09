@@ -4,16 +4,12 @@
 //! with filtering and field selection.
 
 use crate::bulk::{
-    BulkExportJob, BulkResult, ExportOptions, FileFormat, JobStatus, StorageConfig,
-    UserExportRecord,
+    BulkExportJob, ExportOptions, FileFormat, JobStatus, StorageConfig, UserExportRecord,
 };
 use crate::db::Database;
-use futures::{Future, Stream, StreamExt};
-use serde::Serialize;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::collections::HashSet;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 /// Export processor for handling bulk exports
 pub struct ExportProcessor {
@@ -53,7 +49,10 @@ impl ExportProcessor {
         // Get user stream
         let tenant_id = job.tenant_id.clone();
         let options = job.options.clone();
-        let mut user_stream = self.stream_users(&tenant_id, &options);
+        if options.include_password_hashes {
+            anyhow::bail!("include_password_hashes is not supported for user exports");
+        }
+        let mut user_stream = UserStream::new(self.db.clone(), tenant_id, options.clone());
 
         match job.format {
             FileFormat::Csv => {
@@ -83,37 +82,28 @@ impl ExportProcessor {
     }
 
     /// Export users to CSV format
-    async fn export_csv<S>(
+    async fn export_csv(
         &self,
         file: &mut tokio::fs::File,
-        stream: &mut S,
+        stream: &mut UserStream,
         job: &mut BulkExportJob,
-    ) -> anyhow::Result<()>
-    where
-        S: Stream<Item = anyhow::Result<UserExportRecord>> + Unpin,
-    {
+    ) -> anyhow::Result<()> {
         // Write CSV header
         let header = "id,email,name,status,email_verified,role,organization_id,phone_number,mfa_enabled,last_login_at,created_at,updated_at\n";
         file.write_all(header.as_bytes()).await?;
 
         let mut count = 0;
 
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(record) => {
-                    let csv_row = format_csv_row(&record);
-                    file.write_all(csv_row.as_bytes()).await?;
-                    count += 1;
-                    job.processed_records = count;
+        while let Some(mut record) = stream.next_record().await? {
+            apply_field_filters(&mut record, &job.options);
+            let csv_row = format_csv_row(&record);
+            file.write_all(csv_row.as_bytes()).await?;
+            count += 1;
+            job.processed_records = count;
 
-                    // Check max records limit
-                    if job.options.max_records > 0 && count >= job.options.max_records {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    warn!(error = %e, "Error reading user record");
-                }
+            // Check max records limit
+            if job.options.max_records > 0 && count >= job.options.max_records {
+                break;
             }
         }
 
@@ -122,46 +112,37 @@ impl ExportProcessor {
     }
 
     /// Export users to JSON format
-    async fn export_json<S>(
+    async fn export_json(
         &self,
         file: &mut tokio::fs::File,
-        stream: &mut S,
+        stream: &mut UserStream,
         job: &mut BulkExportJob,
-    ) -> anyhow::Result<()>
-    where
-        S: Stream<Item = anyhow::Result<UserExportRecord>> + Unpin,
-    {
+    ) -> anyhow::Result<()> {
         // Start JSON array
         file.write_all(b"[\n").await?;
 
         let mut count = 0;
         let mut first = true;
 
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(record) => {
-                    if !first {
-                        file.write_all(b",\n").await?;
-                    }
-                    first = false;
+        while let Some(mut record) = stream.next_record().await? {
+            if !first {
+                file.write_all(b",\n").await?;
+            }
+            first = false;
 
-                    let json = serde_json::to_string_pretty(&record)?;
-                    // Indent each line
-                    let indented: String =
-                        json.lines().map(|line| format!("  {}\n", line)).collect();
-                    file.write_all(indented.trim_end().as_bytes()).await?;
+            apply_field_filters(&mut record, &job.options);
+            let json = serde_json::to_string_pretty(&record)?;
+            // Indent each line
+            let indented: String =
+                json.lines().map(|line| format!("  {}\n", line)).collect();
+            file.write_all(indented.trim_end().as_bytes()).await?;
 
-                    count += 1;
-                    job.processed_records = count;
+            count += 1;
+            job.processed_records = count;
 
-                    // Check max records limit
-                    if job.options.max_records > 0 && count >= job.options.max_records {
-                        break;
-                    }
-                }
-                Err(e) => {
-                    warn!(error = %e, "Error reading user record");
-                }
+            // Check max records limit
+            if job.options.max_records > 0 && count >= job.options.max_records {
+                break;
             }
         }
 
@@ -170,19 +151,6 @@ impl ExportProcessor {
 
         job.total_records = count;
         Ok(())
-    }
-
-    /// Stream users from database with filtering
-    fn stream_users<'a>(
-        &'a self,
-        tenant_id: &'a str,
-        options: &'a ExportOptions,
-    ) -> Pin<Box<dyn Stream<Item = anyhow::Result<UserExportRecord>> + 'a>> {
-        Box::pin(UserStream::new(
-            self.db.clone(),
-            tenant_id.to_string(),
-            options.clone(),
-        ))
     }
 }
 
@@ -216,6 +184,72 @@ fn escape_csv_field(field: &str) -> String {
     } else {
         field.to_string()
     }
+}
+
+fn apply_field_filters(record: &mut UserExportRecord, options: &ExportOptions) {
+    let include = if options.include_fields.is_empty() {
+        None
+    } else {
+        Some(
+            options
+                .include_fields
+                .iter()
+                .map(|f| f.to_lowercase())
+                .collect::<HashSet<_>>(),
+        )
+    };
+    let exclude = options
+        .exclude_fields
+        .iter()
+        .map(|f| f.to_lowercase())
+        .collect::<HashSet<_>>();
+
+    let selected = |name: &str| -> bool {
+        let lowered = name.to_lowercase();
+        let included = include.as_ref().is_none_or(|set| set.contains(&lowered));
+        included && !exclude.contains(&lowered)
+    };
+
+    if !selected("id") {
+        record.id.clear();
+    }
+    if !selected("email") {
+        record.email.clear();
+    }
+    if !selected("name") {
+        record.name = None;
+    }
+    if !selected("status") {
+        record.status.clear();
+    }
+    if !selected("email_verified") {
+        record.email_verified = false;
+    }
+    if !selected("role") {
+        record.role = None;
+    }
+    if !selected("organization_id") {
+        record.organization_id = None;
+    }
+    if !selected("phone_number") {
+        record.phone_number = None;
+    }
+    if !selected("mfa_enabled") {
+        record.mfa_enabled = false;
+    }
+    if !selected("last_login_at") {
+        record.last_login_at = None;
+    }
+    if !selected("created_at") {
+        record.created_at = epoch_utc();
+    }
+    if !selected("updated_at") {
+        record.updated_at = epoch_utc();
+    }
+}
+
+fn epoch_utc() -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::from_timestamp(0, 0).unwrap_or_else(chrono::Utc::now)
 }
 
 /// Stream of users from database
@@ -354,24 +388,22 @@ impl UserStream {
 
         Ok(())
     }
-}
-
-impl Stream for UserStream {
-    type Item = anyhow::Result<UserExportRecord>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    
+    async fn next_record(&mut self) -> anyhow::Result<Option<UserExportRecord>> {
         if self.exhausted {
-            return Poll::Ready(None);
+            return Ok(None);
         }
 
-        // Return from buffer if available
-        if !self.buffer.is_empty() {
-            return Poll::Ready(Some(Ok(self.buffer.remove(0))));
+        if self.buffer.is_empty() {
+            self.fetch_batch().await?;
         }
 
-        // If no buffered data is available, end the stream for now.
-        // TODO: wire async batch fetching via a stateful polled future.
-        Poll::Ready(None)
+        if self.buffer.is_empty() {
+            self.exhausted = true;
+            return Ok(None);
+        }
+
+        Ok(Some(self.buffer.remove(0)))
     }
 }
 
@@ -471,7 +503,8 @@ pub async fn export_users_to_csv(
     let mut csv = String::from("id,email,name,status,email_verified,role,organization_id,phone_number,mfa_enabled,last_login_at,created_at,updated_at\n");
 
     for row in rows {
-        let record: UserExportRecord = row.into();
+        let mut record: UserExportRecord = row.into();
+        apply_field_filters(&mut record, options);
         csv.push_str(&format_csv_row(&record));
     }
 
@@ -532,7 +565,14 @@ pub async fn export_users_to_json(
 
     let rows: Vec<UserExportRow> = sqlx_query.fetch_all(db.pool()).await?;
 
-    let records: Vec<UserExportRecord> = rows.into_iter().map(|r| r.into()).collect();
+    let records: Vec<UserExportRecord> = rows
+        .into_iter()
+        .map(|r| {
+            let mut record: UserExportRecord = r.into();
+            apply_field_filters(&mut record, options);
+            record
+        })
+        .collect();
 
     Ok(serde_json::to_string_pretty(&records)?)
 }

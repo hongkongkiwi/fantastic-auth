@@ -429,6 +429,9 @@ pub enum ConsentError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("User not found: {0}")]
+    UserNotFound(String),
 }
 
 /// Result type for consent operations

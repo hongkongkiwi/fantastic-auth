@@ -639,7 +639,7 @@ async fn list_migrations(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list migrations: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let migrations: Vec<MigrationDetailResponse> = jobs
@@ -686,7 +686,7 @@ async fn get_migration(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get migration: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or(ApiError::NotFound)?;
 
@@ -731,12 +731,12 @@ async fn get_migration_progress(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get progress: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant access by checking job ownership
-    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::Internal)? {
+    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::internal())? {
         if job.tenant_id != current_user.tenant_id {
             return Err(ApiError::Forbidden);
         }
@@ -769,7 +769,7 @@ async fn get_migration_errors(
     let service = MigrationService::new(state.db.clone(), state.redis.clone());
 
     // Verify tenant access
-    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::Internal)? {
+    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::internal())? {
         if job.tenant_id != current_user.tenant_id {
             return Err(ApiError::Forbidden);
         }
@@ -780,7 +780,7 @@ async fn get_migration_errors(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get errors: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let error_details: Vec<ErrorDetail> = errors
@@ -808,7 +808,7 @@ async fn cancel_migration(
     let service = MigrationService::new(state.db.clone(), state.redis.clone());
 
     // Verify tenant access
-    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::Internal)? {
+    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::internal())? {
         if job.tenant_id != current_user.tenant_id {
             return Err(ApiError::Forbidden);
         }
@@ -816,7 +816,7 @@ async fn cancel_migration(
 
     let cancelled = service.cancel_job(&id).await.map_err(|e| {
         tracing::error!("Failed to cancel migration: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     if !cancelled {
@@ -858,7 +858,7 @@ async fn resume_migration(
     let service = MigrationService::new(state.db.clone(), state.redis.clone());
 
     // Verify tenant access
-    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::Internal)? {
+    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::internal())? {
         if job.tenant_id != current_user.tenant_id {
             return Err(ApiError::Forbidden);
         }
@@ -906,7 +906,7 @@ async fn pause_migration(
     let service = MigrationService::new(state.db.clone(), state.redis.clone());
 
     // Verify tenant access
-    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::Internal)? {
+    if let Some(job) = service.get_job(&id).await.map_err(|_| ApiError::internal())? {
         if job.tenant_id != current_user.tenant_id {
             return Err(ApiError::Forbidden);
         }
@@ -914,7 +914,7 @@ async fn pause_migration(
 
     let paused = service.pause_job(&id).await.map_err(|e| {
         tracing::error!("Failed to pause migration: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     if !paused {

@@ -68,7 +68,7 @@ async fn list_audit_exports(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(serde_json::json!({"data": []})))
 }
 
@@ -80,7 +80,7 @@ async fn create_audit_export(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(AuditExportResponse {
         id: uuid::Uuid::new_v4().to_string(),
         status: "queued".to_string(),
@@ -98,7 +98,7 @@ async fn list_audit_webhooks(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(serde_json::json!({"data": []})))
 }
 
@@ -110,7 +110,7 @@ async fn create_audit_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     let secret_last_four = req
         .secret
         .chars()
@@ -137,6 +137,6 @@ async fn delete_audit_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(())
 }

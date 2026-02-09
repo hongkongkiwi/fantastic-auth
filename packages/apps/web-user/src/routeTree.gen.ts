@@ -9,15 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as SessionsRouteImport } from './routes/sessions'
 import { Route as SecurityRouteImport } from './routes/security'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as MfaRouteImport } from './routes/mfa'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as MfaSetupRouteImport } from './routes/mfa.setup'
 
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SessionsRoute = SessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
@@ -26,6 +34,11 @@ const SessionsRoute = SessionsRouteImport.update({
 const SecurityRoute = SecurityRouteImport.update({
   id: '/security',
   path: '/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -58,26 +71,37 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MfaSetupRoute = MfaSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => MfaRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
-  '/mfa': typeof MfaRoute
+  '/mfa': typeof MfaRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/sessions': typeof SessionsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/mfa/setup': typeof MfaSetupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof ActivityRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
-  '/mfa': typeof MfaRoute
+  '/mfa': typeof MfaRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/sessions': typeof SessionsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/mfa/setup': typeof MfaSetupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,10 +109,13 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
-  '/mfa': typeof MfaRoute
+  '/mfa': typeof MfaRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/security': typeof SecurityRoute
   '/sessions': typeof SessionsRoute
+  '/verify-email': typeof VerifyEmailRoute
+  '/mfa/setup': typeof MfaSetupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -99,8 +126,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/mfa'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/sessions'
+    | '/verify-email'
+    | '/mfa/setup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -109,8 +139,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/mfa'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/sessions'
+    | '/verify-email'
+    | '/mfa/setup'
   id:
     | '__root__'
     | '/'
@@ -119,8 +152,11 @@ export interface FileRouteTypes {
     | '/login'
     | '/mfa'
     | '/privacy'
+    | '/reset-password'
     | '/security'
     | '/sessions'
+    | '/verify-email'
+    | '/mfa/setup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -128,14 +164,23 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DevicesRoute: typeof DevicesRoute
   LoginRoute: typeof LoginRoute
-  MfaRoute: typeof MfaRoute
+  MfaRoute: typeof MfaRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SecurityRoute: typeof SecurityRoute
   SessionsRoute: typeof SessionsRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sessions': {
       id: '/sessions'
       path: '/sessions'
@@ -148,6 +193,13 @@ declare module '@tanstack/react-router' {
       path: '/security'
       fullPath: '/security'
       preLoaderRoute: typeof SecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -192,18 +244,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mfa/setup': {
+      id: '/mfa/setup'
+      path: '/setup'
+      fullPath: '/mfa/setup'
+      preLoaderRoute: typeof MfaSetupRouteImport
+      parentRoute: typeof MfaRoute
+    }
   }
 }
+
+interface MfaRouteChildren {
+  MfaSetupRoute: typeof MfaSetupRoute
+}
+
+const MfaRouteChildren: MfaRouteChildren = {
+  MfaSetupRoute: MfaSetupRoute,
+}
+
+const MfaRouteWithChildren = MfaRoute._addFileChildren(MfaRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ActivityRoute: ActivityRoute,
   DevicesRoute: DevicesRoute,
   LoginRoute: LoginRoute,
-  MfaRoute: MfaRoute,
+  MfaRoute: MfaRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SecurityRoute: SecurityRoute,
   SessionsRoute: SessionsRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

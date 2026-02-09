@@ -31,18 +31,18 @@ impl SettingsService {
             .repository
             .settings_exist(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?
+            .map_err(|_| ApiError::internal())?
         {
             self.repository
                 .initialize_for_tenant(tenant_id)
                 .await
-                .map_err(|_| ApiError::Internal)?;
+                .map_err(|_| ApiError::internal())?;
         }
 
         self.repository
             .get_settings(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)
+            .map_err(|_| ApiError::internal())
     }
 
     /// Update authentication settings
@@ -60,7 +60,7 @@ impl SettingsService {
         self.repository
             .update_auth_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -78,7 +78,7 @@ impl SettingsService {
         self.repository
             .update_security_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -96,7 +96,7 @@ impl SettingsService {
         self.repository
             .update_org_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -114,7 +114,7 @@ impl SettingsService {
         self.repository
             .update_branding_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -136,7 +136,7 @@ impl SettingsService {
         self.repository
             .update_email_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -158,7 +158,7 @@ impl SettingsService {
         self.repository
             .update_sms_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -176,7 +176,7 @@ impl SettingsService {
         self.repository
             .update_oauth_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -186,7 +186,7 @@ impl SettingsService {
         self.repository
             .list_privacy_retention()
             .await
-            .map_err(|_| ApiError::Internal)
+            .map_err(|_| ApiError::internal())
     }
 
     /// Update localization settings
@@ -202,7 +202,7 @@ impl SettingsService {
         self.repository
             .update_localization_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -222,7 +222,7 @@ impl SettingsService {
         self.repository
             .update_webhook_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -240,7 +240,7 @@ impl SettingsService {
         self.repository
             .update_privacy_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -258,7 +258,7 @@ impl SettingsService {
         self.repository
             .update_advanced_settings(tenant_id, &settings, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -290,57 +290,57 @@ impl SettingsService {
         self.repository
             .update_auth_settings(tenant_id, &settings.auth, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_security_settings(tenant_id, &settings.security, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_org_settings(tenant_id, &settings.org, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_branding_settings(tenant_id, &settings.branding, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_email_settings(tenant_id, &settings.email, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_sms_settings(tenant_id, &settings.sms, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_oauth_settings(tenant_id, &settings.oauth, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_localization_settings(tenant_id, &settings.localization, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_webhook_settings(tenant_id, &settings.webhook, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_privacy_settings(tenant_id, &settings.privacy, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         self.repository
             .update_advanced_settings(tenant_id, &settings.advanced, changed_by, reason)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(settings)
     }
@@ -389,7 +389,7 @@ impl SettingsService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to load tenant data key: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?;
 
         let decrypted = crate::security::encryption::decrypt_from_base64(&key, value);
@@ -399,7 +399,7 @@ impl SettingsService {
 
         crate::security::encryption::encrypt_to_base64(&key, value.as_bytes()).map_err(|e| {
             tracing::error!("Failed to encrypt secret: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })
     }
 
@@ -416,7 +416,7 @@ impl SettingsService {
         self.repository
             .get_settings_history(tenant_id, category, per_page, offset)
             .await
-            .map_err(|_| ApiError::Internal)
+            .map_err(|_| ApiError::internal())
     }
 
     /// Get settings with metadata
@@ -429,7 +429,7 @@ impl SettingsService {
             .repository
             .get_settings_row(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         Ok(SettingsResponse {
             tenant_id: tenant_id.to_string(),
@@ -643,7 +643,7 @@ impl SettingsService {
             .repository
             .get_settings(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         if let Some(ref mut smtp) = settings.custom_smtp {
             if let Some(existing_smtp) = existing.email.custom_smtp {
@@ -683,7 +683,7 @@ impl SettingsService {
             .repository
             .get_settings(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         if twilio_needs_existing {
             settings.twilio_auth_token_encrypted = existing.sms.twilio_auth_token_encrypted;
@@ -716,7 +716,7 @@ impl SettingsService {
             .repository
             .get_settings(tenant_id)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         for endpoint in &mut settings.webhook_endpoints {
             if endpoint.secret.trim().is_empty() || Self::is_redacted_secret(endpoint.secret.trim())

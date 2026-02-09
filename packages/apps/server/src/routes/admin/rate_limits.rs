@@ -221,7 +221,7 @@ async fn get_rate_limits(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get config from tenant settings or use default
     let config = get_tenant_rate_limit_config(&state, &current_user.tenant_id).await?;
@@ -296,7 +296,7 @@ async fn update_rate_limit_config(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get current config
     let mut config = get_tenant_rate_limit_config(&state, &current_user.tenant_id).await?;
@@ -345,7 +345,7 @@ async fn update_rate_limit_config(
     .bind(&current_user.user_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the change
     let audit = AuditLogger::new(state.db.clone());
@@ -378,7 +378,7 @@ async fn get_violations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start = query
         .start
@@ -419,7 +419,7 @@ async fn get_violations(
         .fetch_all(state.db.pool())
         .await
     }
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let violations: Vec<RateLimitViolation> = rows
         .into_iter()
@@ -448,7 +448,7 @@ async fn get_blocked_ips(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, (String, DateTime<Utc>, Option<DateTime<Utc>>, String, String, i64)>(
         r#"SELECT ip_address, blocked_at, blocked_until, blocked_by, reason, violation_count
@@ -459,7 +459,7 @@ async fn get_blocked_ips(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let entries: Vec<BlockedIpEntry> = rows
         .into_iter()
@@ -485,7 +485,7 @@ async fn block_ip(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let blocked_at = Utc::now();
     let blocked_until = req
@@ -507,7 +507,7 @@ async fn block_ip(
     .bind(&req.reason)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the action
     let audit = AuditLogger::new(state.db.clone());
@@ -544,7 +544,7 @@ async fn unblock_ip(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let result = sqlx::query(
         "DELETE FROM blocked_ips WHERE tenant_id = $1 AND ip_address = $2",
@@ -553,7 +553,7 @@ async fn unblock_ip(
     .bind(&ip)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);
@@ -588,7 +588,7 @@ async fn get_metrics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let end = Utc::now();
     let start = end - Duration::hours(24);
@@ -709,7 +709,7 @@ async fn get_tenant_rate_limit_config(
     .bind(tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     match row {
         Some((

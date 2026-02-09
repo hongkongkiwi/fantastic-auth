@@ -324,7 +324,7 @@ impl SessionRepository {
     pub async fn revoke(
         &self,
         tenant_id: &str,
-        session_id: &str,
+        _session_id: &str,
         reason: Option<&str>,
     ) -> Result<()> {
         let now = chrono::Utc::now();

@@ -181,7 +181,7 @@ async fn authorize(
         .oidc()
         .get_client(&tenant_id, &query.client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid client".to_string()))?;
 
     let redirect_uris: Vec<String> = serde_json::from_value(client.redirect_uris.clone())
@@ -223,7 +223,7 @@ async fn authorize(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut redirect_url = format!(
         "{}?code={}",
@@ -251,7 +251,7 @@ async fn device_authorize(
         .oidc()
         .get_client(&tenant_id, &req.client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid client".to_string()))?;
 
     let device_code = generate_secure_random(32);
@@ -260,10 +260,10 @@ async fn device_authorize(
     let verification_uri_complete = format!("{}?user_code={}", verification_uri, user_code);
     let expires_at = Utc::now() + Duration::minutes(15);
 
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query(
         r#"INSERT INTO oauth_device_codes (tenant_id, client_id, device_code, user_code, verification_uri, expires_at, interval_seconds)
@@ -278,7 +278,7 @@ async fn device_authorize(
     .bind(5i32)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(DeviceAuthorizeResponse {
         device_code,
@@ -304,7 +304,7 @@ async fn token(
         .oidc()
         .get_client(&tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid client".to_string()))?;
 
     if client.client_type == "confidential" {
@@ -350,7 +350,7 @@ async fn token_authorization_code(
         .oidc()
         .consume_authorization_code(tenant_id, &client.client_id, &code)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid code".to_string()))?;
 
     if let Some(redirect_uri) = req.redirect_uri {
@@ -374,7 +374,7 @@ async fn token_authorization_code(
         .users()
         .find_by_id(tenant_id, &code_record.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("User not found".to_string()))?;
 
     let scope = code_record.scope.clone();
@@ -411,7 +411,7 @@ async fn token_authorization_code(
     }
 
     let access_token = HybridJwt::encode(&access_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut id_token = None;
     if let Some(scope) = code_record.scope.as_ref() {
@@ -432,7 +432,7 @@ async fn token_authorization_code(
 
             id_token = Some(
                 HybridJwt::encode(&id_claims, state.auth_service.signing_key())
-                    .map_err(|_| ApiError::Internal)?,
+                    .map_err(|_| ApiError::internal())?,
             );
         }
     }
@@ -453,7 +453,7 @@ async fn token_authorization_code(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TokenResponse {
         access_token,
@@ -481,7 +481,7 @@ async fn token_refresh(
         .oidc()
         .consume_refresh_token(tenant_id, &refresh_token)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid refresh_token".to_string()))?;
 
     if token_record.client_id != client.client_id {
@@ -497,7 +497,7 @@ async fn token_refresh(
         .users()
         .find_by_id(tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("User not found".to_string()))?;
 
     let scope = token_record.scope.clone();
@@ -534,7 +534,7 @@ async fn token_refresh(
     }
 
     let access_token = HybridJwt::encode(&access_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let new_refresh = generate_secure_random(48);
     let expires_at = Utc::now() + Duration::minutes(15);
@@ -552,7 +552,7 @@ async fn token_refresh(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TokenResponse {
         access_token,
@@ -598,7 +598,7 @@ async fn token_client_credentials(
     }
 
     let access_token = HybridJwt::encode(&access_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let expires_at = Utc::now() + Duration::minutes(15);
     state
@@ -615,7 +615,7 @@ async fn token_client_credentials(
             expires_at,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TokenResponse {
         access_token,
@@ -637,10 +637,10 @@ async fn token_device_code(
         .device_code
         .ok_or(ApiError::BadRequest("Missing device_code".to_string()))?;
 
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     #[derive(sqlx::FromRow)]
     struct DeviceCodeRow {
@@ -660,7 +660,7 @@ async fn token_device_code(
     .bind(device_code)
     .fetch_optional(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?
+    .map_err(|_| ApiError::internal())?
     .ok_or(ApiError::BadRequest("Invalid device_code".to_string()))?;
 
     if row.expires_at < Utc::now() {
@@ -668,7 +668,7 @@ async fn token_device_code(
             .bind(row.id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         return Err(ApiError::BadRequest("expired_token".to_string()));
     }
 
@@ -689,7 +689,7 @@ async fn token_device_code(
         .users()
         .find_by_id(tenant_id, &user_id.to_string())
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("User not found".to_string()))?;
 
     let claims = Claims::new(
@@ -700,7 +700,7 @@ async fn token_device_code(
         client.client_id.clone(),
     );
     let access_token = HybridJwt::encode(&claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query(
         "UPDATE oauth_device_codes SET status = 'consumed', consumed_at = NOW() WHERE id = $1",
@@ -708,7 +708,7 @@ async fn token_device_code(
     .bind(row.id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TokenResponse {
         access_token,
@@ -751,7 +751,7 @@ async fn token_exchange(
     new_claims.scope = req.scope.or(claims.scope);
 
     let access_token = HybridJwt::encode(&new_claims, state.auth_service.signing_key())
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(TokenResponse {
         access_token,
@@ -793,7 +793,7 @@ async fn introspect(
         .oidc()
         .get_token_by_jti(&tenant_id, &claims.jti)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let active = token_record
         .as_ref()
@@ -829,7 +829,7 @@ async fn revoke(
         .oidc()
         .revoke_token_by_refresh(&tenant_id, &req.token)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if !revoked {
         if let Ok(claims) = HybridJwt::decode(&req.token, state.auth_service.verifying_key()) {
@@ -839,7 +839,7 @@ async fn revoke(
                 .oidc()
                 .revoke_token_by_jti(&tenant_id, &claims.jti)
                 .await
-                .map_err(|_| ApiError::Internal)?;
+                .map_err(|_| ApiError::internal())?;
         }
     }
 

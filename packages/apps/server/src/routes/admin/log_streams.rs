@@ -61,7 +61,7 @@ async fn list_streams(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let streams = state
         .auth_service
@@ -69,7 +69,7 @@ async fn list_streams(
         .log_streams()
         .list_streams(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         streams
@@ -97,7 +97,7 @@ async fn create_stream(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let stream = state
         .auth_service
@@ -112,7 +112,7 @@ async fn create_stream(
             req.status.as_deref().unwrap_or("active"),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(StreamResponse {
         id: stream.id,
@@ -135,7 +135,7 @@ async fn get_stream(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let stream = state
         .auth_service
@@ -143,7 +143,7 @@ async fn get_stream(
         .log_streams()
         .get_stream(&current_user.tenant_id, &stream_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(StreamResponse {
@@ -168,7 +168,7 @@ async fn update_stream(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let stream = state
         .auth_service
@@ -183,7 +183,7 @@ async fn update_stream(
             req.status.as_deref(),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(StreamResponse {
         id: stream.id,
@@ -206,7 +206,7 @@ async fn delete_stream(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -214,7 +214,7 @@ async fn delete_stream(
         .log_streams()
         .delete_stream(&current_user.tenant_id, &stream_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"message": "Log stream deleted"})))
 }

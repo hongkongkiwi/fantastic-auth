@@ -363,16 +363,12 @@ mod tests {
     }
 
     #[test]
-    fn test_ws_message_deserialization() {
-        let json = r#"{"type":"subscribe","request_id":"req-123"}"#;
-        let msg: WsMessage = serde_json::from_str(json).unwrap();
-        
-        match msg {
-            WsMessage::Subscribe { request_id } => {
-                assert_eq!(request_id, "req-123");
-            }
-            _ => panic!("Expected Subscribe message"),
-        }
+    fn test_push_status_update_deserialization() {
+        let json = r#"{"request_id":"req-123","status":"approved","timestamp":"2026-02-08T16:00:00Z"}"#;
+        let update: PushStatusUpdate = serde_json::from_str(json).unwrap();
+
+        assert_eq!(update.request_id, "req-123");
+        assert_eq!(update.status, "approved");
     }
 
     #[test]

@@ -87,10 +87,10 @@ async fn list_sessions(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListSessionsQuery>,
 ) -> Result<Json<Vec<SessionResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 200);
@@ -113,7 +113,7 @@ async fn list_sessions(
         .build_query_as::<SessionResponse>()
         .fetch_all(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -123,10 +123,10 @@ async fn list_user_sessions(
     Extension(current_user): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> Result<Json<Vec<SessionResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, SessionResponse>(
         r#"SELECT id::text, user_id::text as user_id, status::text as status, ip_address::text as ip_address, user_agent, device_fingerprint, created_at::text as created_at, last_activity_at::text as last_activity_at, expires_at::text as expires_at, revoked_at::text as revoked_at, revoked_reason
@@ -138,7 +138,7 @@ async fn list_user_sessions(
     .bind(&user_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -151,14 +151,14 @@ async fn revoke_session(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let revoked = state
         .db
         .sessions()
         .revoke_for_routes(&session_id, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"revoked": revoked})))
 }
@@ -171,14 +171,14 @@ async fn revoke_user_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let count = state
         .db
         .sessions()
         .revoke_all_for_user_for_routes(&user_id, &current_user.tenant_id, None)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"revokedCount": count})))
 }
@@ -188,10 +188,10 @@ async fn list_devices(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListSessionsQuery>,
 ) -> Result<Json<Vec<DeviceResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut qb = sqlx::QueryBuilder::new(
         "SELECT id::text, user_id::text as user_id, device_fingerprint, device_name, device_type, browser, os, ip_address::text as ip_address, first_seen_at::text as first_seen_at, last_seen_at::text as last_seen_at, is_trusted, is_blocked FROM user_known_devices WHERE tenant_id = ",
@@ -207,7 +207,7 @@ async fn list_devices(
         .build_query_as::<DeviceResponse>()
         .fetch_all(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -217,17 +217,17 @@ async fn block_device(
     Extension(current_user): Extension<CurrentUser>,
     Path(device_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("UPDATE user_known_devices SET is_blocked = true WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&device_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"blocked": true})))
 }
@@ -237,17 +237,17 @@ async fn unblock_device(
     Extension(current_user): Extension<CurrentUser>,
     Path(device_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("UPDATE user_known_devices SET is_blocked = false WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&device_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"blocked": false})))
 }
@@ -257,17 +257,17 @@ async fn trust_device(
     Extension(current_user): Extension<CurrentUser>,
     Path(device_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("UPDATE user_known_devices SET is_trusted = true, verified_at = NOW() WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&device_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"trusted": true})))
 }
@@ -277,17 +277,17 @@ async fn delete_device(
     Extension(current_user): Extension<CurrentUser>,
     Path(device_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("DELETE FROM user_known_devices WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&device_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }

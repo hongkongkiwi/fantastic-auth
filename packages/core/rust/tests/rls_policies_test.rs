@@ -4,12 +4,12 @@
 //! Enable with: RUN_RLS_TESTS=1 cargo test --test rls_policies_test -- --nocapture
 
 use chrono::Utc;
-use sqlx::PgPool;
-use vault_core::db::users::CreateUserRequest;
-use vault_core::db::{set_connection_context, with_request_context, DbContext, RequestContext};
-use vault_core::models::organization::{
+use fantasticauth_core::db::users::CreateUserRequest;
+use fantasticauth_core::db::{set_connection_context, with_request_context, DbContext, RequestContext};
+use fantasticauth_core::models::organization::{
     MembershipStatus, Organization, OrganizationMember, OrganizationRole,
 };
+use sqlx::PgPool;
 
 async fn setup_db() -> DbContext {
     let database_url = std::env::var("DATABASE_URL")
@@ -370,7 +370,7 @@ async fn test_token_tables_self_only() {
     };
 
     let session = with_request_context(admin_ctx.clone(), async {
-        let session_req = vault_core::db::sessions::CreateSessionRequest {
+        let session_req = fantasticauth_core::db::sessions::CreateSessionRequest {
             tenant_id: tenant_id.clone(),
             user_id: user1.id.clone(),
             access_token_jti: "jti".to_string(),
@@ -383,6 +383,8 @@ async fn test_token_tables_self_only() {
             location: None,
             mfa_verified: false,
             expires_at: Utc::now() + chrono::Duration::days(1),
+            bind_to_ip: false,
+            bind_to_device: false,
         };
         db.sessions().create(session_req).await.unwrap()
     })

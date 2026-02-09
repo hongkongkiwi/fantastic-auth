@@ -197,7 +197,7 @@ async fn list_users(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -213,7 +213,7 @@ async fn list_users(
             query.email.as_deref(),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user_summaries: Vec<UserSummary> = users.into_iter().map(UserSummary::from).collect();
 
@@ -234,14 +234,14 @@ async fn get_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user = state
         .db
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(UserSummary::from(user)))
@@ -260,7 +260,7 @@ async fn create_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if email already exists
     let existing = state
@@ -268,7 +268,7 @@ async fn create_user(
         .users()
         .find_by_email(&current_user.tenant_id, &req.email)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if existing.is_some() {
         return Err(ApiError::Conflict("Email already exists".to_string()));
@@ -294,7 +294,7 @@ async fn create_user(
         .users()
         .create(create_req)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log user creation
     let audit = AuditLogger::new(state.db.clone());
@@ -335,7 +335,7 @@ async fn update_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get existing user
     let mut user = state
@@ -343,7 +343,7 @@ async fn update_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Track changes for audit log
@@ -374,7 +374,7 @@ async fn update_user(
         .users()
         .update(&current_user.tenant_id, &user)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log user update if there were changes
     if !changes.is_empty() {
@@ -410,7 +410,7 @@ async fn delete_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -418,7 +418,7 @@ async fn delete_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -431,7 +431,7 @@ async fn delete_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Soft delete user
     state
@@ -439,7 +439,7 @@ async fn delete_user(
         .users()
         .delete(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log user deletion
     let audit = AuditLogger::new(state.db.clone());
@@ -468,7 +468,7 @@ async fn suspend_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -476,7 +476,7 @@ async fn suspend_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -489,7 +489,7 @@ async fn suspend_user(
         .users()
         .update_status(&current_user.tenant_id, &user_id, UserStatus::Suspended)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Revoke all sessions for the suspended user
     let _ = state
@@ -524,7 +524,7 @@ async fn activate_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -532,7 +532,7 @@ async fn activate_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -545,7 +545,7 @@ async fn activate_user(
         .users()
         .update_status(&current_user.tenant_id, &user_id, UserStatus::Active)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log user activation
     let audit = AuditLogger::new(state.db.clone());
@@ -563,7 +563,7 @@ async fn revoke_all_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -571,7 +571,7 @@ async fn revoke_all_sessions(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -584,7 +584,7 @@ async fn revoke_all_sessions(
         .sessions()
         .revoke_all_for_user(&current_user.tenant_id, &user_id, Some("admin_action"))
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log session revocation
     let audit = AuditLogger::new(state.db.clone());
@@ -629,7 +629,7 @@ async fn impersonate_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let audit = AuditLogger::new(state.db.clone());
     let context = Some(RequestContext::from_request(
@@ -654,7 +654,7 @@ async fn impersonate_user(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Security check 3: Use impersonation service to validate privilege levels
@@ -706,7 +706,7 @@ async fn impersonate_user(
         .auth_service
         .create_session_for_oauth_user(&target_user, Some(ip_address.clone()), user_agent.clone())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Store session in database with impersonation metadata
     let session_req = vault_core::db::sessions::CreateSessionRequest {
@@ -715,7 +715,7 @@ async fn impersonate_user(
         access_token_jti: session.access_token_jti.clone(),
         refresh_token_hash: session.refresh_token_hash.clone(),
         token_family: session.token_family.clone(),
-        ip_address: Some(ip_address.parse().map_err(|_| ApiError::Internal)?),
+        ip_address: Some(ip_address.parse().map_err(|_| ApiError::internal())?),
         user_agent,
         device_fingerprint: None,
         device_info: serde_json::json!({
@@ -735,7 +735,7 @@ async fn impersonate_user(
         .sessions()
         .create(session_req)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Generate impersonation tokens with limited duration
     let token_pair = state
@@ -746,7 +746,7 @@ async fn impersonate_user(
             &session.id,
             req.duration_minutes,
         )
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log impersonation start
     audit.log_impersonation_started(
@@ -808,7 +808,7 @@ async fn stop_impersonation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // End the impersonation session record
     if let Ok(Some(impersonation_session)) = state
@@ -833,7 +833,7 @@ async fn stop_impersonation(
             Some("impersonation_ended"),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log impersonation end
     let audit = AuditLogger::new(state.db.clone());
@@ -864,7 +864,7 @@ async fn list_user_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -872,7 +872,7 @@ async fn list_user_sessions(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -885,7 +885,7 @@ async fn list_user_sessions(
         .sessions()
         .list_by_user(&current_user.tenant_id, &user_id, false)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get session limit status
     let limit_status = state
@@ -930,7 +930,7 @@ async fn get_user_session(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -938,7 +938,7 @@ async fn get_user_session(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -981,7 +981,7 @@ async fn revoke_user_session(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -989,7 +989,7 @@ async fn revoke_user_session(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -1015,7 +1015,7 @@ async fn revoke_user_session(
         .sessions()
         .revoke(&current_user.tenant_id, &session_id, Some("admin_revoked"))
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log the action
     let audit = AuditLogger::new(state.db.clone());
@@ -1059,7 +1059,7 @@ async fn revoke_all_user_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Check if user exists
     let user_exists = state
@@ -1067,7 +1067,7 @@ async fn revoke_all_user_sessions(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .is_some();
 
     if !user_exists {
@@ -1080,7 +1080,7 @@ async fn revoke_all_user_sessions(
         .sessions()
         .revoke_all_for_user(&current_user.tenant_id, &user_id, Some("admin_revoked_all"))
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log the action
     let audit = AuditLogger::new(state.db.clone());

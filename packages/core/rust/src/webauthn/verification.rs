@@ -279,7 +279,7 @@ impl WebAuthnVerifier {
     /// Verify RS256 signature (RSA-PKCS1-v1_5 + SHA-256)
     fn verify_rs256(signed_data: &[u8], signature: &[u8], public_key: &[u8]) -> Result<()> {
         use rsa::BigUint;
-        use rsa::{pkcs1v15::Pkcs1v15Sign, signature::SignatureEncoding, RsaPublicKey};
+        use rsa::{pkcs1v15::Pkcs1v15Sign, RsaPublicKey};
         use sha2::{Digest, Sha256};
 
         // Parse RSA public key
@@ -351,7 +351,7 @@ pub enum CoseKeyType {
     EC2 = 2,       // Elliptic Curve Keys w/ x-y coordinate pair
     RSA = 3,       // RSA
     Symmetric = 4, // Symmetric keys
-    HSS_LMS = 5,   // HSS/LMS Hash-based signatures
+    HssLms = 5,    // HSS/LMS Hash-based signatures
     WalnutDSA = 6, // WalnutDSA
 }
 

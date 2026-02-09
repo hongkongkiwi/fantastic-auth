@@ -53,7 +53,7 @@ async fn create_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(SecurityPolicyResponse {
         id: uuid::Uuid::new_v4().to_string(),
         name: req.name,
@@ -74,7 +74,7 @@ async fn update_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(SecurityPolicyResponse {
         id: policy_id,
         name: req.name.unwrap_or_else(|| "policy".to_string()),

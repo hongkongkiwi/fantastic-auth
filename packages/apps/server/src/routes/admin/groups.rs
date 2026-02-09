@@ -80,10 +80,10 @@ async fn list_groups(
     Path(org_id): Path<String>,
     Query(query): Query<ListGroupsQuery>,
 ) -> Result<Json<Vec<GroupResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 200);
@@ -102,7 +102,7 @@ async fn list_groups(
     .bind(offset)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -113,10 +113,10 @@ async fn create_group(
     Path(org_id): Path<String>,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<Json<GroupResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, GroupResponse>(
         r#"INSERT INTO org_groups (tenant_id, organization_id, name, description)
@@ -129,7 +129,7 @@ async fn create_group(
     .bind(&req.description)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -140,10 +140,10 @@ async fn update_group(
     Path(group_id): Path<String>,
     Json(req): Json<UpdateGroupRequest>,
 ) -> Result<Json<GroupResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, GroupResponse>(
         r#"UPDATE org_groups
@@ -157,7 +157,7 @@ async fn update_group(
     .bind(&group_id)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -167,17 +167,17 @@ async fn delete_group(
     Extension(current_user): Extension<CurrentUser>,
     Path(group_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query("DELETE FROM org_groups WHERE tenant_id = $1::uuid AND id = $2::uuid")
         .bind(&current_user.tenant_id)
         .bind(&group_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }
@@ -187,10 +187,10 @@ async fn list_group_members(
     Extension(current_user): Extension<CurrentUser>,
     Path(group_id): Path<String>,
 ) -> Result<Json<Vec<GroupMemberResponse>>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let rows = sqlx::query_as::<_, GroupMemberResponse>(
         r#"SELECT id::text, group_id::text as group_id, user_id::text as user_id, created_at::text as created_at
@@ -202,7 +202,7 @@ async fn list_group_members(
     .bind(&group_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(rows))
 }
@@ -213,10 +213,10 @@ async fn add_group_member(
     Path(group_id): Path<String>,
     Json(req): Json<AddMemberRequest>,
 ) -> Result<Json<GroupMemberResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, GroupMemberResponse>(
         r#"INSERT INTO org_group_members (tenant_id, organization_id, group_id, user_id)
@@ -230,7 +230,7 @@ async fn add_group_member(
     .bind(&group_id)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }
@@ -240,10 +240,10 @@ async fn remove_group_member(
     Extension(current_user): Extension<CurrentUser>,
     Path((group_id, user_id)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     sqlx::query(
         "DELETE FROM org_group_members WHERE tenant_id = $1::uuid AND group_id = $2::uuid AND user_id = $3::uuid",
@@ -253,7 +253,7 @@ async fn remove_group_member(
     .bind(&user_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }

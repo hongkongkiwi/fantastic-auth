@@ -80,7 +80,7 @@ fn scim_error_response(error: ApiError) -> (StatusCode, Json<ScimError>) {
         ),
         ApiError::Conflict(msg) => (StatusCode::CONFLICT, ScimError::uniqueness(&msg)),
         ApiError::Validation(msg) => (StatusCode::BAD_REQUEST, ScimError::invalid_value(&msg)),
-        ApiError::Internal => (
+        ApiError::Internal(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             ScimError::new(500, None, Some("Internal server error")),
         ),
@@ -660,7 +660,7 @@ pub async fn list_users(
         Ok(t) => t,
         Err(e) => {
             tracing::error!("Failed to count users: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -679,7 +679,7 @@ pub async fn list_users(
         Ok(rows) => rows,
         Err(e) => {
             tracing::error!("Failed to fetch users: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -721,7 +721,7 @@ pub async fn create_user(
             .bind(&user.user_name)
             .fetch_optional(state.db.pool())
             .await
-            .map_err(|_| scim_error_response(ApiError::Internal))?;
+            .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     if existing.is_some() {
         return Err(scim_error_response(ApiError::Conflict(format!(
@@ -772,7 +772,7 @@ pub async fn create_user(
     .execute(state.db.pool())
     .await {
         tracing::error!("Failed to create user: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Also create a corresponding vault user if not exists
@@ -816,7 +816,7 @@ pub async fn get_user(
         Ok(None) => return Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to fetch user: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -840,7 +840,7 @@ pub async fn update_user(
             .bind(&id)
             .fetch_optional(state.db.pool())
             .await
-            .map_err(|_| scim_error_response(ApiError::Internal))?;
+            .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     if existing.is_none() {
         return Err(scim_error_response(ApiError::NotFound));
@@ -889,7 +889,7 @@ pub async fn update_user(
     .await
     {
         tracing::error!("Failed to update user: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Update vault user
@@ -905,7 +905,7 @@ pub async fn update_user(
     .bind(&id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| scim_error_response(ApiError::Internal))?;
+    .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     let mut updated_user = row_to_scim_user(&state, row, &auth_ctx.tenant_id).await;
     updated_user.password = None; // Never return password
@@ -947,7 +947,7 @@ pub async fn patch_user(
         Ok(None) => return Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to fetch user for patch: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -1000,7 +1000,7 @@ pub async fn patch_user(
     .await
     {
         tracing::error!("Failed to patch user: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Update vault user status if changed
@@ -1016,7 +1016,7 @@ pub async fn patch_user(
     .bind(&id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| scim_error_response(ApiError::Internal))?;
+    .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     let updated_user = row_to_scim_user(&state, row, &auth_ctx.tenant_id).await;
 
@@ -1055,7 +1055,7 @@ pub async fn delete_user(
         Ok(_) => Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to delete user: {}", e);
-            Err(scim_error_response(ApiError::Internal))
+            Err(scim_error_response(ApiError::internal()))
         }
     }
 }
@@ -1091,7 +1091,7 @@ pub async fn list_groups(
             .bind(&auth_ctx.tenant_id)
             .fetch_one(state.db.pool())
             .await
-            .map_err(|_| scim_error_response(ApiError::Internal))?;
+            .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     // Execute query with pagination
     let offset = scim_query.start_index - 1;
@@ -1105,7 +1105,7 @@ pub async fn list_groups(
     .bind(offset)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| scim_error_response(ApiError::Internal))?;
+    .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     let groups: Vec<ScimGroup> = rows
         .into_iter()
@@ -1145,7 +1145,7 @@ pub async fn create_group(
             .bind(&group.display_name)
             .fetch_optional(state.db.pool())
             .await
-            .map_err(|_| scim_error_response(ApiError::Internal))?;
+            .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     if existing.is_some() {
         return Err(scim_error_response(ApiError::Conflict(format!(
@@ -1180,7 +1180,7 @@ pub async fn create_group(
     .execute(state.db.pool())
     .await {
         tracing::error!("Failed to create group: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Sync members
@@ -1224,7 +1224,7 @@ pub async fn get_group(
         Ok(None) => return Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to fetch group: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -1248,7 +1248,7 @@ pub async fn update_group(
             .bind(&id)
             .fetch_optional(state.db.pool())
             .await
-            .map_err(|_| scim_error_response(ApiError::Internal))?;
+            .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     if existing.is_none() {
         return Err(scim_error_response(ApiError::NotFound));
@@ -1280,7 +1280,7 @@ pub async fn update_group(
     .await
     {
         tracing::error!("Failed to update group: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Sync members
@@ -1296,7 +1296,7 @@ pub async fn update_group(
     .bind(&id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| scim_error_response(ApiError::Internal))?;
+    .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     let updated_group = row_to_scim_group(row, &auth_ctx.tenant_id);
 
@@ -1337,7 +1337,7 @@ pub async fn patch_group(
         Ok(None) => return Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to fetch group for patch: {}", e);
-            return Err(scim_error_response(ApiError::Internal));
+            return Err(scim_error_response(ApiError::internal()));
         }
     };
 
@@ -1373,7 +1373,7 @@ pub async fn patch_group(
     .await
     {
         tracing::error!("Failed to patch group: {}", e);
-        return Err(scim_error_response(ApiError::Internal));
+        return Err(scim_error_response(ApiError::internal()));
     }
 
     // Fetch and return updated group
@@ -1384,7 +1384,7 @@ pub async fn patch_group(
     .bind(&id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| scim_error_response(ApiError::Internal))?;
+    .map_err(|_| scim_error_response(ApiError::internal()))?;
 
     let updated_group = row_to_scim_group(row, &auth_ctx.tenant_id);
 
@@ -1418,7 +1418,7 @@ pub async fn delete_group(
         Ok(_) => Err(scim_error_response(ApiError::NotFound)),
         Err(e) => {
             tracing::error!("Failed to delete group: {}", e);
-            Err(scim_error_response(ApiError::Internal))
+            Err(scim_error_response(ApiError::internal()))
         }
     }
 }

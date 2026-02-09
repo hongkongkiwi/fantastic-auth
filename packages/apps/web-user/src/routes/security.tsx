@@ -35,6 +35,7 @@ import {
   useDisableMfa,
   useSecurityKeys,
   useRemoveSecurityKey,
+  useChangePassword,
 } from '@/lib/api'
 
 export const Route = createFileRoute('/security')({
@@ -51,7 +52,6 @@ function SecurityPage() {
     )
   }
 
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [passwordData, setPasswordData] = useState({
     current: '',
     new: '',
@@ -87,17 +87,24 @@ function SecurityPage() {
     }
   }
 
+  const changePasswordMutation = useChangePassword()
+
   const handleChangePassword = async () => {
     if (passwordData.new !== passwordData.confirm) {
       toast.error('New passwords do not match')
       return
     }
-    setIsChangingPassword(true)
-    // API integration pending: keep UX flow consistent until endpoint is wired.
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsChangingPassword(false)
-    setPasswordData({ current: '', new: '', confirm: '' })
-    toast.success('Password changed successfully')
+    
+    try {
+      await changePasswordMutation.mutateAsync({
+        currentPassword: passwordData.current,
+        newPassword: passwordData.new,
+      })
+      setPasswordData({ current: '', new: '', confirm: '' })
+      toast.success('Password changed successfully')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to change password')
+    }
   }
 
   const getMfaIcon = (type: string) => {
@@ -176,13 +183,13 @@ function SecurityPage() {
               <Button
                 onClick={handleChangePassword}
                 disabled={
-                  isChangingPassword ||
+                  changePasswordMutation.isPending ||
                   !passwordData.current ||
                   !passwordData.new ||
                   !passwordData.confirm
                 }
               >
-                {isChangingPassword ? (
+                {changePasswordMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
                     Updating...

@@ -114,7 +114,7 @@ async fn list_platform_invoices(
 
     let filters = InvoiceFilters::from(query)?;
 
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     elevate_to_admin(&mut conn).await?;
 
     let total = count_invoices(&mut conn, &filters).await?;
@@ -229,7 +229,7 @@ async fn require_billing_read(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -269,7 +269,7 @@ async fn count_invoices(
         .build_query_scalar()
         .fetch_one(&mut **conn)
         .await
-        .map_err(|_| ApiError::Internal)
+        .map_err(|_| ApiError::internal())
 }
 
 async fn fetch_invoices(
@@ -299,7 +299,7 @@ async fn fetch_invoices(
         .build_query_as::<InvoiceRow>()
         .fetch_all(&mut **conn)
         .await
-        .map_err(|_| ApiError::Internal)
+        .map_err(|_| ApiError::internal())
 }
 
 async fn elevate_to_admin(

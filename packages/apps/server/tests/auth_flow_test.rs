@@ -796,10 +796,9 @@ async fn test_change_password_wrong_current() {
     let ctx = TestContext::new()
         .await
         .expect("Failed to create test context");
-    let (_, token) = ctx
+    let (_, token, _) = ctx
         .create_user_and_login()
         .await
-        .map(|(_, t, _)| (_, t))
         .expect("Failed to create user");
 
     // Try to change password with wrong current password

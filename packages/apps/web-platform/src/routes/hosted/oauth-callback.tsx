@@ -6,7 +6,7 @@
  */
 
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Loader2, CheckCircle, XCircle, ArrowRight } from 'lucide-react'
 import { Button } from '../../components/ui/Button'
@@ -22,9 +22,14 @@ export const Route = createFileRoute('/hosted/oauth-callback' as any)({
 type CallbackState = 'processing' | 'success' | 'error'
 
 function HostedOAuthCallbackPage() {
+  const searchParams =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams()
+
   return (
     <HostedLayout 
-      searchParams={new URLSearchParams(window.location.search)}
+      searchParams={searchParams}
     >
       <OAuthCallbackContent />
     </HostedLayout>
@@ -40,8 +45,13 @@ function OAuthCallbackContent() {
   const [error, setError] = useState<string | null>(null)
   const [requiresMfa, setRequiresMfa] = useState(false)
   const [mfaToken, setMfaToken] = useState<string | null>(null)
+  const callbackStartedRef = useRef(false)
 
   useEffect(() => {
+    if (callbackStartedRef.current) {
+      return
+    }
+
     const urlParams = new URLSearchParams(window.location.search)
     const code = urlParams.get('code')
     const state = urlParams.get('state')
@@ -70,7 +80,12 @@ function OAuthCallbackContent() {
 
     // Verify state to prevent CSRF
     const storedState = sessionStorage.getItem('hosted_oauth_state')
-    if (storedState && storedState !== state) {
+    if (!storedState) {
+      setState('error')
+      setError('Missing OAuth state. Please restart sign in.')
+      return
+    }
+    if (storedState !== state) {
       setState('error')
       setError('Invalid state parameter. Possible CSRF attack.')
       return
@@ -80,6 +95,7 @@ function OAuthCallbackContent() {
     sessionStorage.removeItem('hosted_oauth_state')
 
     // Exchange code for tokens
+    callbackStartedRef.current = true
     const exchangeCode = async () => {
       try {
         const result = await hostedOAuthCallback({

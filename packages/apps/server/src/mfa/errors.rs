@@ -114,8 +114,8 @@ impl From<MfaError> for crate::routes::ApiError {
             }
             MfaError::SmsServiceUnavailable
             | MfaError::WhatsappServiceUnavailable
-            | MfaError::EmailServiceUnavailable => crate::routes::ApiError::Internal,
-            _ => crate::routes::ApiError::Internal,
+            | MfaError::EmailServiceUnavailable => crate::routes::ApiError::internal(),
+            _ => crate::routes::ApiError::internal(),
         }
     }
 }

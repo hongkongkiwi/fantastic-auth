@@ -210,7 +210,7 @@ async fn start_import(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Parse multipart form
     let mut file_data: Option<(String, Vec<u8>)> = None; // (filename, data)
@@ -313,7 +313,7 @@ async fn start_import(
     storage_config
         .ensure_dirs()
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create job
     let job_id = Uuid::new_v4();
@@ -322,7 +322,7 @@ async fn start_import(
     // Save uploaded file
     tokio::fs::write(&file_path, &data)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Parse and validate file to count records
     let parse_result = crate::bulk::import::parse_file(&data, format)
@@ -351,7 +351,7 @@ async fn start_import(
     // Save job to database
     save_import_job(&state, &job)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // If preview mode, process immediately
     if options.preview_mode {
@@ -458,14 +458,14 @@ async fn get_import_status(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let job_uuid =
         Uuid::parse_str(&job_id).map_err(|_| ApiError::BadRequest("Invalid job ID".to_string()))?;
 
     let row = get_job_row(&state, &job_uuid)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant ownership
@@ -518,14 +518,14 @@ async fn download_error_report(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let job_uuid =
         Uuid::parse_str(&job_id).map_err(|_| ApiError::BadRequest("Invalid job ID".to_string()))?;
 
     let row = get_job_row(&state, &job_uuid)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant ownership
@@ -560,7 +560,7 @@ async fn download_error_report(
 
     let filename = format!("import_errors_{}.json", job_id);
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let content_type = HeaderValue::from_static("application/json");
     Ok((
@@ -591,7 +591,7 @@ async fn download_template(Path(format): Path<String>) -> Result<impl IntoRespon
     };
 
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let content_type = HeaderValue::from_static(content_type);
     Ok((
@@ -615,14 +615,14 @@ async fn start_export(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create storage config
     let storage_config = StorageConfig::from_env();
     storage_config
         .ensure_dirs()
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create job
     let job_id = Uuid::new_v4();
@@ -646,7 +646,7 @@ async fn start_export(
     // Save job to database
     save_export_job(&state, &job)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Spawn background processing
     let app_state = state.clone();
@@ -707,14 +707,14 @@ async fn get_export_status(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let job_uuid =
         Uuid::parse_str(&job_id).map_err(|_| ApiError::BadRequest("Invalid job ID".to_string()))?;
 
     let row = get_job_row(&state, &job_uuid)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant ownership
@@ -763,14 +763,14 @@ async fn download_export_file(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let job_uuid =
         Uuid::parse_str(&job_id).map_err(|_| ApiError::BadRequest("Invalid job ID".to_string()))?;
 
     let row = get_job_row(&state, &job_uuid)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Verify tenant ownership
@@ -815,7 +815,7 @@ async fn download_export_file(
         HeaderValue::from_static("application/json")
     };
     let disposition = HeaderValue::from_str(&format!("attachment; filename=\"{}\"", filename))
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok((
         StatusCode::OK,
@@ -838,7 +838,7 @@ async fn list_jobs(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let limit = query.limit.max(1).min(100);
 
@@ -861,7 +861,7 @@ async fn list_jobs(
     .bind(limit as i64)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let items: Vec<JobListItem> = rows
         .into_iter()
@@ -890,7 +890,7 @@ async fn delete_job(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let job_uuid =
         Uuid::parse_str(&job_id).map_err(|_| ApiError::BadRequest("Invalid job ID".to_string()))?;
@@ -898,7 +898,7 @@ async fn delete_job(
     // Get job to verify ownership
     let row = get_job_row(&state, &job_uuid)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if row.tenant_id.to_string() != current_user.tenant_id {
@@ -918,7 +918,7 @@ async fn delete_job(
         .bind(&current_user.tenant_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Clean up files
     let storage = StorageConfig::from_env();

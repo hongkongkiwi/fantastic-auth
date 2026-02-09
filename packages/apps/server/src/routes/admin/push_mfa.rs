@@ -220,7 +220,7 @@ async fn get_settings(
     .await
     .map_err(|e| {
         tracing::error!("Failed to get push MFA settings: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     let response = match row {
@@ -288,7 +288,7 @@ async fn update_settings(
     .await
     .map_err(|e| {
         tracing::error!("Failed to update push MFA settings: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Audit log
@@ -323,7 +323,7 @@ async fn test_configuration(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let (fcm_enabled, apns_enabled) = match settings {
         Some(row) => (
@@ -385,13 +385,13 @@ async fn update_fcm_credentials(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant DEK: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     let encrypted =
         crate::security::encryption::encrypt_to_base64(&dek, req.service_account_json.as_bytes())
             .map_err(|e| {
                 tracing::error!("Failed to encrypt FCM credentials: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             })?;
 
     sqlx::query(
@@ -411,7 +411,7 @@ async fn update_fcm_credentials(
     .await
     .map_err(|e| {
         tracing::error!("Failed to save FCM credentials: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Audit log (without sensitive data)
@@ -451,12 +451,12 @@ async fn update_apns_credentials(
         .await
         .map_err(|e| {
             tracing::error!("Failed to load tenant DEK: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
     let encrypted = crate::security::encryption::encrypt_to_base64(&dek, req.private_key.as_bytes())
         .map_err(|e| {
             tracing::error!("Failed to encrypt APNS credentials: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     sqlx::query(
@@ -485,7 +485,7 @@ async fn update_apns_credentials(
     .await
     .map_err(|e| {
         tracing::error!("Failed to save APNS credentials: {}", e);
-        ApiError::Internal
+        ApiError::internal()
     })?;
 
     // Audit log
@@ -523,7 +523,7 @@ async fn clear_credentials(
             .bind(&current_user.tenant_id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
         "apns" => {
             sqlx::query(
@@ -532,7 +532,7 @@ async fn clear_credentials(
             .bind(&current_user.tenant_id)
             .execute(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
         _ => return Err(ApiError::BadRequest("Invalid provider".to_string())),
     }
@@ -578,7 +578,7 @@ async fn list_all_devices(
         .build_query_as::<(i64,)>()
         .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get devices with user info
     let mut devices_builder = sqlx::QueryBuilder::new(
@@ -609,7 +609,7 @@ async fn list_all_devices(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list devices: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let device_infos: Vec<AdminDeviceInfo> = devices
@@ -664,7 +664,7 @@ async fn get_device(
     .bind(&device_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let row = row.ok_or(ApiError::NotFound)?;
 
@@ -708,7 +708,7 @@ async fn admin_remove_device(
         .bind(&device_id)
         .fetch_optional(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user_id: Option<String> = device.as_ref().map(|row| row.get("user_id"));
 
@@ -718,7 +718,7 @@ async fn admin_remove_device(
         .bind(&device_id)
         .execute(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Audit log
     crate::audit::log_activity(
@@ -748,7 +748,7 @@ async fn get_user_devices(
     let devices = service
         .get_user_devices(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let device_infos: Vec<DeviceInfo> = devices.into_iter().map(Into::into).collect();
 
@@ -934,7 +934,7 @@ async fn list_recent_requests(
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let request_list: Vec<RequestDetailsResponse> = requests
         .into_iter()
@@ -987,7 +987,7 @@ async fn get_request_details(
     .bind(&request_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let row = row.ok_or(ApiError::NotFound)?;
 
@@ -1022,7 +1022,7 @@ async fn cancel_request(
     .bind(&request_id)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound);

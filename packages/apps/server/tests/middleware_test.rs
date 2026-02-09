@@ -542,8 +542,7 @@ async fn test_request_body_size_limit() {
     let status = response.status();
     assert!(
         status == StatusCode::PAYLOAD_TOO_LARGE
-            || status == StatusCode::BAD_REQUEST
-            || status == StatusCode::CONTENT_TOO_LARGE,
+            || status == StatusCode::BAD_REQUEST,
         "Expected 413 or 400, got {:?}",
         status
     );

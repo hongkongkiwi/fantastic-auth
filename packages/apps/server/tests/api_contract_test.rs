@@ -13,9 +13,9 @@ mod common;
 /// Test that auth endpoints exist and return proper error formats
 #[tokio::test]
 async fn test_auth_endpoints_exist() {
-    // Verify the main auth routes exist by checking route structure
-    // This is a compile-time check effectively
-    let _routes = vault_server::routes::api_routes();
+    // Compile-time symbol check for route builders/handlers
+    let _ = vault_server::routes::api_routes;
+    let _ = vault_server::routes::health_check;
 }
 
 /// Test error response format for validation errors
@@ -191,7 +191,7 @@ fn test_session_response_format() {
 
 /// Test validation error format with field details
 #[test]
-fn test_validation_error_format() {
+fn test_validation_error_format_with_details() {
     let validation_error = json!({
         "error": {
             "code": "VALIDATION_ERROR",

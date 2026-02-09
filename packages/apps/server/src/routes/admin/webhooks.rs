@@ -93,7 +93,7 @@ async fn list_webhooks(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -102,7 +102,7 @@ async fn list_webhooks(
         .webhook_service
         .list_endpoints(&current_user.tenant_id, page, per_page)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let response: Vec<WebhookEndpointResponse> = endpoints
         .into_iter()
@@ -147,7 +147,7 @@ async fn create_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let endpoint = state
         .webhook_service
@@ -163,7 +163,7 @@ async fn create_webhook(
         .await
         .map_err(|e| {
             tracing::error!("Failed to create webhook: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log webhook creation
@@ -200,7 +200,7 @@ async fn get_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let endpoint = state
         .webhook_service
@@ -245,7 +245,7 @@ async fn update_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Build update struct
     let updates = WebhookEndpointUpdate {
@@ -265,7 +265,7 @@ async fn update_webhook(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update webhook: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log webhook update
@@ -295,7 +295,7 @@ async fn delete_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .webhook_service
@@ -303,7 +303,7 @@ async fn delete_webhook(
         .await
         .map_err(|e| {
             tracing::error!("Failed to delete webhook: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log webhook deletion
@@ -334,7 +334,7 @@ async fn test_webhook(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get the endpoint
     let endpoint = state
@@ -363,7 +363,7 @@ async fn test_webhook(
         .await
         .map_err(|e| {
             tracing::error!("Failed to trigger test event: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // If no deliveries were created (endpoint doesn't subscribe to this event),
@@ -373,14 +373,14 @@ async fn test_webhook(
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         use hmac::{Hmac, Mac};
         use sha2::Sha256;
 
         type HmacSha256 = Hmac<Sha256>;
 
-        let payload_str = serde_json::to_string(&payload).map_err(|_| ApiError::Internal)?;
+        let payload_str = serde_json::to_string(&payload).map_err(|_| ApiError::internal())?;
         let signature_payload = format!("test.{}.{}", chrono::Utc::now().timestamp(), payload_str);
 
         let secret = match state
@@ -399,7 +399,7 @@ async fn test_webhook(
             }
         };
         let mut mac =
-            HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| ApiError::Internal)?;
+            HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| ApiError::internal())?;
         mac.update(signature_payload.as_bytes());
         let signature = hex::encode(mac.finalize().into_bytes());
 
@@ -469,7 +469,7 @@ async fn list_deliveries(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
@@ -478,7 +478,7 @@ async fn list_deliveries(
         .webhook_service
         .list_deliveries(&current_user.tenant_id, &id, page, per_page)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let response: Vec<WebhookDeliveryResponse> = deliveries
         .into_iter()
@@ -502,7 +502,7 @@ async fn rotate_secret(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // SECURITY: Use OsRng instead of thread_rng() for cryptographic security
     // Webhook secrets are used to sign and verify webhook payloads
@@ -522,7 +522,7 @@ async fn rotate_secret(
         .webhook_service
         .update_endpoint(&current_user.tenant_id, &id, updates)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log secret rotation
     let audit = AuditLogger::new(state.db.clone());

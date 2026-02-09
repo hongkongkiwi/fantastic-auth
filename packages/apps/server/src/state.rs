@@ -1104,8 +1104,8 @@ mod tests {
     #[test]
     fn test_sms_service_initialization() {
         // Test that SMS service initializes correctly with disabled config
-        let config = Config::default();
-        assert!(!config.sms.is_enabled());
+        let sms_config = crate::config::SmsConfig::default();
+        assert!(!sms_config.is_enabled());
     }
 
     #[test]
@@ -1114,7 +1114,7 @@ mod tests {
         let key = "test_user@example.com";
 
         // Initially should be 0
-        assert_eq!(tracker.get_failure_count(key), 0);
+        assert_eq!(futures::executor::block_on(tracker.get_failure_count(key)), 0);
 
         // Record some failures
         let count1 = tracker.record_failure_local(key, 300);
@@ -1124,10 +1124,10 @@ mod tests {
         assert_eq!(count2, 2);
 
         // Check count
-        assert_eq!(tracker.get_failure_count(key), 2);
+        assert_eq!(futures::executor::block_on(tracker.get_failure_count(key)), 2);
 
         // Reset should clear
         futures::executor::block_on(tracker.reset(key));
-        assert_eq!(tracker.get_failure_count(key), 0);
+        assert_eq!(futures::executor::block_on(tracker.get_failure_count(key)), 0);
     }
 }

@@ -173,7 +173,7 @@ async fn list_consent_versions(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list consent versions: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(response))
@@ -214,7 +214,7 @@ async fn create_consent_version(
             }
             _ => {
                 tracing::error!("Failed to create consent version: {}", e);
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -258,7 +258,7 @@ async fn update_consent_version(
         .await
         .map_err(|e| {
             tracing::error!("Failed to update consent version: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     // Log the action
@@ -292,7 +292,7 @@ async fn get_consent_statistics(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get consent statistics: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     match stats {
@@ -327,7 +327,7 @@ async fn get_all_statistics(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get consent statistics: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let responses: Vec<ConsentStatisticsResponse> = stats
@@ -361,7 +361,7 @@ async fn list_pending_exports(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get pending exports: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let items: Vec<DataExportListItem> = exports
@@ -391,7 +391,7 @@ async fn list_pending_deletions(
         .await
         .map_err(|e| {
             tracing::error!("Failed to get pending deletions: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let items: Vec<DeletionRequestListItem> = deletions

@@ -254,7 +254,7 @@ async fn get_password_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let settings = state
         .settings_service
@@ -275,7 +275,7 @@ async fn update_password_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut settings = state
         .settings_service
@@ -361,7 +361,7 @@ async fn test_password_policy(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let settings = state
         .settings_service

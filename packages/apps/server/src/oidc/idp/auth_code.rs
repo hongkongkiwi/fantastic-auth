@@ -356,9 +356,9 @@ mod tests {
             "user-1",
             "https://example.com/callback",
             Some("openid profile".to_string()),
-            Some("challenge123"),
-            Some("S256"),
-            Some("nonce456"),
+            Some("challenge123".to_string()),
+            Some("S256".to_string()),
+            Some("nonce456".to_string()),
         );
 
         assert_eq!(entry.tenant_id, "tenant-1");
@@ -417,10 +417,10 @@ mod tests {
         let manager = AuthorizationCodeManager::new();
         
         let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
-        let challenge = "E9Melhoa2OwvFrEMT9BNR7edtB7uOBpNxRwpRfdfY_8";
+        let (challenge, _) = manager.generate_pkce_challenge(verifier);
         
-        assert!(manager.verify_pkce(verifier, challenge, "S256"));
-        assert!(!manager.verify_pkce("wrong-verifier", challenge, "S256"));
+        assert!(manager.verify_pkce(verifier, &challenge, "S256"));
+        assert!(!manager.verify_pkce("wrong-verifier", &challenge, "S256"));
     }
 
     #[test]

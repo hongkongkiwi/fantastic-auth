@@ -16,7 +16,10 @@ use uuid::Uuid;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
-/// Check if user has admin role
+// DEPRECATED: Use crate::middleware::auth::is_admin() instead
+// This function is kept for backward compatibility but should be removed
+// once all routes are migrated to use the shared utility.
+#[allow(dead_code)]
 fn is_admin(user: &CurrentUser) -> bool {
     user.claims.roles.as_ref()
         .map(|roles| roles.iter().any(|r| r == "admin"))
@@ -254,6 +257,10 @@ async fn get_my_export_status(
 }
 
 /// Request account deletion
+/// 
+/// This operation is performed within a database transaction to ensure
+/// atomicity - either both the deletion request is recorded AND sessions
+/// are revoked, or neither happens.
 async fn delete_my_account(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -269,10 +276,16 @@ async fn delete_my_account(
 
     // Schedule account for deletion (30-day grace period)
     let scheduled_at = Utc::now();
-    let grace_period_days = 30;
+    const GRACE_PERIOD_DAYS: i64 = 30;
+
+    // Start a database transaction for atomicity
+    let mut tx = state.db.pool()
+        .begin()
+        .await
+        .map_err(|e| ApiError::internal_error(format!("Failed to start transaction: {}", e)))?;
 
     // Insert deletion request
-    sqlx::query(
+    let deletion_result = sqlx::query(
         r#"
         INSERT INTO deletion_requests (
             user_id, reason, feedback, 
@@ -287,12 +300,16 @@ async fn delete_my_account(
     .bind(user_id)
     .bind(&req.reason)
     .bind(&req.feedback)
-    .execute(state.db.pool())
-    .await
-    .map_err(|e| ApiError::internal_error(format!("Database error: {}", e)))?;
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = deletion_result {
+        let _ = tx.rollback().await;
+        return Err(ApiError::internal_error(format!("Failed to record deletion request: {}", e)));
+    }
 
     // Revoke all active sessions
-    sqlx::query(
+    let session_result = sqlx::query(
         r#"
         UPDATE user_sessions 
         SET status = 'revoked', revoked_at = NOW()
@@ -300,15 +317,24 @@ async fn delete_my_account(
         "#
     )
     .bind(user_id)
-    .execute(state.db.pool())
-    .await
-    .map_err(|e| ApiError::internal_error(format!("Database error: {}", e)))?;
+    .execute(&mut *tx)
+    .await;
+
+    if let Err(e) = session_result {
+        let _ = tx.rollback().await;
+        return Err(ApiError::internal_error(format!("Failed to revoke sessions: {}", e)));
+    }
+
+    // Commit the transaction
+    if let Err(e) = tx.commit().await {
+        return Err(ApiError::internal_error(format!("Failed to commit transaction: {}", e)));
+    }
 
     Ok(Json(DeletionResponse {
         success: true,
-        message: format!("Account scheduled for deletion in {} days. You can cancel this during the grace period.", grace_period_days),
+        message: format!("Account scheduled for deletion in {} days. You can cancel this during the grace period.", GRACE_PERIOD_DAYS),
         scheduled_at,
-        grace_period_days,
+        grace_period_days: GRACE_PERIOD_DAYS as i32,
     }))
 }
 

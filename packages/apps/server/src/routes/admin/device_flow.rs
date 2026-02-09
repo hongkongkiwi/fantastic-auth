@@ -34,10 +34,10 @@ async fn approve_device_code(
     Path(user_code): Path<String>,
     Json(req): Json<ApproveDeviceCodeRequest>,
 ) -> Result<Json<DeviceCodeResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let result = sqlx::query(
         "UPDATE oauth_device_codes SET status = 'approved', user_id = $1::uuid, approved_at = NOW() WHERE tenant_id = $2::uuid AND user_code = $3 AND status = 'pending'",
@@ -47,7 +47,7 @@ async fn approve_device_code(
     .bind(&user_code)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(DeviceCodeResponse {
         approved: result.rows_affected() > 0,
@@ -59,10 +59,10 @@ async fn deny_device_code(
     Extension(current_user): Extension<CurrentUser>,
     Path(user_code): Path<String>,
 ) -> Result<Json<DeviceCodeResponse>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let result = sqlx::query(
         "UPDATE oauth_device_codes SET status = 'denied', denied_at = NOW() WHERE tenant_id = $1::uuid AND user_code = $2 AND status = 'pending'",
@@ -71,7 +71,7 @@ async fn deny_device_code(
     .bind(&user_code)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(DeviceCodeResponse {
         approved: result.rows_affected() > 0,

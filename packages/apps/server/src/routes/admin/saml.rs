@@ -204,12 +204,12 @@ async fn list_saml_connections(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let rows = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -225,7 +225,7 @@ async fn list_saml_connections(
     .bind(&current_user.tenant_id)
     .fetch_all(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let connections: Vec<SamlConnectionResponse> = rows
         .into_iter()
@@ -243,7 +243,7 @@ async fn create_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let id = uuid::Uuid::new_v4().to_string();
     let base_url = state.config.base_url.clone();
@@ -255,7 +255,7 @@ async fn create_saml_connection(
     // Generate SP keypair if signing is requested
     let (sp_cert_pem, sp_key_pem) = if req.want_authn_requests_signed.unwrap_or(false) {
         generate_self_signed_cert(&format!("saml.{}", current_user.tenant_id), 365)
-            .map_err(|_| ApiError::Internal)?
+            .map_err(|_| ApiError::internal())?
     } else {
         (String::new(), String::new())
     };
@@ -270,10 +270,10 @@ async fn create_saml_connection(
         })
     });
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         r#"
@@ -305,7 +305,7 @@ async fn create_saml_connection(
     .bind("active")
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -320,7 +320,7 @@ async fn create_saml_connection(
     .bind(&current_user.tenant_id)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     Ok(Json(row_to_response(row, &state)))
 }
@@ -333,12 +333,12 @@ async fn get_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -367,12 +367,12 @@ async fn update_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Build dynamic update query
     let mut updates = Vec::new();
@@ -424,7 +424,7 @@ async fn update_saml_connection(
             .bind(&current_user.tenant_id)
             .execute(&mut *conn)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
     }
     
     // Fetch updated row
@@ -454,19 +454,19 @@ async fn delete_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     sqlx::query("DELETE FROM saml_connections WHERE id = $1 AND tenant_id = $2")
         .bind(&connection_id)
         .bind(&current_user.tenant_id)
         .execute(&mut *conn)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     Ok(StatusCode::NO_CONTENT)
 }
@@ -483,12 +483,12 @@ async fn download_sp_metadata(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -507,7 +507,7 @@ async fn download_sp_metadata(
     
     // Build SP config
     let sp_certificate = if let Some(ref cert_pem) = row.sp_certificate {
-        Some(X509Certificate::from_pem(cert_pem).map_err(|_| ApiError::Internal)?)
+        Some(X509Certificate::from_pem(cert_pem).map_err(|_| ApiError::internal())?)
     } else {
         None
     };
@@ -529,7 +529,7 @@ async fn download_sp_metadata(
     };
     
     let metadata = generate_sp_metadata(&sp_config)
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     Ok((
         [(
@@ -549,7 +549,7 @@ async fn upload_idp_metadata(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Extract file content
     let mut metadata_xml = None;
@@ -578,10 +578,10 @@ async fn upload_idp_metadata(
     let idp_certificate = IdpMetadataParser::extract_certificate(&idp_metadata);
     
     // Update connection
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         r#"
@@ -598,7 +598,7 @@ async fn upload_idp_metadata(
     .bind(&current_user.tenant_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     // Fetch updated row
     let row = sqlx::query_as::<_, SamlConnectionRow>(
@@ -631,12 +631,12 @@ async fn list_certificates(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -696,18 +696,18 @@ async fn generate_certificate(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Generate new certificate
     let (cert_pem, key_pem) = generate_self_signed_cert(
         &format!("saml.{}.vault", current_user.tenant_id),
         365
-    ).map_err(|_| ApiError::Internal)?;
+    ).map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         r#"
@@ -722,18 +722,18 @@ async fn generate_certificate(
     .bind(&current_user.tenant_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
-    let cert = X509Certificate::from_pem(&cert_pem).map_err(|_| ApiError::Internal)?;
+    let cert = X509Certificate::from_pem(&cert_pem).map_err(|_| ApiError::internal())?;
     
     Ok(Json(CertificateResponse {
         id: format!("{}-sp", connection_id),
         certificate_type: "sp_signing".to_string(),
-        fingerprint: cert.fingerprint().map_err(|_| ApiError::Internal)?,
-        not_before: cert.not_before().map_err(|_| ApiError::Internal)?.to_rfc3339(),
-        not_after: cert.not_after().map_err(|_| ApiError::Internal)?.to_rfc3339(),
-        subject: cert.subject().map_err(|_| ApiError::Internal)?,
-        issuer: cert.issuer().map_err(|_| ApiError::Internal)?,
+        fingerprint: cert.fingerprint().map_err(|_| ApiError::internal())?,
+        not_before: cert.not_before().map_err(|_| ApiError::internal())?.to_rfc3339(),
+        not_after: cert.not_after().map_err(|_| ApiError::internal())?.to_rfc3339(),
+        subject: cert.subject().map_err(|_| ApiError::internal())?,
+        issuer: cert.issuer().map_err(|_| ApiError::internal())?,
     }))
 }
 
@@ -758,12 +758,12 @@ async fn test_saml_connection(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -840,12 +840,12 @@ async fn get_attribute_mappings(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     let row = sqlx::query_as::<_, SamlConnectionRow>(
         r#"
@@ -887,7 +887,7 @@ async fn update_attribute_mappings(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     // Build mappings object
     let mut mappings = serde_json::Map::new();
@@ -900,10 +900,10 @@ async fn update_attribute_mappings(
     
     let mappings_json = serde_json::Value::Object(mappings);
     
-    let mut conn = state.db.acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     
     sqlx::query(
         r#"
@@ -917,7 +917,7 @@ async fn update_attribute_mappings(
     .bind(&current_user.tenant_id)
     .execute(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
     
     let responses: Vec<AttributeMappingResponse> = req.mappings
         .into_iter()

@@ -673,7 +673,7 @@ mod tests {
 
     #[test]
     fn test_lstm_detector() {
-        let detector = LstmAnomalyDetector::new(5, 64);
+        let detector = LstmAnomalyDetector::new(3, 64);
 
         let seq = vec![
             FeatureVector::new(vec![0.1, 0.1, 0.1], vec![]),

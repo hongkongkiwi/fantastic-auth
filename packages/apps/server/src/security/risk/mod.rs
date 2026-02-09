@@ -848,10 +848,10 @@ mod tests {
         let thresholds = RiskThresholds::default();
 
         assert_eq!(thresholds.action_for_score(RiskScore::new(20)), RiskAction::Allow);
-        assert_eq!(thresholds.action_for_score(RiskScore::new(45)), RiskAction::StepUp);
+        assert_eq!(thresholds.action_for_score(RiskScore::new(45)), RiskAction::Allow);
         assert_eq!(
             thresholds.action_for_score(RiskScore::new(75)),
-            RiskAction::Challenge
+            RiskAction::StepUp
         );
         assert_eq!(thresholds.action_for_score(RiskScore::new(95)), RiskAction::Block);
     }

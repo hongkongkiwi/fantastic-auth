@@ -103,14 +103,14 @@ async fn list_organizations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let orgs = state
         .db
         .organizations()
         .list_for_user(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses: Vec<OrganizationResponse> = orgs
         .into_iter()
@@ -134,14 +134,14 @@ async fn get_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let org = state
         .db
         .organizations()
         .get_by_id(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(OrganizationResponse {
@@ -161,7 +161,7 @@ async fn create_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let org = vault_core::models::organization::Organization {
         id: uuid::Uuid::new_v4().to_string(),
@@ -178,7 +178,7 @@ async fn create_organization(
         .organizations()
         .create(&org)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let member = OrganizationMember {
         id: uuid::Uuid::new_v4().to_string(),
@@ -200,7 +200,7 @@ async fn create_organization(
         .organizations()
         .add_member(&current_user.tenant_id, &member)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(OrganizationResponse {
         id: org.id,
@@ -220,14 +220,14 @@ async fn update_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut org = state
         .db
         .organizations()
         .get_by_id(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if let Some(name) = req.name {
@@ -239,7 +239,7 @@ async fn update_organization(
         .organizations()
         .update(&current_user.tenant_id, &org)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(OrganizationResponse {
         id: org.id,
@@ -258,14 +258,14 @@ async fn delete_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .organizations()
         .delete(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: "Organization deleted".to_string(),
@@ -281,14 +281,14 @@ async fn leave_organization(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .organizations()
         .remove_member(&current_user.tenant_id, &id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: "Left organization".to_string(),
@@ -313,7 +313,7 @@ async fn load_member(
         .organizations()
         .get_member(tenant_id, org_id, user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::Forbidden)
 }
 
@@ -326,7 +326,7 @@ async fn list_members(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Require membership
     let _member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
@@ -336,7 +336,7 @@ async fn list_members(
         .organizations()
         .list_members(&current_user.tenant_id, &id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut responses = Vec::new();
     for member in members {
@@ -371,7 +371,7 @@ async fn invite_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
     ensure_org_admin(&member)?;
@@ -406,7 +406,7 @@ async fn invite_member(
         .organizations()
         .create_invitation(&current_user.tenant_id, &db_invitation)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(InvitationResponse {
         id: invitation.id,
@@ -428,7 +428,7 @@ async fn update_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
     ensure_org_admin(&member)?;
@@ -443,14 +443,14 @@ async fn update_member(
         .organizations()
         .update_member_role(&current_user.tenant_id, &id, &user_id, role)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user = state
         .db
         .users()
         .find_by_id(&current_user.tenant_id, &updated.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(OrganizationMemberResponse {
@@ -473,7 +473,7 @@ async fn remove_member(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
     ensure_org_admin(&member)?;
@@ -483,7 +483,7 @@ async fn remove_member(
         .organizations()
         .remove_member(&current_user.tenant_id, &id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: format!("User {} removed from organization {}", user_id, id),
@@ -499,7 +499,7 @@ async fn list_invitations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
     ensure_org_admin(&member)?;
@@ -509,7 +509,7 @@ async fn list_invitations(
         .organizations()
         .list_invitations(&current_user.tenant_id, &id, true)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses = invitations
         .into_iter()
@@ -535,14 +535,14 @@ async fn accept_invitation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let invitation = state
         .db
         .organizations()
         .get_invitation_by_token(&current_user.tenant_id, &token)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if invitation.accepted_at.is_some() || invitation.expires_at < chrono::Utc::now() {
@@ -558,7 +558,7 @@ async fn accept_invitation(
         .organizations()
         .accept_invitation(&current_user.tenant_id, &token, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     let org = state
@@ -566,7 +566,7 @@ async fn accept_invitation(
         .organizations()
         .get_by_id(&current_user.tenant_id, &invitation.organization_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(OrganizationResponse {

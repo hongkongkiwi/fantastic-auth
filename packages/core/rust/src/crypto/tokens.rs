@@ -545,7 +545,7 @@ mod tests {
     #[test]
     fn test_csrf_token() {
         let token = CsrfToken::new();
-        assert_eq!(token.as_str().len(), 32);
+        assert_eq!(token.as_str().len(), 43);
 
         let hash = token.hash();
         assert!(token.verify_against_hash(token.as_str(), hash));

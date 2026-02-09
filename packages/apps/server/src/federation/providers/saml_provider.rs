@@ -308,7 +308,9 @@ VQQDDAlsb2NhbGhvc3QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDH
         let config = test_config();
         let provider = SamlFederationProvider::new(config);
         
-        let request = provider.build_authn_request(Some("relay-state-123")).unwrap();
+        let request = provider
+            .build_authn_request(Some("relay-state-123".to_string()))
+            .unwrap();
         
         assert!(request.id.starts_with('_'));
         assert!(request.xml.contains("AuthnRequest"));

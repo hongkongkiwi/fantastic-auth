@@ -70,7 +70,7 @@ async fn require_role_read(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -89,7 +89,7 @@ async fn require_role_write(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let checker = PermissionChecker::new(state.db.pool().clone(), state.redis.clone());
     let allowed = checker
@@ -144,7 +144,7 @@ async fn list_roles(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let roles = rows
         .into_iter()
@@ -191,7 +191,7 @@ async fn create_role(
     };
     let permissions = permissions.unwrap_or_default();
 
-    let mut tx = state.db.pool().begin().await.map_err(|_| ApiError::Internal)?;
+    let mut tx = state.db.pool().begin().await.map_err(|_| ApiError::internal())?;
 
     let role_id = Uuid::new_v4();
     sqlx::query(
@@ -206,7 +206,7 @@ async fn create_role(
     .bind(&description)
     .execute(&mut *tx)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if !permissions.is_empty() {
         let permission_rows: Vec<(Uuid,)> = sqlx::query_as(
@@ -215,7 +215,7 @@ async fn create_role(
         .bind(&permissions)
         .fetch_all(&mut *tx)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         if permission_rows.len() != permissions.len() {
             return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
@@ -229,11 +229,11 @@ async fn create_role(
             .bind(permission_id)
             .execute(&mut *tx)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
     }
 
-    tx.commit().await.map_err(|_| ApiError::Internal)?;
+    tx.commit().await.map_err(|_| ApiError::internal())?;
 
     Ok(Json(RoleResponse {
         id: role_id.to_string(),
@@ -262,7 +262,7 @@ async fn update_role(
     } = payload;
 
     let role_uuid = Uuid::parse_str(&role_id).map_err(|_| ApiError::BadRequest("Invalid role id".to_string()))?;
-    let mut tx = state.db.pool().begin().await.map_err(|_| ApiError::Internal)?;
+    let mut tx = state.db.pool().begin().await.map_err(|_| ApiError::internal())?;
 
     let existing: Option<RoleExistingRow> = sqlx::query_as(
         r#"SELECT id::text as id, name, description, tenant_id::text as tenant_id FROM roles WHERE id = $1"#,
@@ -270,7 +270,7 @@ async fn update_role(
     .bind(role_uuid)
     .fetch_optional(&mut *tx)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let RoleExistingRow {
         id,
@@ -297,7 +297,7 @@ async fn update_role(
     .bind(role_uuid)
     .execute(&mut *tx)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let mut permissions = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT COALESCE(json_agg(p.name ORDER BY p.name), '[]'::json) FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id WHERE rp.role_id = $1",
@@ -314,7 +314,7 @@ async fn update_role(
         .bind(&new_permissions)
         .fetch_all(&mut *tx)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
         if permission_rows.len() != new_permissions.len() {
             return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
@@ -324,7 +324,7 @@ async fn update_role(
             .bind(role_uuid)
             .execute(&mut *tx)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
         for (permission_id,) in permission_rows {
             sqlx::query(
@@ -334,7 +334,7 @@ async fn update_role(
             .bind(permission_id)
             .execute(&mut *tx)
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
         }
 
         permissions = serde_json::Value::Array(
@@ -353,7 +353,7 @@ async fn update_role(
     .await
     .unwrap_or(0);
 
-    tx.commit().await.map_err(|_| ApiError::Internal)?;
+    tx.commit().await.map_err(|_| ApiError::internal())?;
 
     Ok(Json(RoleResponse {
         id,

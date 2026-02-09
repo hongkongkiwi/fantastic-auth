@@ -650,7 +650,7 @@ impl WebAuthnService {
         self.credential_store
             .get_credential(credential_id)
             .await
-            .map_err(|e| VaultError::not_found("WebAuthn credential", credential_id))
+            .map_err(|_e| VaultError::not_found("WebAuthn credential", credential_id))
     }
 
     /// Delete a credential

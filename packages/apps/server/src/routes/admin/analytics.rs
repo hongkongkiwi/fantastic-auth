@@ -452,7 +452,7 @@ async fn get_dashboard(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -465,7 +465,7 @@ async fn get_dashboard(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Failed to get dashboard overview");
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let response = DashboardResponse {
@@ -544,7 +544,7 @@ async fn get_login_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -555,7 +555,7 @@ async fn get_login_analytics(
     let login_metrics = analytics
         .get_login_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let failed_ips: Vec<FailedIpResponse> = login_metrics
         .by_hour  // Placeholder - security metrics should provide this
@@ -610,7 +610,7 @@ async fn get_user_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -621,7 +621,7 @@ async fn get_user_analytics(
     let user_metrics = analytics
         .get_user_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let response = UserAnalyticsResponse {
         period: PeriodResponse {
@@ -668,7 +668,7 @@ async fn get_mfa_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -679,7 +679,7 @@ async fn get_mfa_analytics(
     let mfa_metrics = analytics
         .get_mfa_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let by_method: Vec<MfaMethodStats> = mfa_metrics
         .by_method
@@ -728,7 +728,7 @@ async fn get_device_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -739,7 +739,7 @@ async fn get_device_analytics(
     let device_metrics = analytics
         .get_device_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let total: i64 = device_metrics.by_browser.values().sum();
 
@@ -824,7 +824,7 @@ async fn get_geographic_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -835,7 +835,7 @@ async fn get_geographic_analytics(
     let geo_metrics = analytics
         .get_geographic_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let total_logins: i64 = geo_metrics.countries.iter().map(|c| c.login_count).sum();
 
@@ -896,7 +896,7 @@ async fn get_security_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -907,7 +907,7 @@ async fn get_security_analytics(
     let security_metrics = analytics
         .get_security_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let failed_ips: Vec<FailedIpResponse> = security_metrics
         .failed_login_ips
@@ -978,7 +978,7 @@ async fn get_session_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date();
     let end_date = query.end_date();
@@ -996,7 +996,7 @@ async fn get_session_analytics(
     .bind(&end_date)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let active_sessions: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM sessions 
@@ -1007,7 +1007,7 @@ async fn get_session_analytics(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let total_users: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM users WHERE tenant_id = $1"
@@ -1015,7 +1015,7 @@ async fn get_session_analytics(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let response = SessionAnalyticsResponse {
         period: PeriodResponse {
@@ -1057,7 +1057,7 @@ async fn get_realtime_metrics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let now = Utc::now();
     let one_minute_ago = now - Duration::minutes(1);
@@ -1074,7 +1074,7 @@ async fn get_realtime_metrics(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Get logins in last minute
     let logins_last_minute: i64 = sqlx::query_scalar(
@@ -1087,7 +1087,7 @@ async fn get_realtime_metrics(
     .bind(&one_minute_ago)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Get logins in last 5 minutes
     let logins_last_5_minutes: i64 = sqlx::query_scalar(
@@ -1100,7 +1100,7 @@ async fn get_realtime_metrics(
     .bind(&five_minutes_ago)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Get logins in last hour
     let logins_last_hour: i64 = sqlx::query_scalar(
@@ -1113,7 +1113,7 @@ async fn get_realtime_metrics(
     .bind(&one_hour_ago)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Calculate auth rate (logins per minute)
     let auth_rate = logins_last_5_minutes as f64 / 5.0;
@@ -1137,7 +1137,7 @@ async fn get_realtime_metrics(
     .bind(&current_user.tenant_id)
     .fetch_all(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let top_active_users: Vec<RealTimeActiveUser> = top_users
         .into_iter()
@@ -1185,7 +1185,7 @@ async fn export_analytics(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let start_date = query.start_date.unwrap_or_else(|| Utc::now() - Duration::days(30));
     let end_date = query.end_date.unwrap_or_else(Utc::now);
@@ -1201,11 +1201,11 @@ async fn export_analytics(
     let dashboard = analytics
         .get_dashboard_overview(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match format {
         ExportFormat::Json => {
-            let json_data = serde_json::to_string_pretty(&dashboard).map_err(|_| ApiError::Internal)?;
+            let json_data = serde_json::to_string_pretty(&dashboard).map_err(|_| ApiError::internal())?;
 
             let headers = [
                 ("Content-Type", "application/json"),
@@ -1272,7 +1272,7 @@ async fn get_trend_analysis(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let end_date = query.end_date();
     let start_date = query.start_date();
@@ -1286,13 +1286,13 @@ async fn get_trend_analysis(
     let current_login = analytics
         .get_login_metrics(tenant_id, start_date, end_date)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get previous period metrics
     let previous_login = analytics
         .get_login_metrics(tenant_id, previous_start, previous_end)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Calculate comparisons
     let login_change = if previous_login.total > 0 {

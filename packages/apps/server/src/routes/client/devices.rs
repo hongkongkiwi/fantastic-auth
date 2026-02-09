@@ -16,7 +16,10 @@ use uuid::Uuid;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
-/// Check if user has admin role
+// DEPRECATED: Use crate::middleware::auth::is_admin() instead
+// This function is kept for backward compatibility but should be removed
+// once all routes are migrated to use the shared utility.
+#[allow(dead_code)]
 fn is_admin(user: &CurrentUser) -> bool {
     user.claims.roles.as_ref()
         .map(|roles| roles.iter().any(|r| r == "admin"))
@@ -52,6 +55,9 @@ pub struct DeviceInfo {
     pub mfa_status: String,
 }
 
+/// Valid location mismatch actions
+const VALID_LOCATION_ACTIONS: &[&str] = &["prompt", "block", "allow"];
+
 /// Device trust policy configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceTrustPolicy {
@@ -63,6 +69,26 @@ pub struct DeviceTrustPolicy {
     pub max_trust_score: i32,
     #[serde(rename = "locationMismatchAction")]
     pub location_mismatch_action: String,
+}
+
+impl DeviceTrustPolicy {
+    /// Validate the policy values
+    pub fn validate(&self) -> Result<(), ApiError> {
+        // Validate trust score range
+        if self.max_trust_score < 0 || self.max_trust_score > 100 {
+            return Err(ApiError::validation("max_trust_score must be between 0 and 100"));
+        }
+        
+        // Validate location mismatch action
+        if !VALID_LOCATION_ACTIONS.contains(&self.location_mismatch_action.as_str()) {
+            return Err(ApiError::validation(format!(
+                "location_mismatch_action must be one of: {}",
+                VALID_LOCATION_ACTIONS.join(", ")
+            )));
+        }
+        
+        Ok(())
+    }
 }
 
 /// Trust score update request
@@ -270,10 +296,8 @@ async fn update_my_device_policy(
     Extension(_current_user): Extension<CurrentUser>,
     Json(policy): Json<DeviceTrustPolicy>,
 ) -> Result<Json<DeviceTrustPolicy>, ApiError> {
-    // Validate policy values
-    if policy.max_trust_score < 0 || policy.max_trust_score > 100 {
-        return Err(ApiError::bad_request("Max trust score must be between 0 and 100"));
-    }
+    // Validate policy values using the struct's validation method
+    policy.validate()?;
 
     // Return the policy (can be stored in database later)
     Ok(Json(policy))

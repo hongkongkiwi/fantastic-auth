@@ -34,7 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header 
       className={cn(
-        "fixed top-0 right-0 z-30 h-16 bg-card border-b border-border transition-all duration-300",
+        "fixed top-0 right-0 z-30 h-16 bg-card border-b border-border transition-[left,right,width] duration-300",
         sidebarCollapsed ? "left-16" : "left-64"
       )}
     >

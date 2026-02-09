@@ -68,7 +68,7 @@ async fn list_actions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let actions = state
         .auth_service
@@ -76,7 +76,7 @@ async fn list_actions(
         .actions()
         .list_actions(&current_user.tenant_id, query.trigger.as_deref())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         actions
@@ -102,7 +102,7 @@ async fn create_action(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let code = base64::engine::general_purpose::STANDARD
         .decode(req.code_base64)
@@ -122,7 +122,7 @@ async fn create_action(
             req.timeout_ms.unwrap_or(1000),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ActionResponse {
         id: action.id,
@@ -143,7 +143,7 @@ async fn get_action(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let action = state
         .auth_service
@@ -151,7 +151,7 @@ async fn get_action(
         .actions()
         .get_action(&current_user.tenant_id, &action_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ActionResponse {
@@ -174,7 +174,7 @@ async fn update_action(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let code = match req.code_base64 {
         Some(encoded) => Some(
@@ -198,7 +198,7 @@ async fn update_action(
             req.timeout_ms,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ActionResponse {
         id: action.id,
@@ -219,7 +219,7 @@ async fn delete_action(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -227,7 +227,7 @@ async fn delete_action(
         .actions()
         .delete_action(&current_user.tenant_id, &action_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"message": "Action deleted"})))
 }

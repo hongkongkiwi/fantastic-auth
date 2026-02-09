@@ -485,21 +485,20 @@ mod tests {
         assert!(!config.enable_ssl);
     }
 
-    #[test]
-    fn test_dns_instructions() {
+    #[tokio::test]
+    async fn test_dns_instructions() {
         let domain = CustomDomain::new("tenant1", "auth.example.com", "vault.example.com");
         let service_config = CustomDomainConfig::default();
-        let instructions =
-            CustomDomainService::<super::SqlxCustomDomainRepository>::get_dns_instructions(
-                &CustomDomainService {
-                    repository: super::SqlxCustomDomainRepository::new(Arc::new(
-                        sqlx::Pool::connect_lazy("").unwrap(),
-                    )),
-                    dns_verifier: CustomDomainDnsVerifier::new().unwrap(),
-                    config: service_config,
-                },
-                &domain,
-            );
+        let instructions = CustomDomainService::<crate::domains::SqlxCustomDomainRepository>::get_dns_instructions(
+            &CustomDomainService {
+                repository: crate::domains::SqlxCustomDomainRepository::new(Arc::new(
+                    sqlx::Pool::connect_lazy("postgres://localhost/test").unwrap(),
+                )),
+                dns_verifier: CustomDomainDnsVerifier::new().await.unwrap(),
+                config: service_config,
+            },
+            &domain,
+        );
 
         assert_eq!(instructions.domain, "auth.example.com");
         assert_eq!(instructions.value, "vault.example.com");

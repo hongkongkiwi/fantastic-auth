@@ -168,7 +168,7 @@ async fn start_impersonation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let audit = AuditLogger::new(state.db.clone());
     let context = Some(RequestContext::from_request(
@@ -208,7 +208,7 @@ async fn start_impersonation(
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     // Get target user roles
@@ -263,14 +263,14 @@ async fn start_impersonation(
             duration_minutes: req.duration_minutes,
         })
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create user session for the impersonated user
     let session = state
         .auth_service
         .create_session_for_oauth_user(&target_user, Some(ip_address.clone()), user_agent.clone())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Store session in database with impersonation metadata
     let session_req = vault_core::db::sessions::CreateSessionRequest {
@@ -279,7 +279,7 @@ async fn start_impersonation(
         access_token_jti: session.access_token_jti.clone(),
         refresh_token_hash: session.refresh_token_hash.clone(),
         token_family: session.token_family.clone(),
-        ip_address: Some(ip_address.parse().map_err(|_| ApiError::Internal)?),
+        ip_address: Some(ip_address.parse().map_err(|_| ApiError::internal())?),
         user_agent,
         device_fingerprint: None,
         device_info: serde_json::json!({
@@ -300,7 +300,7 @@ async fn start_impersonation(
         .sessions()
         .create(session_req)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Generate impersonation tokens with limited duration
     let token_pair = state
@@ -311,7 +311,7 @@ async fn start_impersonation(
             &session.id,
             req.duration_minutes,
         )
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log impersonation start
     audit.log_impersonation_started(
@@ -384,7 +384,7 @@ async fn end_impersonation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // End the impersonation session record
     let impersonation_service = ImpersonationService::new(state.db.clone());
@@ -410,7 +410,7 @@ async fn end_impersonation(
             Some("impersonation_ended"),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log impersonation end
     let audit = AuditLogger::new(state.db.clone());
@@ -447,7 +447,7 @@ async fn list_impersonations(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.max(1);
     let per_page = query.per_page.clamp(1, 100);
@@ -463,7 +463,7 @@ async fn list_impersonations(
             query.target_user_id.as_deref(),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let session_responses: Vec<ImpersonationSessionResponse> = sessions
         .into_iter()

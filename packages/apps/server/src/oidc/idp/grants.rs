@@ -397,25 +397,33 @@ pub fn default_scopes_for_grant(grant_type: &GrantType) -> Vec<String> {
 /// When refreshing a token, the requested scopes must be a subset
 /// of the originally authorized scopes.
 pub fn filter_scopes(requested: Option<&str>, authorized: Option<&str>) -> Option<String> {
-    let requested_set: std::collections::HashSet<String> = requested
-        .map(|s| s.split_whitespace().map(|s| s.to_string()).collect())
+    let requested_list: Vec<String> = requested
+        .map(|s| {
+            s.split_whitespace()
+                .filter(|scope| !scope.is_empty())
+                .map(|scope| scope.to_string())
+                .collect()
+        })
         .unwrap_or_default();
 
     let authorized_set: std::collections::HashSet<String> = authorized
         .map(|s| s.split_whitespace().map(|s| s.to_string()).collect())
         .unwrap_or_default();
 
-    if requested_set.is_empty() {
+    if requested_list.is_empty() {
         // If no scopes requested, return all authorized scopes
         return authorized.map(|s| s.to_string());
     }
 
     // Check that all requested scopes are authorized
-    if !requested_set.is_subset(&authorized_set) {
+    if !requested_list
+        .iter()
+        .all(|scope| authorized_set.contains(scope))
+    {
         return None;
     }
 
-    Some(requested_set.into_iter().collect::<Vec<_>>().join(" "))
+    Some(requested_list.join(" "))
 }
 
 /// Generate a unique user code for device flow
@@ -423,14 +431,14 @@ pub fn filter_scopes(requested: Option<&str>, authorized: Option<&str>) -> Optio
 /// Format: XXXX-XXXX (easy to type)
 pub fn generate_user_code() -> String {
     // Use secure random generation instead of thread_rng for consistency
-    let bytes = vault_core::crypto::generate_random_bytes(4);
+    let bytes = vault_core::crypto::generate_random_bytes(8);
     const CHARSET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed confusing chars
     
-    let part1: String = bytes[..2]
+    let part1: String = bytes[..4]
         .iter()
         .map(|b| CHARSET[(*b as usize) % CHARSET.len()] as char)
         .collect();
-    let part2: String = bytes[2..]
+    let part2: String = bytes[4..]
         .iter()
         .map(|b| CHARSET[(*b as usize) % CHARSET.len()] as char)
         .collect();

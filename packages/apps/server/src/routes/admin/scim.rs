@@ -57,7 +57,7 @@ async fn list_tokens(
 
     let tokens = list_scim_tokens(&state, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Transform tokens to hide hash
     let token_list: Vec<serde_json::Value> = tokens
@@ -113,7 +113,7 @@ async fn create_token(
         Some(&current_user.user_id),
     )
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     // Log the action
     tracing::info!(
@@ -140,7 +140,7 @@ async fn revoke_token(
 
     let revoked = revoke_scim_token(&state, &current_user.tenant_id, &token_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if !revoked {
         return Err(ApiError::NotFound);
@@ -173,7 +173,7 @@ async fn delete_token(
 
     let deleted = delete_scim_token(&state, &current_user.tenant_id, &token_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     if !deleted {
         return Err(ApiError::NotFound);
@@ -281,7 +281,7 @@ async fn list_audit_logs(
         .await
         .map_err(|e| {
             tracing::error!("Failed to fetch SCIM audit logs: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let total: i64 = sqlx::query_scalar(
@@ -302,7 +302,7 @@ async fn list_audit_logs(
     .bind(end_date)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(json!({
         "logs": logs,
@@ -375,7 +375,7 @@ async fn get_config(
     .bind(&current_user.tenant_id)
     .fetch_optional(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let config = if let Some(row) = row.as_ref() {
         ScimConfig {
@@ -451,7 +451,7 @@ async fn update_config(
     .bind(config.group_schema.sync_members)
     .execute(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(config))
 }
@@ -495,14 +495,14 @@ async fn get_stats(
             .bind(&current_user.tenant_id)
             .fetch_one(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
     let total_groups: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM scim_groups WHERE tenant_id = $1")
             .bind(&current_user.tenant_id)
             .fetch_one(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
     let active_tokens: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM scim_tokens WHERE tenant_id = $1 AND status = 'active'",
@@ -510,14 +510,14 @@ async fn get_stats(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let total_requests: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM scim_audit_logs WHERE tenant_id = $1")
             .bind(&current_user.tenant_id)
             .fetch_one(state.db.pool())
             .await
-            .map_err(|_| ApiError::Internal)?;
+            .map_err(|_| ApiError::internal())?;
 
     let recent_errors: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM scim_audit_logs WHERE tenant_id = $1 AND success = false AND created_at > NOW() - INTERVAL '24 hours'"
@@ -525,7 +525,7 @@ async fn get_stats(
     .bind(&current_user.tenant_id)
     .fetch_one(state.db.pool())
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     let last_sync: Option<DateTime<Utc>> = sqlx::query_scalar(
         "SELECT MAX(created_at) FROM scim_audit_logs WHERE tenant_id = $1 AND action = 'create'",

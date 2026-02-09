@@ -35,7 +35,7 @@ async fn accept_invitation(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let invite = state
         .auth_service
@@ -43,7 +43,7 @@ async fn accept_invitation(
         .tenant_admins()
         .find_invitation_by_token(&current_user.tenant_id, &req.token)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::BadRequest("Invalid or expired invitation".to_string()))?;
 
     if invite.email.to_lowercase() != current_user.email.to_lowercase() {
@@ -58,7 +58,7 @@ async fn accept_invitation(
         .tenant_admins()
         .accept_invitation(&invite.id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -66,7 +66,7 @@ async fn accept_invitation(
         .tenant_admins()
         .upsert_admin(&current_user.tenant_id, &current_user.user_id, &invite.role, "active")
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(MessageResponse {
         message: "Invitation accepted".to_string(),

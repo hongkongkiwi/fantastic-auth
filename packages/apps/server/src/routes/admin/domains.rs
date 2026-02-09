@@ -112,12 +112,12 @@ async fn list_org_domains(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Initialize domain service
     let domain_service = DomainService::new(state.db.pool().clone().into())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Fetch domains
     let domains = domain_service
@@ -125,7 +125,7 @@ async fn list_org_domains(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list domains: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     Ok(Json(DomainListResponse { data: domains }))
@@ -142,12 +142,12 @@ async fn create_org_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Initialize domain service
     let domain_service = DomainService::new(state.db.pool().clone().into())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Create domain
     let create_request = CreateDomainRequest {
@@ -166,7 +166,7 @@ async fn create_org_domain(
             } else if e.to_string().contains("Invalid domain") {
                 ApiError::Validation(e.to_string())
             } else {
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -202,12 +202,12 @@ async fn delete_org_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Initialize domain service
     let domain_service = DomainService::new(state.db.pool().clone().into())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Delete domain
     domain_service
@@ -218,7 +218,7 @@ async fn delete_org_domain(
             if e.to_string().contains("does not belong") {
                 ApiError::Forbidden
             } else {
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -256,12 +256,12 @@ async fn update_org_domain(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Initialize domain service
     let domain_service = DomainService::new(state.db.pool().clone().into())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Update domain
     let update_request = UpdateDomainRequest {
@@ -277,7 +277,7 @@ async fn update_org_domain(
             if e.to_string().contains("does not belong") {
                 ApiError::Forbidden
             } else {
-                ApiError::Internal
+                ApiError::internal()
             }
         })?;
 
@@ -389,12 +389,12 @@ async fn verify_domain_with_method(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Initialize domain service
     let domain_service = DomainService::new(state.db.pool().clone().into())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Perform verification
     let result = match method {
@@ -427,7 +427,7 @@ async fn verify_domain_with_method(
         } else if e.to_string().contains("does not belong") {
             ApiError::Forbidden
         } else {
-            ApiError::Internal
+            ApiError::internal()
         }
     })?;
 

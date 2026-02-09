@@ -269,11 +269,11 @@ pub const X_REQUEST_ID: &str = "x-request-id";
 /// Sanitize input strings
 pub fn sanitize_input(input: &str) -> String {
     input
+        .replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#x27;")
-        .replace('&', "&amp;")
 }
 
 /// Validate email format (basic check, use validator crate for thorough check)
@@ -677,7 +677,7 @@ mod tests {
         assert_eq!(sanitize_filename("file.txt"), "file.txt");
         assert_eq!(sanitize_filename("../etc/passwd"), "__etc_passwd");
         assert_eq!(sanitize_filename("file\0.txt"), "file.txt");
-        assert_eq!(sanitize_filename("very/long/path/file.txt").len(), 24);
+        assert_eq!(sanitize_filename("very/long/path/file.txt").len(), 23);
     }
 
     #[test]

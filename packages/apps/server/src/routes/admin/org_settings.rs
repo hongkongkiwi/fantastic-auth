@@ -36,10 +36,10 @@ async fn get_org_settings(
     Extension(current_user): Extension<CurrentUser>,
     Path(org_id): Path<String>,
 ) -> Result<Json<OrgSettingsPayload>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, OrgSettingsPayload>(
         r#"SELECT
@@ -59,7 +59,7 @@ async fn get_org_settings(
     .bind(&org_id)
     .fetch_optional(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     if let Some(settings) = row {
         return Ok(Json(settings));
@@ -84,10 +84,10 @@ async fn update_org_settings(
     Path(org_id): Path<String>,
     Json(payload): Json<OrgSettingsPayload>,
 ) -> Result<Json<OrgSettingsPayload>, ApiError> {
-    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::Internal)?;
+    let mut conn = state.db.pool().acquire().await.map_err(|_| ApiError::internal())?;
     set_connection_context(&mut conn, &current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let row = sqlx::query_as::<_, OrgSettingsPayload>(
         r#"INSERT INTO organization_settings (
@@ -130,7 +130,7 @@ async fn update_org_settings(
     .bind(payload.advanced)
     .fetch_one(&mut *conn)
     .await
-    .map_err(|_| ApiError::Internal)?;
+    .map_err(|_| ApiError::internal())?;
 
     Ok(Json(row))
 }

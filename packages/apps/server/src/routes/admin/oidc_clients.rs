@@ -72,7 +72,7 @@ async fn list_clients(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let clients = state
         .auth_service
@@ -80,7 +80,7 @@ async fn list_clients(
         .oidc()
         .list_clients(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let responses = clients
         .into_iter()
@@ -107,7 +107,7 @@ async fn create_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let client_type = req.client_type.unwrap_or_else(|| "confidential".to_string());
     let allowed_scopes = req
@@ -130,7 +130,7 @@ async fn create_client(
             "client_secret_basic",
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ClientResponse {
         id: client.id,
@@ -152,7 +152,7 @@ async fn get_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let client = state
         .auth_service
@@ -160,7 +160,7 @@ async fn get_client(
         .oidc()
         .get_client(&current_user.tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ClientResponse {
@@ -184,7 +184,7 @@ async fn update_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let client = state
         .auth_service
@@ -199,7 +199,7 @@ async fn update_client(
             req.pkce_required,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ClientResponse {
         id: client.id,
@@ -221,7 +221,7 @@ async fn delete_client(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .auth_service
@@ -229,7 +229,7 @@ async fn delete_client(
         .oidc()
         .delete_client(&current_user.tenant_id, &client_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"message": "Client deleted"})))
 }

@@ -46,7 +46,7 @@ async fn get_branding(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(BrandingResponse::default()))
 }
 
@@ -58,7 +58,7 @@ async fn update_branding(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(req))
 }
 
@@ -69,7 +69,7 @@ async fn get_theme(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(ThemeResponse {
         theme: serde_json::json!({}),
     }))
@@ -83,6 +83,6 @@ async fn update_theme(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
     Ok(Json(req))
 }

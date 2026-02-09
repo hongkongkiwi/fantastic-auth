@@ -425,14 +425,14 @@ const mfaKeys = {
 export const useMfaFactors = () => {
   return useQuery({
     queryKey: mfaKeys.factors(),
-    queryFn: () => fetchWithAuth<{ factors: MfaFactor[] }>('/me/mfa/factors'),
+    queryFn: () => fetchWithAuth<{ factors: MfaFactor[] }>('/users/me/mfa'),
   })
 }
 
 export const useSetupMfa = () => {
   return useMutation({
     mutationFn: ({ type, name }: { type: string; name: string }) =>
-      fetchWithAuth<MfaSetupResponse>('/me/mfa/setup', {
+      fetchWithAuth<MfaSetupResponse>('/users/me/mfa', {
         method: 'POST',
         body: JSON.stringify({ type, name }),
       }),
@@ -444,7 +444,7 @@ export const useVerifyMfaSetup = () => {
   
   return useMutation({
     mutationFn: ({ type, code }: { type: string; code: string }) =>
-      fetchWithAuth<{ success: boolean; backupCodes?: string[] }>('/me/mfa/verify', {
+      fetchWithAuth<{ success: boolean; backupCodes?: string[] }>('/users/me/mfa/verify', {
         method: 'POST',
         body: JSON.stringify({ type, code }),
       }),
@@ -459,7 +459,7 @@ export const useDisableMfa = () => {
   
   return useMutation({
     mutationFn: ({ factorId, code }: { factorId: string; code: string }) =>
-      fetchWithAuth<{ success: boolean }>(`/me/mfa/factors/${factorId}`, {
+      fetchWithAuth<{ success: boolean }>(`/users/me/mfa/${factorId}`, {
         method: 'DELETE',
         body: JSON.stringify({ code }),
       }),
@@ -472,7 +472,7 @@ export const useDisableMfa = () => {
 export const useRegenerateBackupCodes = () => {
   return useMutation({
     mutationFn: (code: string) =>
-      fetchWithAuth<{ backupCodes: string[] }>('/me/mfa/backup-codes', {
+      fetchWithAuth<{ backupCodes: string[] }>('/users/me/mfa/backup-codes', {
         method: 'POST',
         body: JSON.stringify({ code }),
       }),
@@ -503,7 +503,7 @@ const securityKeyKeys = {
 export const useSecurityKeys = () => {
   return useQuery({
     queryKey: securityKeyKeys.list(),
-    queryFn: () => fetchWithAuth<SecurityKeysResponse>('/me/security-keys'),
+    queryFn: () => fetchWithAuth<SecurityKeysResponse>('/users/me/mfa/webauthn'),
   })
 }
 
@@ -512,7 +512,7 @@ export const useRegisterSecurityKey = () => {
   
   return useMutation({
     mutationFn: (name: string) =>
-      fetchWithAuth<{ success: boolean; key: SecurityKey }>('/me/security-keys', {
+      fetchWithAuth<{ success: boolean; key: SecurityKey }>('/users/me/mfa/webauthn/register/begin', {
         method: 'POST',
         body: JSON.stringify({ name }),
       }),
@@ -527,12 +527,149 @@ export const useRemoveSecurityKey = () => {
   
   return useMutation({
     mutationFn: (keyId: string) =>
-      fetchWithAuth<{ success: boolean }>(`/me/security-keys/${keyId}`, {
+      fetchWithAuth<{ success: boolean }>(`/users/me/mfa/webauthn/${keyId}`, {
         method: 'DELETE',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: securityKeyKeys.all })
     },
+  })
+}
+
+// ============= Password Change API =============
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export const useChangePassword = () => {
+  return useMutation({
+    mutationFn: (data: ChangePasswordRequest) =>
+      fetchWithAuth<{ message: string }>('/me/password', {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: data.currentPassword,
+          new_password: data.newPassword,
+        }),
+      }),
+  })
+}
+
+// ============= Security Dashboard Types =============
+
+export interface SecurityScore {
+  overallScore: number
+  mfaScore: number
+  passwordScore: number
+  sessionScore: number
+  deviceScore: number
+  lastUpdated: string
+}
+
+export interface SecurityAlert {
+  id: string
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info'
+  category: string
+  title: string
+  description: string
+  createdAt: string
+  status: 'open' | 'acknowledged' | 'resolved'
+  relatedSessionId?: string
+  relatedDeviceId?: string
+}
+
+export interface SecurityRecommendation {
+  id: string
+  priority: 'critical' | 'high' | 'medium' | 'low'
+  category: string
+  title: string
+  description: string
+  actionText: string
+  actionRoute?: string
+  isCompleted: boolean
+  createdAt: string
+}
+
+export interface MfaStats {
+  enabled: boolean
+  totalFactors: number
+  factorsByType: Array<{
+    factorType: string
+    count: number
+    percentage: number
+  }>
+  backupCodesAvailable: boolean
+}
+
+export interface RiskFactors {
+  weakPasswords: number
+  noMfaUsers: number
+  suspiciousDevices: number
+  failedLoginAttempts: number
+  untrustedDevices: number
+}
+
+// ============= Security Dashboard API =============
+
+const securityKeys = {
+  all: ['security'] as const,
+  score: () => [...securityKeys.all, 'score'] as const,
+  alerts: () => [...securityKeys.all, 'alerts'] as const,
+  recommendations: () => [...securityKeys.all, 'recommendations'] as const,
+  mfaStats: () => [...securityKeys.all, 'mfaStats'] as const,
+  riskFactors: () => [...securityKeys.all, 'riskFactors'] as const,
+}
+
+export const useSecurityScore = () => {
+  return useQuery({
+    queryKey: securityKeys.score(),
+    queryFn: () => fetchWithAuth<SecurityScore>('/me/security/score'),
+  })
+}
+
+export const useSecurityAlerts = () => {
+  return useQuery({
+    queryKey: securityKeys.alerts(),
+    queryFn: () => fetchWithAuth<{ alerts: SecurityAlert[]; total: number; unacknowledgedCount: number }>(
+      '/me/security/alerts'
+    ),
+  })
+}
+
+export const useAcknowledgeAlert = () => {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: (alertId: string) =>
+      fetchWithAuth<{ success: boolean; message: string }>(`/me/security/alerts/${alertId}/ack`, {
+        method: 'PUT',
+        body: JSON.stringify({}),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: securityKeys.alerts() })
+    },
+  })
+}
+
+export const useSecurityRecommendations = () => {
+  return useQuery({
+    queryKey: securityKeys.recommendations(),
+    queryFn: () => fetchWithAuth<SecurityRecommendation[]>('/me/security/recommendations'),
+  })
+}
+
+export const useMfaStats = () => {
+  return useQuery({
+    queryKey: securityKeys.mfaStats(),
+    queryFn: () => fetchWithAuth<MfaStats>('/me/security/mfa-stats'),
+  })
+}
+
+export const useRiskFactors = () => {
+  return useQuery({
+    queryKey: securityKeys.riskFactors(),
+    queryFn: () => fetchWithAuth<RiskFactors>('/me/security/risk-factors'),
   })
 }
 

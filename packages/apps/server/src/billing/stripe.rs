@@ -652,7 +652,9 @@ impl StripeBillingService {
             .await?;
 
         self.sync_subscription_to_db(tenant_id, &subscription).await?;
-        self.get_subscription(tenant_id).await.map(|s| s.unwrap())
+        self.get_subscription(tenant_id)
+            .await?
+            .ok_or(BillingError::SubscriptionNotFound)
     }
 
     /// Resume canceled subscription
@@ -685,7 +687,9 @@ impl StripeBillingService {
             .await?;
 
         self.sync_subscription_to_db(tenant_id, &subscription).await?;
-        self.get_subscription(tenant_id).await.map(|s| s.unwrap())
+        self.get_subscription(tenant_id)
+            .await?
+            .ok_or(BillingError::SubscriptionNotFound)
     }
 
     /// Update subscription to new plan
@@ -723,13 +727,15 @@ impl StripeBillingService {
             .await?;
 
         self.sync_subscription_to_db(tenant_id, &subscription).await?;
-        self.get_subscription(tenant_id).await.map(|s| s.unwrap())
+        self.get_subscription(tenant_id)
+            .await?
+            .ok_or(BillingError::SubscriptionNotFound)
     }
 
     /// Record usage for metered billing
     pub async fn record_usage(&self, _tenant_id: &str, _quantity: i64) -> anyhow::Result<()> {
-        // TODO: Implement usage-based billing
-        // This requires setting up metered prices in Stripe
+        // NOTE: Usage-based billing is a planned feature for future implementation.
+        // This requires setting up metered prices in Stripe and integrating with usage tracking.
         Ok(())
     }
 

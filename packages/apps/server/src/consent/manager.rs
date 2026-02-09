@@ -378,10 +378,15 @@ impl ConsentManager {
 
     /// Helper to get user's tenant ID
     async fn get_user_tenant(&self, user_id: &str) -> ConsentResult<String> {
-        // This is a placeholder - in production, you'd query the database
-        // For now, we return a default
-        // TODO: Implement proper user -> tenant lookup
-        Ok("default".to_string())
+        // Query the users table to get the tenant_id for this user
+        let tenant_id: Option<String> = sqlx::query_scalar(
+            "SELECT tenant_id::text FROM users WHERE id = $1"
+        )
+        .bind(user_id)
+        .fetch_optional(self.repository.pool())
+        .await?;
+        
+        tenant_id.ok_or_else(|| super::ConsentError::UserNotFound(user_id.to_string()))
     }
 
     /// Get repository reference

@@ -499,12 +499,12 @@ async fn hosted_oauth_callback(
     let token_response = oauth_service
         .exchange_code(&request.code, stored.code_verifier.as_deref())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user_info = oauth_service
         .get_user_info(&token_response.access_token)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let email = user_info
         .email
@@ -533,9 +533,9 @@ async fn hosted_oauth_callback(
                 profile: Some(profile),
                 metadata: None,
             };
-            state.db.users().create(req).await.map_err(|_| ApiError::Internal)?
+            state.db.users().create(req).await.map_err(|_| ApiError::internal())?
         }
-        Err(_) => return Err(ApiError::Internal),
+        Err(_) => return Err(ApiError::internal()),
     };
 
     if user.status != UserStatus::Active || user.is_locked() {
@@ -545,7 +545,7 @@ async fn hosted_oauth_callback(
     match state
         .check_session_limits(&stored.tenant_id, &user.id, None)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
     {
         Ok(()) => {}
         Err(limit_err) => return Err(ApiError::SessionLimitReached(limit_err)),
@@ -555,7 +555,7 @@ async fn hosted_oauth_callback(
         .auth_service
         .create_session_for_oauth_user(&user, None, None)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let session_req = vault_core::db::sessions::CreateSessionRequest {
         tenant_id: stored.tenant_id.clone(),
@@ -576,12 +576,12 @@ async fn hosted_oauth_callback(
         bind_to_ip: state.config.security.session_binding.bind_to_ip,
         bind_to_device: state.config.security.session_binding.bind_to_device,
     };
-    state.db.sessions().create(session_req).await.map_err(|_| ApiError::Internal)?;
+    state.db.sessions().create(session_req).await.map_err(|_| ApiError::internal())?;
 
     let token_pair = state
         .auth_service
         .generate_tokens(&user, &session.id)
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(HostedSignInResponse {
         session_token: token_pair.access_token,
@@ -672,7 +672,7 @@ fn get_oauth_config(
             )))
         }
     };
-    let config = provider_config.ok_or(ApiError::Internal)?;
+    let config = provider_config.ok_or(ApiError::internal())?;
     let provider_enum = match provider_lower.as_str() {
         "google" => oauth_core::OAuthProvider::Google,
         "github" => oauth_core::OAuthProvider::GitHub,
@@ -717,9 +717,9 @@ async fn store_hosted_oauth_state(
     data: HostedOAuthState,
 ) -> Result<(), ApiError> {
     let Some(redis) = state.redis.clone() else {
-        return Err(ApiError::Internal);
+        return Err(ApiError::internal());
     };
-    let value = serde_json::to_string(&data).map_err(|_| ApiError::Internal)?;
+    let value = serde_json::to_string(&data).map_err(|_| ApiError::internal())?;
     let mut conn = redis;
     let key = format!("hosted:oauth:state:{}", state_param);
     let result: Result<(), _> = redis::cmd("SETEX")
@@ -728,7 +728,7 @@ async fn store_hosted_oauth_state(
         .arg(value)
         .query_async(&mut conn)
         .await;
-    result.map_err(|_| ApiError::Internal)
+    result.map_err(|_| ApiError::internal())
 }
 
 async fn verify_hosted_oauth_state(state: &AppState, state_param: &str) -> Result<HostedOAuthState, ApiError> {

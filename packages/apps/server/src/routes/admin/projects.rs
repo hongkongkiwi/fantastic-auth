@@ -171,7 +171,7 @@ async fn list_projects(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 200);
@@ -182,7 +182,7 @@ async fn list_projects(
         .projects()
         .list_by_org(&current_user.tenant_id, &query.organization_id, per_page, offset)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         projects
@@ -210,7 +210,7 @@ async fn create_project(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let project = Project::new(&current_user.tenant_id, &req.organization_id, &req.name, &req.slug);
     let project = Project {
@@ -223,7 +223,7 @@ async fn create_project(
         .projects()
         .create(&project)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectResponse {
         id: created.id,
@@ -246,14 +246,14 @@ async fn get_project(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let project = state
         .db
         .projects()
         .get_by_id(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ProjectResponse {
@@ -278,14 +278,14 @@ async fn update_project(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut project = state
         .db
         .projects()
         .get_by_id(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if let Some(name) = req.name {
@@ -309,7 +309,7 @@ async fn update_project(
         .projects()
         .update(&current_user.tenant_id, &project)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectResponse {
         id: updated.id,
@@ -332,14 +332,14 @@ async fn delete_project(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .projects()
         .delete(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }
@@ -352,14 +352,14 @@ async fn list_project_roles(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let roles = state
         .db
         .projects()
         .list_roles(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         roles
@@ -387,7 +387,7 @@ async fn create_project_role(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let now = chrono::Utc::now();
     let role = ProjectRole {
@@ -407,7 +407,7 @@ async fn create_project_role(
         .projects()
         .create_role(&role)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectRoleResponse {
         id: created.id,
@@ -430,14 +430,14 @@ async fn update_project_role(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut role = state
         .db
         .projects()
         .get_role_by_id(&current_user.tenant_id, &role_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if let Some(name) = req.name {
@@ -455,7 +455,7 @@ async fn update_project_role(
         .projects()
         .update_role(&current_user.tenant_id, &role)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectRoleResponse {
         id: updated.id,
@@ -477,14 +477,14 @@ async fn delete_project_role(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .projects()
         .delete_role(&current_user.tenant_id, &role_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }
@@ -497,14 +497,14 @@ async fn list_project_assignments(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let assignments = state
         .db
         .projects()
         .list_assignments(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         assignments
@@ -530,7 +530,7 @@ async fn assign_project_role(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let assignment = ProjectRoleAssignment {
         id: uuid::Uuid::new_v4().to_string(),
@@ -547,7 +547,7 @@ async fn assign_project_role(
         .projects()
         .assign_role(&assignment)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectRoleAssignmentResponse {
         id: created.id,
@@ -567,14 +567,14 @@ async fn remove_project_assignment(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .projects()
         .remove_assignment(&current_user.tenant_id, &assignment_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }
@@ -587,14 +587,14 @@ async fn list_project_grants(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let grants = state
         .db
         .projects()
         .list_grants(&current_user.tenant_id, &project_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         grants
@@ -619,7 +619,7 @@ async fn create_project_grant(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let grant = ProjectGrant {
         id: uuid::Uuid::new_v4().to_string(),
@@ -635,7 +635,7 @@ async fn create_project_grant(
         .projects()
         .create_grant(&grant)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ProjectGrantResponse {
         id: created.id,
@@ -654,14 +654,14 @@ async fn delete_project_grant(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .projects()
         .delete_grant(&current_user.tenant_id, &grant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }

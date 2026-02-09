@@ -629,7 +629,7 @@ mod tests {
     #[test]
     fn test_cache_entry_expired() {
         let entry = CacheEntry {
-            value: vec![],
+            value: Vec::<String>::new(),
             expires_at: std::time::Instant::now() - Duration::from_secs(1),
         };
         assert!(entry.is_expired());

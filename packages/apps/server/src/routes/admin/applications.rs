@@ -76,7 +76,7 @@ async fn list_project_apps(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(50).clamp(1, 200);
@@ -87,7 +87,7 @@ async fn list_project_apps(
         .applications()
         .list_by_project(&current_user.tenant_id, &project_id, per_page, offset)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(
         apps.into_iter()
@@ -115,7 +115,7 @@ async fn create_project_app(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let app_type = req.app_type.parse().unwrap_or(ApplicationType::Oidc);
     let mut app = Application::new(
@@ -134,7 +134,7 @@ async fn create_project_app(
         .applications()
         .create(&app)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ApplicationResponse {
         id: created.id,
@@ -157,14 +157,14 @@ async fn get_app(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let app = state
         .db
         .applications()
         .get_by_id(&current_user.tenant_id, &app_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(ApplicationResponse {
@@ -189,14 +189,14 @@ async fn update_app(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut app = state
         .db
         .applications()
         .get_by_id(&current_user.tenant_id, &app_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if let Some(name) = req.name {
@@ -217,7 +217,7 @@ async fn update_app(
         .applications()
         .update(&current_user.tenant_id, &app)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(ApplicationResponse {
         id: updated.id,
@@ -240,14 +240,14 @@ async fn delete_app(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .applications()
         .delete(&current_user.tenant_id, &app_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(serde_json::json!({"deleted": true})))
 }

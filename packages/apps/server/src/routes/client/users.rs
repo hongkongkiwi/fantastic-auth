@@ -171,14 +171,14 @@ async fn get_current_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let user = state
         .db
         .users()
         .find_by_id(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     Ok(Json(UserResponse {
@@ -198,14 +198,14 @@ async fn update_current_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let mut user = state
         .db
         .users()
         .find_by_id(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?
+        .map_err(|_| ApiError::internal())?
         .ok_or(ApiError::NotFound)?;
 
     if let Some(name) = req.name {
@@ -217,7 +217,7 @@ async fn update_current_user(
         .users()
         .update(&current_user.tenant_id, &user)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Trigger webhook event
     crate::webhooks::events::trigger_user_updated(
@@ -245,7 +245,7 @@ async fn delete_current_user(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get user info before deletion for webhook
     let user = state
@@ -253,14 +253,14 @@ async fn delete_current_user(
         .users()
         .find_by_id(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .users()
         .delete(&current_user.tenant_id, &current_user.user_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Trigger webhook event
     if let Some(user) = user {
@@ -289,7 +289,7 @@ async fn change_password(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let context = Some(RequestContext::from_request(
         &headers,
@@ -302,12 +302,12 @@ async fn change_password(
         .users()
         .find_by_email_with_password_legacy(&current_user.tenant_id, &current_user.email)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify current password
     if let Some(hash) = password_hash {
         if !vault_core::crypto::VaultPasswordHasher::verify(&req.current_password, &hash)
-            .map_err(|_| ApiError::Internal)?
+            .map_err(|_| ApiError::internal())?
         {
             // Log failed password change
             audit.log_password_change(
@@ -324,14 +324,14 @@ async fn change_password(
 
     // Hash new password
     let new_hash = vault_core::crypto::VaultPasswordHasher::hash(&req.new_password)
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     state
         .db
         .users()
         .update_password(&current_user.tenant_id, &current_user.user_id, &new_hash)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Log successful password change
     audit.log_password_change(
@@ -365,7 +365,7 @@ async fn list_my_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get all active sessions for the user
     let sessions = state
@@ -373,7 +373,7 @@ async fn list_my_sessions(
         .sessions()
         .list_by_user(&current_user.tenant_id, &current_user.user_id, true)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Get session limit status
     let limit_status = state
@@ -418,7 +418,7 @@ async fn revoke_my_session(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Verify the session belongs to the current user
     let session = state
@@ -438,7 +438,7 @@ async fn revoke_my_session(
         .sessions()
         .revoke(&current_user.tenant_id, &session_id, Some("user_revoked"))
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Trigger webhook
     crate::webhooks::events::trigger_session_revoked(
@@ -463,7 +463,7 @@ async fn revoke_all_my_sessions(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let current_session_id = current_user
         .session_id
@@ -481,7 +481,7 @@ async fn revoke_all_my_sessions(
             Some("user_revoked_all"),
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     // Trigger webhook
     crate::webhooks::events::trigger_session_revoked(
@@ -537,7 +537,7 @@ async fn list_linked_accounts(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let accounts = state
         .account_linking_service
@@ -545,7 +545,7 @@ async fn list_linked_accounts(
         .await
         .map_err(|e| {
             tracing::error!("Failed to list linked accounts: {}", e);
-            ApiError::Internal
+            ApiError::internal()
         })?;
 
     let responses: Vec<LinkedAccountResponse> = accounts
@@ -576,7 +576,7 @@ async fn link_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let context = Some(RequestContext::from_request(
         &headers,
@@ -645,7 +645,7 @@ async fn link_account(
                     "Account already linked to this user".to_string(),
                 )),
                 crate::auth::AccountLinkingError::Validation(msg) => Err(ApiError::Validation(msg)),
-                _ => Err(ApiError::Internal),
+                _ => Err(ApiError::internal()),
             }
         }
     }
@@ -662,7 +662,7 @@ async fn unlink_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let context = Some(RequestContext::from_request(
         &headers,
@@ -716,7 +716,7 @@ async fn unlink_account(
                         .to_string(),
                 )),
                 crate::auth::AccountLinkingError::NotFound => Err(ApiError::NotFound),
-                _ => Err(ApiError::Internal),
+                _ => Err(ApiError::internal()),
             }
         }
     }
@@ -733,7 +733,7 @@ async fn set_primary_account(
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let context = Some(RequestContext::from_request(
         &headers,
@@ -768,7 +768,7 @@ async fn set_primary_account(
 
             match e {
                 crate::auth::AccountLinkingError::NotFound => Err(ApiError::NotFound),
-                _ => Err(ApiError::Internal),
+                _ => Err(ApiError::internal()),
             }
         }
     }

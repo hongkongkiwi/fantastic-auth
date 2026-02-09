@@ -50,7 +50,9 @@ pub enum ApiError {
     NotFound,
     Conflict(String),
     Validation(String),
-    Internal,
+    /// Internal error with optional message for logging
+    /// The message is NOT exposed to clients (security)
+    Internal(Option<String>),
     NotImplemented,
     SessionLimitReached(SessionLimitError),
     TooManyRequests(String),
@@ -73,14 +75,31 @@ impl ApiError {
         Self::NotFound
     }
 
-    /// Create an internal error
+    /// Create an internal error with a message for logging
+    /// 
+    /// SECURITY: The message is logged server-side but NEVER returned to clients
+    /// to prevent information leakage about system internals.
     pub fn internal_error(msg: impl Into<String>) -> Self {
-        Self::Internal
+        let msg = msg.into();
+        // Log immediately at creation point with full context
+        tracing::error!(error_message = %msg, "Internal error occurred");
+        Self::Internal(Some(msg))
+    }
+    
+    /// Create a simple internal error without additional context
+    /// Use `internal_error()` when you have specific error details to log
+    pub fn internal() -> Self {
+        Self::Internal(None)
     }
 
     /// Create an MFA required error
     pub fn mfa_required(msg: impl Into<String>) -> Self {
         Self::MfaRequired(msg.into())
+    }
+    
+    /// Create a validation error
+    pub fn validation(msg: impl Into<String>) -> Self {
+        Self::Validation(msg.into())
     }
 }
 
@@ -166,12 +185,22 @@ impl IntoResponse for ApiError {
                     ),
                     // SECURITY: Internal errors - sanitize message before returning
                     // Never expose internal details, database errors, or stack traces
-                    ApiError::Internal => {
-                        // Log the internal error for debugging but return generic message
-                        tracing::error!(
-                            error_type = "internal_error",
-                            "Internal server error occurred"
-                        );
+                    ApiError::Internal(log_msg) => {
+                        // Log the internal error with full context for debugging
+                        // The message was already logged at creation time, but log again
+                        // here to ensure it appears in the response path
+                        if let Some(ref msg) = log_msg {
+                            tracing::error!(
+                                error_type = "internal_error",
+                                error_message = %msg,
+                                "Internal server error occurred"
+                            );
+                        } else {
+                            tracing::error!(
+                                error_type = "internal_error",
+                                "Internal server error occurred (no additional context)"
+                            );
+                        }
                         (
                             StatusCode::INTERNAL_SERVER_ERROR,
                             "INTERNAL_ERROR",

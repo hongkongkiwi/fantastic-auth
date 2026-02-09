@@ -48,13 +48,13 @@ async fn get_billing_status(
         .billing_service
         .get_subscription(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     let invoices = state
         .billing_service
         .list_invoices(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(json!({
         "billing_enabled": true,
@@ -76,7 +76,7 @@ async fn list_plans(State(state): State<AppState>) -> Result<Json<serde_json::Va
         .billing_service
         .list_plans()
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(json!({
         "billing_enabled": true,
@@ -97,7 +97,7 @@ async fn get_subscription(
         .billing_service
         .get_subscription(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match subscription {
         Some(sub) => Ok(Json(json!({ "subscription": sub }))),
@@ -124,7 +124,7 @@ async fn create_subscription(
             &req.cancel_url,
         )
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match session {
         Some(s) => {
@@ -133,15 +133,15 @@ async fn create_subscription(
                 .billing_service
                 .get_subscription(&current_user.tenant_id)
                 .await
-                .map_err(|_| ApiError::Internal)?
-                .ok_or(ApiError::Internal)?;
+                .map_err(|_| ApiError::internal())?
+                .ok_or(ApiError::internal())?;
 
             Ok(Json(SubscriptionResponse {
                 subscription,
                 checkout_url: Some(s.url),
             }))
         }
-        None => Err(ApiError::Internal),
+        None => Err(ApiError::internal()),
     }
 }
 
@@ -158,7 +158,7 @@ async fn cancel_subscription(
         .billing_service
         .cancel_subscription(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match subscription {
         Some(sub) => Ok(Json(json!({
@@ -182,7 +182,7 @@ async fn resume_subscription(
         .billing_service
         .resume_subscription(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match subscription {
         Some(sub) => Ok(Json(json!({
@@ -207,7 +207,7 @@ async fn update_subscription(
         .billing_service
         .update_subscription_plan(&current_user.tenant_id, &req.new_price_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match subscription {
         Some(sub) => Ok(Json(json!({
@@ -231,7 +231,7 @@ async fn list_invoices(
         .billing_service
         .list_invoices(&current_user.tenant_id)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(json!({ "invoices": invoices })))
 }
@@ -250,7 +250,7 @@ async fn create_portal_session(
         .billing_service
         .create_portal_session(&current_user.tenant_id, &req.return_url)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     match session {
         Some(s) => Ok(Json(PortalResponse { url: s.url })),
@@ -272,7 +272,7 @@ async fn record_usage(
         .billing_service
         .record_usage(&current_user.tenant_id, req.quantity)
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::internal())?;
 
     Ok(Json(json!({
         "message": "Usage recorded",

@@ -705,7 +705,7 @@ mod tests {
         let policy = PasswordPolicy::default();
         let validator = PasswordPolicyValidator::new(policy);
 
-        let result = validator.validate_sync("password123!A", None);
+        let result = validator.validate_sync("password123", None);
         assert!(!result.is_valid);
         assert!(result
             .errors
