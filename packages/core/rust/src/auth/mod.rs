@@ -12,6 +12,7 @@ use crate::crypto::{
     VaultPasswordHasher,
 };
 use crate::db::sessions::SessionStatus as DbSessionStatus;
+use sha2::{Sha256, Digest};
 
 use crate::db::users::CreateUserRequest;
 use crate::db::DbContext;
