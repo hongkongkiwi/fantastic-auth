@@ -4,7 +4,7 @@
  * TypeScript types for the Vault React UI components.
  */
 
-import { User, Organization, SessionInfo, ApiError, MfaMethod } from '@vault/react';
+import { User, Organization, SessionInfo, ApiError, MfaMethod } from '@fantasticauth/react';
 
 // ============================================================================
 // Auth Types

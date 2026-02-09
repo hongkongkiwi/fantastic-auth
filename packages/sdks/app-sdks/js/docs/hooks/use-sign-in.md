@@ -13,7 +13,7 @@ The `useSignIn` hook is ideal for building custom sign-in forms with:
 ## Basic Usage
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignInForm() {
@@ -102,7 +102,7 @@ interface SignInOptions {
 ### Email/Password Sign In
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function EmailSignIn() {
@@ -150,7 +150,7 @@ function EmailSignIn() {
 ### OAuth Sign In
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 
 function OAuthButtons() {
   const { signInWithOAuth, isLoading } = useSignIn();
@@ -185,7 +185,7 @@ function OAuthButtons() {
 ### Magic Link Sign In
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function MagicLinkForm() {
@@ -233,7 +233,7 @@ function MagicLinkForm() {
 ### Complete Sign In Page
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignInPage() {
@@ -339,7 +339,7 @@ function SignInPage() {
 Common error codes and how to handle them:
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 
 function SignInWithErrorHandling() {
   const { signIn, error } = useSignIn();
@@ -406,7 +406,7 @@ function SignInWithErrorHandling() {
 Full TypeScript support:
 
 ```tsx
-import { useSignIn, SignInOptions, ApiError } from '@vault/react';
+import { useSignIn, SignInOptions, ApiError } from '@fantasticauth/react';
 
 const handleSignIn = async (options: SignInOptions) => {
   const { signIn } = useSignIn();
@@ -426,7 +426,7 @@ Test the useSignIn hook:
 
 ```tsx
 import { renderHook, act } from '@testing-library/react';
-import { useSignIn, VaultProvider } from '@vault/react';
+import { useSignIn, VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

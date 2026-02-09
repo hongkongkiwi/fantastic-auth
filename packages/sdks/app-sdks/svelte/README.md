@@ -16,11 +16,11 @@ A comprehensive Svelte SDK for Vault authentication and user management. Support
 ## Installation
 
 ```bash
-npm install @vault/svelte
+npm install @fantasticauth/svelte
 # or
-yarn add @vault/svelte
+yarn add @fantasticauth/svelte
 # or
-pnpm add @vault/svelte
+pnpm add @fantasticauth/svelte
 ```
 
 ## Quick Start
@@ -30,7 +30,7 @@ pnpm add @vault/svelte
 ```svelte
 <!-- +layout.svelte -->
 <script>
-  import { VaultProvider } from '@vault/svelte';
+  import { VaultProvider } from '@fantasticauth/svelte';
 </script>
 
 <VaultProvider 
@@ -48,7 +48,7 @@ pnpm add @vault/svelte
 ```svelte
 <!-- +page.svelte -->
 <script>
-  import { useAuth, SignIn, UserButton } from '@vault/svelte';
+  import { useAuth, SignIn, UserButton } from '@fantasticauth/svelte';
   
   const { isSignedIn, user, signOut } = useAuth();
 </script>
@@ -67,7 +67,7 @@ pnpm add @vault/svelte
 
 ```svelte
 <script>
-  import { authStore, userStore, SignIn, UserButton } from '@vault/svelte';
+  import { authStore, userStore, SignIn, UserButton } from '@fantasticauth/svelte';
 </script>
 
 {#if $authStore.isSignedIn}
@@ -88,7 +88,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { useAuth } from '@vault/svelte';
+  import { useAuth } from '@fantasticauth/svelte';
   
   const { 
     isLoaded, 
@@ -109,7 +109,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { useSignIn } from '@vault/svelte';
+  import { useSignIn } from '@fantasticauth/svelte';
   
   const { signIn, isLoading, error, resetError } = useSignIn();
   
@@ -142,7 +142,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { useUser } from '@vault/svelte';
+  import { useUser } from '@fantasticauth/svelte';
   
   const { user, update, reload, changePassword, deleteAccount } = useUser();
 </script>
@@ -152,7 +152,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { useOrganization } from '@vault/svelte';
+  import { useOrganization } from '@fantasticauth/svelte';
   
   const { 
     organization, 
@@ -171,7 +171,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { SignIn } from '@vault/svelte';
+  import { SignIn } from '@fantasticauth/svelte';
 </script>
 
 <SignIn
@@ -188,7 +188,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { SignUp } from '@vault/svelte';
+  import { SignUp } from '@fantasticauth/svelte';
 </script>
 
 <SignUp
@@ -203,7 +203,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { UserButton } from '@vault/svelte';
+  import { UserButton } from '@fantasticauth/svelte';
 </script>
 
 <UserButton
@@ -220,7 +220,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { UserProfile } from '@vault/svelte';
+  import { UserProfile } from '@fantasticauth/svelte';
 </script>
 
 <UserProfile 
@@ -232,7 +232,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { OrganizationSwitcher } from '@vault/svelte';
+  import { OrganizationSwitcher } from '@fantasticauth/svelte';
 </script>
 
 <OrganizationSwitcher
@@ -245,7 +245,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { SignedIn, SignedOut, Protect } from '@vault/svelte';
+  import { SignedIn, SignedOut, Protect } from '@fantasticauth/svelte';
 </script>
 
 <SignedIn>
@@ -269,7 +269,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```svelte
 <script>
-  import { WebAuthnButton } from '@vault/svelte';
+  import { WebAuthnButton } from '@fantasticauth/svelte';
 </script>
 
 <WebAuthnButton
@@ -285,7 +285,7 @@ The SDK provides modern Svelte 5 runes for reactive state management:
 
 ```typescript
 // hooks.server.ts
-import { vaultAuth } from '@vault/svelte/server';
+import { vaultAuth } from '@fantasticauth/svelte/server';
 
 export const handle = vaultAuth({
   publicRoutes: ['/sign-in', '/sign-up', '/api/webhook'],
@@ -299,7 +299,7 @@ export const handle = vaultAuth({
 
 ```typescript
 // +page.server.ts
-import { requireAuth, optionalAuth } from '@vault/svelte/server';
+import { requireAuth, optionalAuth } from '@fantasticauth/svelte/server';
 
 // Require authentication
 export const load = requireAuth(async ({ locals }) => {
@@ -321,7 +321,7 @@ export const load = optionalAuth(async ({ locals }) => {
 
 ```typescript
 // +page.server.ts
-import { vaultActions } from '@vault/svelte/server';
+import { vaultActions } from '@fantasticauth/svelte/server';
 
 const config = {
   apiUrl: 'https://api.vault.dev',
@@ -349,7 +349,7 @@ Use the `protect` action for DOM-based protection:
 
 ```svelte
 <script>
-  import { protect } from '@vault/svelte';
+  import { protect } from '@fantasticauth/svelte';
 </script>
 
 <div use:protect>
@@ -381,7 +381,7 @@ import type {
   VaultConfig,
   SignInOptions,
   UseAuthReturn 
-} from '@vault/svelte';
+} from '@fantasticauth/svelte';
 ```
 
 ## Configuration

@@ -15,7 +15,7 @@ The SignIn component handles:
 ## Basic Usage
 
 ```tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 function SignInPage() {
   return <SignIn />;
@@ -306,7 +306,7 @@ See the [Theming Guide](../theming/customization.md) for complete styling option
 When MFA is required, the sign-in flow returns an `mfa_required` state:
 
 ```tsx
-import { SignIn, MFAForm, useAuth } from '@vault/react';
+import { SignIn, MFAForm, useAuth } from '@fantasticauth/react';
 
 function SignInPage() {
   const { authState } = useAuth();
@@ -361,7 +361,7 @@ The SignIn component works with SSR:
 
 ```tsx
 // Next.js App Router - Server Component
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 export default function SignInPage() {
   return <SignIn redirectUrl="/dashboard" />;
@@ -373,7 +373,7 @@ export default function SignInPage() {
 Full TypeScript support:
 
 ```tsx
-import { SignIn, SignInProps, ApiError } from '@vault/react';
+import { SignIn, SignInProps, ApiError } from '@fantasticauth/react';
 
 const handleError = (error: ApiError) => {
   console.error(error.code, error.message);
@@ -393,8 +393,8 @@ Test the SignIn component with React Testing Library:
 
 ```tsx
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SignIn } from '@vault/react';
-import { VaultProvider } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

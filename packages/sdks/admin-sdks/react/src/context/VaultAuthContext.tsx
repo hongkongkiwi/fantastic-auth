@@ -11,7 +11,7 @@ import {
   useAuth as useVaultAuth,
   User,
   ApiError as VaultApiError 
-} from '@vault/react';
+} from '@fantasticauth/react';
 import type { 
   VaultAuthProviderProps, 
   VaultAuthContextValue,

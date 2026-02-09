@@ -13,7 +13,7 @@ import type { User, ApiError } from '../types.js';
  * @example
  * ```svelte
  * <script>
- *   import { useUser } from '@vault/svelte';
+ *   import { useUser } from '@fantasticauth/svelte';
  *   const { user, update, reload } = useUser();
  * </script>
  * 
@@ -109,7 +109,7 @@ export function useUser() {
  * @example
  * ```svelte
  * <script>
- *   import { useUpdateUser } from '@vault/svelte';
+ *   import { useUpdateUser } from '@fantasticauth/svelte';
  *   const { update, isLoading } = useUpdateUser();
  * </script>
  * ```

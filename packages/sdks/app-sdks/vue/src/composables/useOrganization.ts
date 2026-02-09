@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useOrganization } from '@vault/vue';
+ * import { useOrganization } from '@fantasticauth/vue';
  *
  * const {
  *   organizations,

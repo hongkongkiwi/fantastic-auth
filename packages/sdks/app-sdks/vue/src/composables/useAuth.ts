@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useAuth } from '@vault/vue';
+ * import { useAuth } from '@fantasticauth/vue';
  *
  * const { isSignedIn, user, signOut } = useAuth();
  * </script>

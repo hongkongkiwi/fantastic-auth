@@ -1,5 +1,5 @@
 {
-  "name": "@vault/react-native",
+  "name": "@fantasticauth/react-native",
   "version": "0.1.0",
   "description": "React Native SDK for Vault - Secure mobile authentication with biometrics",
   "main": "dist/index.js",
@@ -43,7 +43,7 @@
     "react-native": ">=0.70.0"
   },
   "dependencies": {
-    "@vault/react": "file:../js"
+    "@fantasticauth/react": "file:../js"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.0",

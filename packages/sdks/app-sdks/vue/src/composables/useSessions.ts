@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useSessions } from '@vault/vue';
+ * import { useSessions } from '@fantasticauth/vue';
  *
  * const { sessions, revokeSession, revokeAllOtherSessions, refresh } = useSessions();
  *

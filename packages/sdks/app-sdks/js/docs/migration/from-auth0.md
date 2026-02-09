@@ -10,7 +10,7 @@ Auth0 and Vault both provide authentication services, but with different approac
 
 | Feature | Auth0 | Vault |
 |---------|-------|-------|
-| React SDK | `@auth0/auth0-react` | `@vault/react` |
+| React SDK | `@auth0/auth0-react` | `@fantasticauth/react` |
 | Provider | `<Auth0Provider>` | `<VaultProvider>` |
 | Auth Hook | `useAuth0()` | `useAuth()` |
 | Login | `loginWithRedirect()` | `signInWithOAuth()` / `signIn()` |
@@ -30,7 +30,7 @@ npm uninstall @auth0/auth0-react
 ### Install Vault
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Environment Variables
@@ -75,7 +75,7 @@ function App() {
 ### After (Vault)
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -126,7 +126,7 @@ function Component() {
 #### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function Component() {
   const { 
@@ -174,7 +174,7 @@ function LoginButton() {
 ### After (Vault)
 
 ```tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 // Or use the component
 function LoginPage() {
@@ -182,7 +182,7 @@ function LoginPage() {
 }
 
 // Or use the hook
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 
 function LoginButton() {
   const { signInWithOAuth } = useSignIn();
@@ -216,7 +216,7 @@ function LogoutButton() {
 ### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function LogoutButton() {
   const { signOut } = useAuth();
@@ -248,7 +248,7 @@ export default withAuthenticationRequired(ProtectedComponent, {
 ### After (Vault)
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function ProtectedComponent() {
   return (
@@ -284,7 +284,7 @@ function Profile() {
 ### After (Vault)
 
 ```tsx
-import { useAuth, useUser } from '@vault/react';
+import { useAuth, useUser } from '@fantasticauth/react';
 
 function Profile() {
   const { isSignedIn } = useAuth();
@@ -327,7 +327,7 @@ async function callApi() {
 ### After (Vault)
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 async function callApi() {
   const { getToken } = useSession();
@@ -363,7 +363,7 @@ function CustomLogin() {
 Vault provides complete UI components:
 
 ```tsx
-import { SignIn, SignUp, UserButton, UserProfile } from '@vault/react';
+import { SignIn, SignUp, UserButton, UserProfile } from '@fantasticauth/react';
 
 // Complete sign-in form
 <SignIn redirectUrl="/dashboard" />
@@ -388,10 +388,10 @@ import { SignIn, SignUp, UserButton, UserProfile } from '@vault/react';
 
 ## Migration Checklist
 
-- [ ] Install `@vault/react`
+- [ ] Install `@fantasticauth/react`
 - [ ] Update environment variables
 - [ ] Replace `<Auth0Provider>` with `<VaultProvider>`
-- [ ] Update imports from `@auth0/auth0-react` to `@vault/react`
+- [ ] Update imports from `@auth0/auth0-react` to `@fantasticauth/react`
 - [ ] Update `useAuth0()` to `useAuth()`
 - [ ] Rename `isLoading` to `!isLoaded`
 - [ ] Rename `isAuthenticated` to `isSignedIn`

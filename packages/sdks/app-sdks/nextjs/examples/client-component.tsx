@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useUser, useAuth, useOrganization } from '@vault/nextjs/client';
+import { useUser, useAuth, useOrganization } from '@fantasticauth/nextjs/client';
 
 // User profile component
 export function UserProfile() {

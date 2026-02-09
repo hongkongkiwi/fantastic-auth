@@ -6,7 +6,7 @@
  * 
  * @example
  * ```tsx
- * import { VaultProvider, useAuth, SignIn } from '@vault/react-native';
+ * import { VaultProvider, useAuth, SignIn } from '@fantasticauth/react-native';
  * 
  * function App() {
  *   return (

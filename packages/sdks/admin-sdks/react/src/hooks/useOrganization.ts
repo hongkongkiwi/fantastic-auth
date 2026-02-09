@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { useOrganization as useVaultOrganization, Organization } from '@vault/react';
+import { useOrganization as useVaultOrganization, Organization } from '@fantasticauth/react';
 import type { UseOrganizationReturn, AuthError } from '../types';
 
 /**

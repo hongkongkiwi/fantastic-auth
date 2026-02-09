@@ -1,10 +1,10 @@
 /**
- * @vault/nextjs/server - Server-side utilities for Vault
+ * @fantasticauth/nextjs/server - Server-side utilities for Vault
  * 
  * @example
  * ```tsx
  * // app/dashboard/page.tsx
- * import { auth, currentUser } from '@vault/nextjs/server';
+ * import { auth, currentUser } from '@fantasticauth/nextjs/server';
  * 
  * export default async function Dashboard() {
  *   const { userId, session } = await auth();
@@ -21,7 +21,7 @@
  * @example
  * ```tsx
  * // middleware.ts
- * import { authMiddleware } from '@vault/nextjs/server';
+ * import { authMiddleware } from '@fantasticauth/nextjs/server';
  * 
  * export default authMiddleware({
  *   publicRoutes: ['/sign-in', '/sign-up', '/'],

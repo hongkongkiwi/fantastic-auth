@@ -8,7 +8,7 @@
  * ```ts
  * // main.ts
  * import { createApp } from 'vue';
- * import { createVault } from '@vault/vue';
+ * import { createVault } from '@fantasticauth/vue';
  * import App from './App.vue';
  *
  * const vault = createVault({
@@ -27,7 +27,7 @@
  * ```vue
  * <!-- App.vue -->
  * <script setup lang="ts">
- * import { useAuth, useUser } from '@vault/vue';
+ * import { useAuth, useUser } from '@fantasticauth/vue';
  *
  * const { isSignedIn, signOut } = useAuth();
  * const { user } = useUser();
@@ -53,11 +53,16 @@ export {
   createVault,
   useVault,
   VaultInjectionKey,
+  createFantasticauth,
+  useFantasticauth,
+  FantasticauthInjectionKey,
 } from './plugin';
 
 export type {
   VaultPluginOptions,
   VaultContextValue,
+  VaultPluginOptions as FantasticauthPluginOptions,
+  VaultContextValue as FantasticauthContextValue,
 } from './types';
 
 // ============================================================================
@@ -118,6 +123,8 @@ export {
 export {
   VaultApiClient,
   createVaultClient,
+  VaultApiClient as FantasticauthApiClient,
+  createVaultClient as createFantasticauthClient,
 } from './api';
 
 // ============================================================================
@@ -145,6 +152,7 @@ export type {
 
   // Config types
   VaultConfig,
+  VaultConfig as FantasticauthConfig,
   Appearance,
 
   // Auth option types

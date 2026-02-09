@@ -13,7 +13,7 @@ This component handles:
 ## Basic Usage
 
 ```tsx
-import { CreateOrganization } from '@vault/react';
+import { CreateOrganization } from '@fantasticauth/react';
 
 function NewOrganizationPage() {
   return (

@@ -4,7 +4,7 @@
  * This file should be placed at the root of your Next.js app (next to package.json)
  */
 
-import { authMiddleware } from '@vault/nextjs/server';
+import { authMiddleware } from '@fantasticauth/nextjs/server';
 
 // Simple configuration with public routes
 export default authMiddleware({

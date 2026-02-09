@@ -1,5 +1,5 @@
 {
-  "name": "@vault/admin-sdk",
+  "name": "@fantasticauth/admin-sdk",
   "version": "0.1.0",
   "description": "Vault Admin API SDK for tenant administration dashboards",
   "keywords": [

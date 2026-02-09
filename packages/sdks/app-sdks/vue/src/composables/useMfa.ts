@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useMfa } from '@vault/vue';
+ * import { useMfa } from '@fantasticauth/vue';
  *
  * const { setupTotp, verifyTotp, isLoading, error } = useMfa();
  *

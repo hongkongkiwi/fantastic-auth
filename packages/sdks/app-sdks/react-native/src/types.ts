@@ -14,7 +14,7 @@ import {
   SignUpOptions,
   MagicLinkOptions,
   OAuthOptions,
-} from '@vault/react';
+} from '@fantasticauth/react';
 
 export type { 
   User, 
@@ -25,7 +25,7 @@ export type {
   SignUpOptions,
   MagicLinkOptions,
   OAuthOptions,
-} from '@vault/react';
+} from '@fantasticauth/react';
 
 // ============================================================================
 // React Native Specific Configuration

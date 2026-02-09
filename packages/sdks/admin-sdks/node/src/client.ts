@@ -149,7 +149,7 @@ export class VaultAuth {
   /**
    * Get JWKS, fetching if necessary
    */
-  private async getJWKS(): Promise<JWKS> {
+  private async fetchJWKS(): Promise<JWKS> {
     const now = Date.now();
     if (!this.jwks || now - this.jwksFetchedAt > this.config.jwksCacheTTL) {
       const response = await this.http.get<JWKS>('/.well-known/jwks.json');
@@ -180,7 +180,7 @@ export class VaultAuth {
       }
 
       // Get JWKS
-      await this.getJWKS();
+      await this.fetchJWKS();
 
       // Decode payload to check expiration
       const payloadJson = Buffer.from(parts[1] + '==', 'base64url').toString();
@@ -217,8 +217,16 @@ export class VaultAuth {
       }
 
       const payloadJson = Buffer.from(parts[1] + '==', 'base64url').toString();
-      const payload = JSON.parse(payloadJson) as TokenPayload;
-      return payload;
+      const rawPayload = JSON.parse(payloadJson) as TokenPayload & {
+        org_id?: string;
+        org_role?: string;
+      };
+
+      return {
+        ...rawPayload,
+        orgId: rawPayload.orgId ?? rawPayload.org_id,
+        orgRole: rawPayload.orgRole ?? rawPayload.org_role,
+      };
     } catch (error) {
       throw new InvalidTokenError(`Failed to decode token: ${(error as Error).message}`);
     }
@@ -228,7 +236,7 @@ export class VaultAuth {
    * Get JWKS (JSON Web Key Set)
    */
   async getJWKS(): Promise<JWKS> {
-    return this.getJWKS();
+    return this.fetchJWKS();
   }
 
   /**
@@ -251,6 +259,12 @@ export class VaultAuth {
     };
   }
 }
+
+/**
+ * Fantasticauth-branded alias for VaultAuth.
+ * Kept as a class alias for backwards compatibility.
+ */
+export class Fantasticauth extends VaultAuth {}
 
 /**
  * Users API endpoints

@@ -22,10 +22,10 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@vault/nextjs": ["./src/index.ts"],
-      "@vault/nextjs/server": ["./src/server/index.ts"],
-      "@vault/nextjs/client": ["./src/client/index.ts"],
-      "@vault/nextjs/api": ["./src/api/index.ts"]
+      "@fantasticauth/nextjs": ["./src/index.ts"],
+      "@fantasticauth/nextjs/server": ["./src/server/index.ts"],
+      "@fantasticauth/nextjs/client": ["./src/client/index.ts"],
+      "@fantasticauth/nextjs/api": ["./src/api/index.ts"]
     }
   },
   "include": ["src/**/*"],

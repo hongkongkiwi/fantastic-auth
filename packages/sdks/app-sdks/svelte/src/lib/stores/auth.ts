@@ -24,7 +24,7 @@ import type {
  * @example
  * ```svelte
  * <script>
- *   import { authStore } from '@vault/svelte';
+ *   import { authStore } from '@fantasticauth/svelte';
  * </script>
  * 
  * {#if $authStore.isSignedIn}
@@ -52,7 +52,7 @@ export function authStore() {
  * @example
  * ```svelte
  * <script>
- *   import { userStore } from '@vault/svelte';
+ *   import { userStore } from '@fantasticauth/svelte';
  * </script>
  * 
  * <p>Welcome {$userStore.user?.name}</p>
@@ -74,7 +74,7 @@ export function userStore() {
  * @example
  * ```svelte
  * <script>
- *   import { sessionStore } from '@vault/svelte';
+ *   import { sessionStore } from '@fantasticauth/svelte';
  * </script>
  * 
  * <p>Session expires at: {$sessionStore.session?.expiresAt}</p>
@@ -96,7 +96,7 @@ export function sessionStore() {
  * @example
  * ```svelte
  * <script>
- *   import { organizationStore } from '@vault/svelte';
+ *   import { organizationStore } from '@fantasticauth/svelte';
  * </script>
  * 
  * {#each $organizationStore.organizations as org}
@@ -127,7 +127,7 @@ export function organizationStore() {
  * @example
  * ```svelte
  * <script>
- *   import { useAuth } from '@vault/svelte';
+ *   import { useAuth } from '@fantasticauth/svelte';
  *   const { isSignedIn, user, signOut } = useAuth();
  * </script>
  * 
@@ -184,7 +184,7 @@ export function useAuth() {
  * @example
  * ```svelte
  * <script>
- *   import { useSignIn } from '@vault/svelte';
+ *   import { useSignIn } from '@fantasticauth/svelte';
  *   const { signIn, isLoading, error } = useSignIn();
  *   
  *   let email = $state('');
@@ -317,7 +317,7 @@ export function useSignUp() {
  * @example
  * ```svelte
  * <script>
- *   import { useAuthState } from '@vault/svelte';
+ *   import { useAuthState } from '@fantasticauth/svelte';
  *   const { isSignedIn, isLoaded } = useAuthState();
  * </script>
  * 
@@ -355,7 +355,7 @@ export function useAuthState(): { isLoaded: boolean; isSignedIn: boolean } {
  * @example
  * ```svelte
  * <script>
- *   import { useRequireAuth } from '@vault/svelte';
+ *   import { useRequireAuth } from '@fantasticauth/svelte';
  *   
  *   // This will throw if not authenticated
  *   const { user, session } = useRequireAuth();

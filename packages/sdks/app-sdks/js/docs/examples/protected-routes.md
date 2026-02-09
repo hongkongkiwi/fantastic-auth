@@ -7,7 +7,7 @@ This guide shows different patterns for protecting routes in your application.
 The simplest way to protect routes:
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function Dashboard() {
   return (
@@ -26,7 +26,7 @@ function Dashboard() {
 For more control:
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { Navigate } from 'react-router-dom';
 
 function ProtectedRoute({ children }) {
@@ -54,7 +54,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('vault_session_token');
+  const token = request.cookies.get('fantasticauth_session_token');
   
   if (!token && !request.nextUrl.pathname.startsWith('/sign-in')) {
     return NextResponse.redirect(new URL('/sign-in', request.url));
@@ -73,7 +73,7 @@ export const config = {
 Protect routes based on user role:
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function AdminPanel() {
   return (

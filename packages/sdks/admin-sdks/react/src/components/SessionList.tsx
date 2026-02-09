@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 import type { SessionListProps, SessionInfo, AuthError } from '../types';
 import { Button, Alert } from './ui';
 import { classNames, getThemeClass } from '../styles';

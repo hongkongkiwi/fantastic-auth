@@ -23,7 +23,7 @@ app/
 ## Installation
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Configuration
@@ -44,7 +44,7 @@ Create a client-side providers wrapper:
 // app/providers.tsx
 'use client';
 
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 import { ReactNode } from 'react';
 
 interface ProvidersProps {
@@ -98,7 +98,7 @@ export default function RootLayout({
 
 ```tsx
 // app/page.tsx
-import { SignedIn, SignedOut } from '@vault/react';
+import { SignedIn, SignedOut } from '@fantasticauth/react';
 import Link from 'next/link';
 
 export default function Home() {
@@ -142,7 +142,7 @@ export default function Home() {
 // app/sign-in/page.tsx
 'use client';
 
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 export default function SignInPage() {
   return (
@@ -167,7 +167,7 @@ export default function SignInPage() {
 // app/sign-up/page.tsx
 'use client';
 
-import { SignUp } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
 
 export default function SignUpPage() {
   return (
@@ -188,7 +188,7 @@ export default function SignUpPage() {
 // app/dashboard/page.tsx
 'use client';
 
-import { useAuth, UserButton, Protect } from '@vault/react';
+import { useAuth, UserButton, Protect } from '@fantasticauth/react';
 import Link from 'next/link';
 
 export default function Dashboard() {
@@ -250,7 +250,7 @@ function DashboardContent() {
 // app/profile/page.tsx
 'use client';
 
-import { UserProfile, Protect } from '@vault/react';
+import { UserProfile, Protect } from '@fantasticauth/react';
 
 export default function ProfilePage() {
   return (
@@ -276,7 +276,7 @@ export default function ProfilePage() {
 // components/Header.tsx
 'use client';
 
-import { SignedIn, SignedOut, UserButton } from '@vault/react';
+import { SignedIn, SignedOut, UserButton } from '@fantasticauth/react';
 import Link from 'next/link';
 
 export function Header() {
@@ -322,7 +322,7 @@ export function Header() {
 // components/Loading.tsx
 'use client';
 
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 export function Loading({ children }: { children: React.ReactNode }) {
   const { isLoaded } = useAuth();
@@ -349,7 +349,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('vault_session_token');
+  const token = request.cookies.get('fantasticauth_session_token');
   const { pathname } = request.nextUrl;
 
   // Public routes

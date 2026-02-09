@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { usePermissions } from '@vault/vue';
+ * import { usePermissions } from '@fantasticauth/vue';
  *
  * const { has, hasRole, hasAnyRole } = usePermissions();
  * </script>

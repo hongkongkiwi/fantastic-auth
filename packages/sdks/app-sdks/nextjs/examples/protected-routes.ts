@@ -4,7 +4,7 @@
  * Use this approach when you have more protected routes than public routes
  */
 
-import { authMiddleware } from '@vault/nextjs/server';
+import { authMiddleware } from '@fantasticauth/nextjs/server';
 
 // Only these routes require authentication
 // All other routes are public by default

@@ -5,7 +5,7 @@
  * 
  * @example
  * ```tsx
- * import { VaultAuthProvider, LoginForm, useAuth } from '@vault/react-ui';
+ * import { VaultAuthProvider, LoginForm, useAuth } from '@fantasticauth/react-ui';
  * 
  * function App() {
  *   return (
@@ -148,7 +148,7 @@ export type {
   VaultAuthContextValue,
 } from './types';
 
-// Re-export core types from @vault/react
+// Re-export core types from @fantasticauth/react
 export type {
   User,
   Organization,
@@ -158,7 +158,7 @@ export type {
   SessionInfo,
   MfaMethod,
   ApiError,
-} from '@vault/react';
+} from '@fantasticauth/react';
 
 // ============================================================================
 // Version

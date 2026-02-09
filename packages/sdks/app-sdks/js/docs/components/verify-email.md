@@ -5,7 +5,7 @@ The `VerifyEmail` component handles email verification flow.
 ## Basic Usage
 
 ```tsx
-import { VerifyEmail } from '@vault/react';
+import { VerifyEmail } from '@fantasticauth/react';
 
 function VerifyEmailPage() {
   return (

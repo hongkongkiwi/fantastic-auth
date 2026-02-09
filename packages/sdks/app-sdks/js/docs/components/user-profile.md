@@ -12,7 +12,7 @@ The UserProfile component includes:
 ## Basic Usage
 
 ```tsx
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 function ProfilePage() {
   return <UserProfile />;
@@ -233,7 +233,7 @@ The password change is handled internally, but you can detect success:
 Account deletion triggers sign out:
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useEffect } from 'react';
 
 function App() {
@@ -257,7 +257,7 @@ function App() {
 
 ```tsx
 // pages/profile.tsx
-import { UserProfile, Protect } from '@vault/react';
+import { UserProfile, Protect } from '@fantasticauth/react';
 
 export default function ProfilePage() {
   return (
@@ -278,7 +278,7 @@ export default function ProfilePage() {
 ### With Navigation
 
 ```tsx
-import { UserProfile, UserButton } from '@vault/react';
+import { UserProfile, UserButton } from '@fantasticauth/react';
 
 function ProfileLayout() {
   return (
@@ -298,7 +298,7 @@ function ProfileLayout() {
 ### Modal/Dialog Usage
 
 ```tsx
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 import { Dialog } from '@headlessui/react';
 
 function ProfileModal({ isOpen, onClose }) {
@@ -380,7 +380,7 @@ The UserProfile is a client component:
 ```tsx
 'use client';
 
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 export default function ProfilePage() {
   return <UserProfile />;
@@ -392,7 +392,7 @@ export default function ProfilePage() {
 Full TypeScript support:
 
 ```tsx
-import { UserProfile, UserProfileProps, User } from '@vault/react';
+import { UserProfile, UserProfileProps, User } from '@fantasticauth/react';
 
 const handleUpdate = (user: User) => {
   console.log('Updated:', user.profile);
@@ -411,7 +411,7 @@ Test the UserProfile component:
 
 ```tsx
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 const mockUser = {
   id: 'user_123',

@@ -1,4 +1,4 @@
-# @vault/react-native
+# @fantasticauth/react-native
 
 React Native SDK for Vault - Secure mobile authentication with biometrics.
 
@@ -15,9 +15,9 @@ React Native SDK for Vault - Secure mobile authentication with biometrics.
 ## Installation
 
 ```bash
-npm install @vault/react-native
+npm install @fantasticauth/react-native
 # or
-yarn add @vault/react-native
+yarn add @fantasticauth/react-native
 ```
 
 ### Optional Dependencies
@@ -85,7 +85,7 @@ Add URL scheme to your app configuration:
 ### 2. Wrap Your App with VaultProvider
 
 ```tsx
-import { VaultProvider } from '@vault/react-native';
+import { VaultProvider } from '@fantasticauth/react-native';
 
 export default function App() {
   return (
@@ -108,7 +108,7 @@ export default function App() {
 ### 3. Use Authentication Hooks
 
 ```tsx
-import { useAuth, useUser, SignIn } from '@vault/react-native';
+import { useAuth, useUser, SignIn } from '@fantasticauth/react-native';
 
 function HomeScreen() {
   const { isSignedIn, user, signOut, isLocked, unlockWithBiometrics } = useAuth();
@@ -140,22 +140,22 @@ function HomeScreen() {
 ### Secure Storage
 
 ```typescript
-import { SecureStorage } from '@vault/react-native';
+import { SecureStorage } from '@fantasticauth/react-native';
 
 // Store session token securely
-await SecureStorage.setItem('vault_session_token', token);
+await SecureStorage.setItem('fantasticauth_session_token', token);
 
 // Retrieve session token
-const token = await SecureStorage.getItem('vault_session_token');
+const token = await SecureStorage.getItem('fantasticauth_session_token');
 
 // Remove item
-await SecureStorage.removeItem('vault_session_token');
+await SecureStorage.removeItem('fantasticauth_session_token');
 ```
 
 ### Biometric Authentication
 
 ```tsx
-import { useBiometricAuth } from '@vault/react-native';
+import { useBiometricAuth } from '@fantasticauth/react-native';
 
 function SecureAction() {
   const { isAvailable, biometricType, authenticate } = useBiometricAuth();
@@ -183,7 +183,7 @@ function SecureAction() {
 ### OAuth Sign In
 
 ```tsx
-import { useSignIn, OAuthButton } from '@vault/react-native';
+import { useSignIn, OAuthButton } from '@fantasticauth/react-native';
 
 function SignInScreen() {
   const { signInWithOAuth, isLoading } = useSignIn();
@@ -209,7 +209,7 @@ function SignInScreen() {
 ### Organizations
 
 ```tsx
-import { useOrganization, OrganizationSwitcher } from '@vault/react-native';
+import { useOrganization, OrganizationSwitcher } from '@fantasticauth/react-native';
 
 function OrganizationScreen() {
   const { 
@@ -243,7 +243,7 @@ function OrganizationScreen() {
 ### Session Management
 
 ```tsx
-import { useSession, useSessions } from '@vault/react-native';
+import { useSession, useSessions } from '@fantasticauth/react-native';
 
 function SessionManager() {
   const { session, getToken, refresh } = useSession();

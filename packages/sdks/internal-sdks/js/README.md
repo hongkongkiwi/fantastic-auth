@@ -5,17 +5,17 @@ TypeScript SDK for the Vault Internal API. Designed for SaaS platform services, 
 ## Installation
 
 ```bash
-npm install @vault/internal-sdk
+npm install @fantasticauth/internal-sdk
 # or
-yarn add @vault/internal-sdk
+yarn add @fantasticauth/internal-sdk
 # or
-pnpm add @vault/internal-sdk
+pnpm add @fantasticauth/internal-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { VaultInternalClient, TenantManager } from '@vault/internal-sdk';
+import { VaultInternalClient, TenantManager } from '@fantasticauth/internal-sdk';
 
 const client = new VaultInternalClient({
   baseUrl: 'https://api.vault.dev/api/v1/internal',
@@ -53,7 +53,7 @@ const client = new VaultInternalClient({
 ### Tenant Management
 
 ```typescript
-import { TenantManager } from '@vault/internal-sdk';
+import { TenantManager } from '@fantasticauth/internal-sdk';
 
 const tenants = new TenantManager(client);
 
@@ -85,7 +85,7 @@ const expiringTrials = await tenants.getTrialsExpiringSoon(7);
 ### Billing & Subscriptions
 
 ```typescript
-import { BillingManager } from '@vault/internal-sdk';
+import { BillingManager } from '@fantasticauth/internal-sdk';
 
 const billing = new BillingManager(client);
 
@@ -117,7 +117,7 @@ console.log(`MRR: $${mrr}, ARR: $${arr}`);
 ### Platform Analytics
 
 ```typescript
-import { AnalyticsManager } from '@vault/internal-sdk';
+import { AnalyticsManager } from '@fantasticauth/internal-sdk';
 
 const analytics = new AnalyticsManager(client);
 
@@ -148,7 +148,7 @@ if (health.status !== 'healthy') {
 ### Feature Flags
 
 ```typescript
-import { FeatureFlagManager } from '@vault/internal-sdk';
+import { FeatureFlagManager } from '@fantasticauth/internal-sdk';
 
 const features = new FeatureFlagManager(client);
 
@@ -211,7 +211,7 @@ console.log(`Backup job: ${backup.jobId}`);
 ## Error Handling
 
 ```typescript
-import { VaultInternalError } from '@vault/internal-sdk';
+import { VaultInternalError } from '@fantasticauth/internal-sdk';
 
 try {
   await client.createTenant({ name: 'Test', slug: 'test' });
@@ -258,7 +258,7 @@ import type {
   Subscription, 
   PlatformOverview,
   FeatureFlag 
-} from '@vault/internal-sdk';
+} from '@fantasticauth/internal-sdk';
 ```
 
 ## License

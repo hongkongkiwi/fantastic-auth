@@ -18,7 +18,7 @@ The theming system allows you to customize the appearance of Vault components th
 Wrap your app with `VaultProvider` and provide an `appearance` configuration:
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -46,7 +46,7 @@ function App() {
 You can also configure themes per component:
 
 ```tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 function LoginPage() {
   return (
@@ -240,7 +240,7 @@ appearance={{
 For advanced use cases, you can use the `ThemeProvider` directly:
 
 ```tsx
-import { ThemeProvider, useTheme } from '@vault/react';
+import { ThemeProvider, useTheme } from '@fantasticauth/react';
 
 function ThemedApp() {
   return (
@@ -283,7 +283,7 @@ import {
   Alert,
   Spinner,
   SocialButton,
-} from '@vault/react';
+} from '@fantasticauth/react';
 
 function CustomForm() {
   return (
@@ -511,5 +511,5 @@ import type {
   ElementStyles,
   LayoutOptions,
   Theme,
-} from '@vault/react';
+} from '@fantasticauth/react';
 ```

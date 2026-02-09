@@ -95,6 +95,8 @@ export interface TokenPayload {
   emailVerified?: boolean;
   orgId?: string;
   orgRole?: string;
+  org_id?: string;
+  org_role?: string;
 }
 
 /** Generic paginated response */

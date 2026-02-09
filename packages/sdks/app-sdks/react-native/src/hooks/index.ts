@@ -5,7 +5,7 @@
  * 
  * @example
  * ```tsx
- * import { useAuth, useUser, useSession } from '@vault/react-native';
+ * import { useAuth, useUser, useSession } from '@fantasticauth/react-native';
  * 
  * function Profile() {
  *   const { isSignedIn, user, signOut } = useAuth();

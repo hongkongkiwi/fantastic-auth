@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { useVaultAuth, useSignIn } from '@vault/react';
+import { useVaultAuth, useSignIn } from '@fantasticauth/react';
 import type { LoginFormProps, LoginCredentials, AuthError } from '../types';
 import { Button, Input, Alert, SocialButtons } from './ui';
 import { classNames, getThemeClass } from '../styles';

@@ -10,7 +10,7 @@ Both Clerk and Vault provide similar authentication features. This guide helps y
 
 | Feature | Clerk | Vault |
 |---------|-------|-------|
-| React SDK | `@clerk/clerk-react` | `@vault/react` |
+| React SDK | `@clerk/clerk-react` | `@fantasticauth/react` |
 | Provider | `<ClerkProvider>` | `<VaultProvider>` |
 | Auth Hook | `useAuth()` | `useAuth()` |
 | User Hook | `useUser()` | `useUser()` |
@@ -33,7 +33,7 @@ npm uninstall @clerk/clerk-react
 ### Install Vault
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Environment Variables
@@ -71,7 +71,7 @@ function App() {
 ### After (Vault)
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -106,7 +106,7 @@ function Component() {
 #### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function Component() {
   const { isSignedIn, user, session, signOut } = useAuth();
@@ -134,7 +134,7 @@ function Profile() {
 #### After (Vault)
 
 ```tsx
-import { useUser, useAuth } from '@vault/react';
+import { useUser, useAuth } from '@fantasticauth/react';
 
 function Profile() {
   const { isLoaded } = useAuth();
@@ -172,7 +172,7 @@ function SignInForm() {
 #### After (Vault)
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 
 function SignInForm() {
   const { signIn, isLoading, error } = useSignIn();
@@ -203,7 +203,7 @@ import { SignIn } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 <SignIn 
   redirectUrl="/dashboard"
@@ -229,7 +229,7 @@ import { SignUp } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { SignUp } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
 
 <SignUp 
   redirectUrl="/dashboard"
@@ -253,7 +253,7 @@ import { UserButton } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { UserButton } from '@vault/react';
+import { UserButton } from '@fantasticauth/react';
 
 <UserButton 
   showName={true}
@@ -281,7 +281,7 @@ import { UserProfile } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 <UserProfile 
   onUpdate={(user) => console.log('Updated:', user)}
@@ -303,7 +303,7 @@ import { OrganizationSwitcher } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { OrganizationSwitcher } from '@vault/react';
+import { OrganizationSwitcher } from '@fantasticauth/react';
 
 <OrganizationSwitcher 
   onSwitch={(org) => console.log('Switched to:', org)}
@@ -331,7 +331,7 @@ import { SignedIn, SignedOut } from '@clerk/clerk-react';
 #### After (Vault)
 
 ```tsx
-import { SignedIn, SignedOut } from '@vault/react';
+import { SignedIn, SignedOut } from '@fantasticauth/react';
 
 <SignedIn>
   <UserButton />
@@ -363,7 +363,7 @@ function ProtectedPage() {
 ### After (Vault)
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function ProtectedPage() {
   return (
@@ -397,7 +397,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('vault_session_token');
+  const token = request.cookies.get('fantasticauth_session_token');
   const publicRoutes = ['/', '/sign-in', '/sign-up'];
   
   if (publicRoutes.includes(request.nextUrl.pathname)) {
@@ -436,7 +436,7 @@ async function fetchData() {
 ### After (Vault)
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 async function fetchData() {
   const { getToken } = useSession();
@@ -457,10 +457,10 @@ async function fetchData() {
 
 ## Checklist
 
-- [ ] Install `@vault/react`
+- [ ] Install `@fantasticauth/react`
 - [ ] Update environment variables
 - [ ] Replace `<ClerkProvider>` with `<VaultProvider>`
-- [ ] Update imports from `@clerk/clerk-react` to `@vault/react`
+- [ ] Update imports from `@clerk/clerk-react` to `@fantasticauth/react`
 - [ ] Update `useAuth()` usage
 - [ ] Update `useUser()` usage
 - [ ] Update `useSignIn()` usage

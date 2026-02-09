@@ -3,20 +3,27 @@
  * Works in both Node.js and Edge runtimes
  */
 
-import { jwtVerify, importSPKI, importJWK, JWTPayload } from 'jose';
+import { jwtVerify, importSPKI, importJWK } from 'jose';
 import type { TokenValidationResult, VaultJwtClaims } from '../types';
+
+function getApiBase(apiUrl: string): string {
+  const normalized = apiUrl.replace(/\/$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+}
 
 /**
  * Create an auth client for server-side API calls
  */
 export function createAuthClient(apiUrl: string, tenantId: string) {
+  const apiBase = getApiBase(apiUrl);
+
   return {
     /**
      * Validate a session token via the Vault API
      */
     async validateSession(token: string): Promise<TokenValidationResult> {
       try {
-        const response = await fetch(`${apiUrl}/v1/auth/validate`, {
+        const response = await fetch(`${apiBase}/v1/auth/validate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -55,7 +62,7 @@ export function createAuthClient(apiUrl: string, tenantId: string) {
      */
     async refreshSession(refreshToken: string): Promise<{ token: string; refreshToken: string } | null> {
       try {
-        const response = await fetch(`${apiUrl}/v1/auth/refresh`, {
+        const response = await fetch(`${apiBase}/v1/auth/refresh`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -82,7 +89,7 @@ export function createAuthClient(apiUrl: string, tenantId: string) {
      * Get user by ID
      */
     async getUser(userId: string, token: string) {
-      const response = await fetch(`${apiUrl}/v1/users/${userId}`, {
+      const response = await fetch(`${apiBase}/v1/users/${userId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Tenant-ID': tenantId,

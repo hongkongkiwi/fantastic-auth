@@ -14,7 +14,7 @@ The `useAuth` hook provides:
 ## Basic Usage
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function App() {
   const { isSignedIn, user, signOut } = useAuth();
@@ -77,7 +77,7 @@ interface UseAuthReturn {
 ### Check Authentication State
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function Dashboard() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -97,7 +97,7 @@ function Dashboard() {
 ### Display User Information
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function UserGreeting() {
   const { user } = useAuth();
@@ -118,7 +118,7 @@ function UserGreeting() {
 ### Sign Out
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useRouter } from 'next/router';
 
 function SignOutButton() {
@@ -137,7 +137,7 @@ function SignOutButton() {
 ### Programmatic Sign In
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignInForm() {
@@ -177,7 +177,7 @@ function SignInForm() {
 ### OAuth Sign In
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function OAuthButtons() {
   const { signInWithOAuth } = useAuth();
@@ -202,7 +202,7 @@ function OAuthButtons() {
 ### Magic Link Sign In
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function MagicLinkForm() {
@@ -242,7 +242,7 @@ function MagicLinkForm() {
 ### Monitor Auth State Changes
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useEffect } from 'react';
 
 function App() {
@@ -275,7 +275,7 @@ function App() {
 Lightweight hook for simple auth checks:
 
 ```tsx
-import { useAuthState } from '@vault/react';
+import { useAuthState } from '@fantasticauth/react';
 
 function Header() {
   const { isLoaded, isSignedIn } = useAuthState();
@@ -295,7 +295,7 @@ function Header() {
 Check if user has a specific role:
 
 ```tsx
-import { useHasRole } from '@vault/react';
+import { useHasRole } from '@fantasticauth/react';
 
 function AdminOnly() {
   const isAdmin = useHasRole('admin');
@@ -313,7 +313,7 @@ function AdminOnly() {
 Require authentication or throw:
 
 ```tsx
-import { useRequireAuth } from '@vault/react';
+import { useRequireAuth } from '@fantasticauth/react';
 
 function ProtectedComponent() {
   const { user, session } = useRequireAuth();
@@ -403,7 +403,7 @@ interface SignUpOptions {
 Handle errors from auth methods:
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignInForm() {
@@ -436,7 +436,7 @@ Test components using `useAuth`:
 
 ```tsx
 import { renderHook } from '@testing-library/react';
-import { useAuth, VaultProvider } from '@vault/react';
+import { useAuth, VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

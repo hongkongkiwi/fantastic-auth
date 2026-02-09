@@ -5,7 +5,7 @@
  * 
  * @example
  * ```tsx
- * import { useBiometricAuth, BiometricAuth } from '@vault/react-native';
+ * import { useBiometricAuth, BiometricAuth } from '@fantasticauth/react-native';
  * 
  * function SecureScreen() {
  *   const { isAvailable, biometricType, authenticate } = useBiometricAuth();

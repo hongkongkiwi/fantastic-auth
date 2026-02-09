@@ -17,7 +17,7 @@ npx create-react-app my-app --template typescript
 ### Install Dependencies
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 npm install react-router-dom  # For routing
 ```
 
@@ -62,7 +62,7 @@ VITE_VAULT_TENANT_ID=your-tenant-id
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 import App from './App';
 import './styles/globals.css';
 
@@ -135,7 +135,7 @@ export default App;
 
 ```tsx
 // src/components/Header.tsx
-import { SignedIn, SignedOut, UserButton } from '@vault/react';
+import { SignedIn, SignedOut, UserButton } from '@fantasticauth/react';
 import { Link } from 'react-router-dom';
 
 export function Header() {
@@ -177,7 +177,7 @@ export function Header() {
 ```tsx
 // src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -221,7 +221,7 @@ export function Loading() {
 
 ```tsx
 // src/pages/Home.tsx
-import { SignedIn, SignedOut } from '@vault/react';
+import { SignedIn, SignedOut } from '@fantasticauth/react';
 import { Link } from 'react-router-dom';
 
 export function Home() {
@@ -264,7 +264,7 @@ export function Home() {
 
 ```tsx
 // src/pages/SignIn.tsx
-import { SignIn as VaultSignIn } from '@vault/react';
+import { SignIn as VaultSignIn } from '@fantasticauth/react';
 
 export function SignIn() {
   return (
@@ -288,7 +288,7 @@ export function SignIn() {
 
 ```tsx
 // src/pages/SignUp.tsx
-import { SignUp as VaultSignUp } from '@vault/react';
+import { SignUp as VaultSignUp } from '@fantasticauth/react';
 
 export function SignUp() {
   return (
@@ -313,7 +313,7 @@ export function SignUp() {
 
 ```tsx
 // src/pages/Dashboard.tsx
-import { useAuth, UserButton } from '@vault/react';
+import { useAuth, UserButton } from '@fantasticauth/react';
 import { Link } from 'react-router-dom';
 
 export function Dashboard() {
@@ -371,7 +371,7 @@ export function Dashboard() {
 
 ```tsx
 // src/pages/Profile.tsx
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 export function Profile() {
   return (
@@ -395,7 +395,7 @@ export function Profile() {
 
 ```tsx
 // src/hooks/useAuthCheck.ts
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -487,7 +487,7 @@ import '@testing-library/jest-dom';
 // src/components/Header.test.tsx
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 import { Header } from './Header';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (

@@ -14,7 +14,7 @@ A waitlist allows you to:
 While Vault doesn't provide a built-in waitlist component, you can implement one using the SDK:
 
 ```tsx
-import { useSignUp } from '@vault/react';
+import { useSignUp } from '@fantasticauth/react';
 
 function WaitlistForm() {
   const { signUp, isLoading } = useSignUp();

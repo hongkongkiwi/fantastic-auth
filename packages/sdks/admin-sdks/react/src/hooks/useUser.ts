@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
-import { useUser as useVaultUser, useVault } from '@vault/react';
+import { useUser as useVaultUser, useVault } from '@fantasticauth/react';
 import type { UseUserReturn, AuthError, User } from '../types';
 
 /**

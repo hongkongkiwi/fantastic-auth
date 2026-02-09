@@ -4,7 +4,7 @@
  * File: app/api/webhooks/vault/route.ts
  */
 
-import { handleWebhook, verifyWebhook } from '@vault/nextjs/api';
+import { handleWebhook, verifyWebhook } from '@fantasticauth/nextjs/api';
 import { headers } from 'next/headers';
 
 // Option 1: Using handleWebhook helper

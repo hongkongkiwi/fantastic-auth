@@ -7,8 +7,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { LoginForm } from '../../src/components/LoginForm';
 import { VaultAuthProvider } from '../../src/context/VaultAuthContext';
 
-// Mock the @vault/react hooks
-jest.mock('@vault/react', () => ({
+// Mock the @fantasticauth/react hooks
+jest.mock('@fantasticauth/react', () => ({
   useVaultAuth: () => ({
     signIn: jest.fn(),
     signInWithMagicLink: jest.fn(),

@@ -7,6 +7,11 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 
+const SESSION_COOKIE_NAME = 'fantasticauth_session_token';
+const REFRESH_COOKIE_NAME = 'fantasticauth_refresh_token';
+const LEGACY_SESSION_COOKIE_NAME = 'vault_session_token';
+const LEGACY_REFRESH_COOKIE_NAME = 'vault_refresh_token';
+
 interface VaultActionsConfig {
   apiUrl: string;
   tenantId: string;
@@ -20,7 +25,7 @@ interface VaultActionsConfig {
  * @example
  * ```typescript
  * // +page.server.ts
- * import { vaultActions } from '@vault/svelte/server';
+ * import { vaultActions } from '@fantasticauth/svelte/server';
  * 
  * const config = {
  *   apiUrl: 'https://api.vault.dev',
@@ -77,22 +82,24 @@ export function vaultActions(config: VaultActionsConfig) {
         const data = await response.json();
         
         // Set session cookie
-        cookies.set('vault_session_token', data.session.accessToken, {
+        cookies.set(SESSION_COOKIE_NAME, data.session.accessToken, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
           maxAge: 60 * 60 * 24 * 7, // 7 days
         });
+        cookies.delete(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
         
         if (data.session.refreshToken) {
-          cookies.set('vault_refresh_token', data.session.refreshToken, {
+          cookies.set(REFRESH_COOKIE_NAME, data.session.refreshToken, {
             path: '/',
             httpOnly: true,
             sameSite: 'lax',
             secure: process.env.NODE_ENV === 'production',
             maxAge: 60 * 60 * 24 * 30, // 30 days
           });
+          cookies.delete(LEGACY_REFRESH_COOKIE_NAME, { path: '/' });
         }
         
         // Redirect after successful sign in
@@ -150,22 +157,24 @@ export function vaultActions(config: VaultActionsConfig) {
         const data = await response.json();
         
         // Set session cookie
-        cookies.set('vault_session_token', data.session.accessToken, {
+        cookies.set(SESSION_COOKIE_NAME, data.session.accessToken, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
           maxAge: 60 * 60 * 24 * 7,
         });
+        cookies.delete(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
         
         if (data.session.refreshToken) {
-          cookies.set('vault_refresh_token', data.session.refreshToken, {
+          cookies.set(REFRESH_COOKIE_NAME, data.session.refreshToken, {
             path: '/',
             httpOnly: true,
             sameSite: 'lax',
             secure: process.env.NODE_ENV === 'production',
             maxAge: 60 * 60 * 24 * 30,
           });
+          cookies.delete(LEGACY_REFRESH_COOKIE_NAME, { path: '/' });
         }
         
         const redirectUrl = formData.get('redirect') as string || '/';
@@ -201,8 +210,10 @@ export function vaultActions(config: VaultActionsConfig) {
       }
       
       // Clear cookies
-      cookies.delete('vault_session_token', { path: '/' });
-      cookies.delete('vault_refresh_token', { path: '/' });
+      cookies.delete(SESSION_COOKIE_NAME, { path: '/' });
+      cookies.delete(REFRESH_COOKIE_NAME, { path: '/' });
+      cookies.delete(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
+      cookies.delete(LEGACY_REFRESH_COOKIE_NAME, { path: '/' });
       
       throw redirect(302, config.signOutRedirect || '/sign-in');
     },
@@ -288,13 +299,14 @@ export function vaultActions(config: VaultActionsConfig) {
         const data = await response.json();
         
         // Set session cookie
-        cookies.set('vault_session_token', data.session.accessToken, {
+        cookies.set(SESSION_COOKIE_NAME, data.session.accessToken, {
           path: '/',
           httpOnly: true,
           sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
           maxAge: 60 * 60 * 24 * 7,
         });
+        cookies.delete(LEGACY_SESSION_COOKIE_NAME, { path: '/' });
         
         return { success: true };
         

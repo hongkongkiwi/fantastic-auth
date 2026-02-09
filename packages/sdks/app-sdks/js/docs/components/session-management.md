@@ -12,7 +12,7 @@ Vault provides tools for:
 ## Using the useSessions Hook
 
 ```tsx
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 
 function SessionManager() {
   const {

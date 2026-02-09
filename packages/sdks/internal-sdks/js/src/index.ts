@@ -6,7 +6,7 @@
  * 
  * @example
  * ```typescript
- * import { VaultInternalClient, TenantManager, BillingManager } from '@vault/internal-sdk';
+ * import { VaultInternalClient, TenantManager, BillingManager } from '@fantasticauth/internal-sdk';
  * 
  * const client = new VaultInternalClient({
  *   baseUrl: 'https://api.vault.dev/api/v1/internal',

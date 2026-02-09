@@ -2,7 +2,7 @@
  * Example: Server Component with Authentication
  */
 
-import { auth, currentUser } from '@vault/nextjs/server';
+import { auth, currentUser } from '@fantasticauth/nextjs/server';
 import { redirect } from 'next/navigation';
 
 // This is a Server Component (no 'use client' directive)

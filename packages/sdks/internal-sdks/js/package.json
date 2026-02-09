@@ -1,5 +1,5 @@
 {
-  "name": "@vault/internal-sdk",
+  "name": "@fantasticauth/internal-sdk",
   "version": "0.1.0",
   "description": "Vault Internal API SDK for SaaS platform services",
   "keywords": [

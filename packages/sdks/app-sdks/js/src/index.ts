@@ -5,7 +5,7 @@
  *
  * @example
  * ```tsx
- * import { VaultProvider, useAuth, SignIn } from '@vault/react';
+ * import { VaultProvider, useAuth, SignIn } from '@fantasticauth/react';
  *
  * function App() {
  *   return (
@@ -39,11 +39,15 @@
 export {
   VaultProvider,
   useVault,
-  VaultContext
+  VaultContext,
+  VaultProvider as FantasticauthProvider,
+  useVault as useFantasticauth,
+  VaultContext as FantasticauthContext,
 } from './context/VaultContext';
 
 export type {
-  VaultProviderProps
+  VaultProviderProps,
+  VaultProviderProps as FantasticauthProviderProps,
 } from './context/VaultContext';
 
 // ============================================================================
@@ -357,7 +361,9 @@ export type {
 
 export {
   VaultApiClient,
-  createVaultClient
+  createVaultClient,
+  VaultApiClient as FantasticauthApiClient,
+  createVaultClient as createFantasticauthClient,
 } from './api/client';
 
 // ============================================================================

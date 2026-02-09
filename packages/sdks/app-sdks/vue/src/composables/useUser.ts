@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useUser, useUpdateUser } from '@vault/vue';
+ * import { useUser, useUpdateUser } from '@fantasticauth/vue';
  *
  * const user = useUser();
  * const { updateUser, reloadUser, isLoading } = useUpdateUser();

@@ -7,6 +7,9 @@
 import { redirect, type Handle, type ServerLoad } from '@sveltejs/kit';
 import type { VaultAuthConfig, User, Session } from '../types.js';
 
+const SESSION_COOKIE_NAME = 'fantasticauth_session_token';
+const LEGACY_SESSION_COOKIE_NAME = 'vault_session_token';
+
 /**
  * Validate session token with Vault API
  */
@@ -52,8 +55,10 @@ function getTokenFromRequest(request: Request): string | null {
   // Check cookie
   const cookie = request.headers.get('cookie');
   if (cookie) {
-    const match = cookie.match(/vault_session_token=([^;]+)/);
-    if (match) {
+    const match =
+      cookie.match(new RegExp(`${SESSION_COOKIE_NAME}=([^;]+)`)) ||
+      cookie.match(new RegExp(`${LEGACY_SESSION_COOKIE_NAME}=([^;]+)`));
+    if (match?.[1]) {
       return decodeURIComponent(match[1]);
     }
   }
@@ -79,7 +84,7 @@ function isPublicRoute(pathname: string, publicRoutes: string[]): boolean {
  * @example
  * ```typescript
  * // hooks.server.ts
- * import { vaultAuth } from '@vault/svelte/server';
+ * import { vaultAuth } from '@fantasticauth/svelte/server';
  * 
  * export const handle = vaultAuth({
  *   publicRoutes: ['/sign-in', '/sign-up', '/api/webhook'],
@@ -137,7 +142,7 @@ export function vaultAuth(config: VaultAuthConfig): Handle {
  * @example
  * ```typescript
  * // +page.server.ts
- * import { requireAuth } from '@vault/svelte/server';
+ * import { requireAuth } from '@fantasticauth/svelte/server';
  * 
  * export const load = requireAuth(async ({ locals }) => {
  *   // locals.user is guaranteed to be set
@@ -166,7 +171,7 @@ export function requireAuth<T extends Record<string, any>>(
  * @example
  * ```typescript
  * // +page.server.ts
- * import { optionalAuth } from '@vault/svelte/server';
+ * import { optionalAuth } from '@fantasticauth/svelte/server';
  * 
  * export const load = optionalAuth(async ({ locals }) => {
  *   return {

@@ -8,7 +8,7 @@
  * @example
  * ```tsx
  * // app/layout.tsx
- * import { VaultProvider } from '@vault/nextjs';
+ * import { VaultProvider } from '@fantasticauth/nextjs';
  * 
  * export default function RootLayout({ children }) {
  *   return (
@@ -29,8 +29,15 @@ import type { VaultProviderConfig, User, Session } from '../types';
 import { decodeToken, isTokenExpired } from '../server/authClient';
 
 // Cookie names
-const SESSION_COOKIE_NAME = '__vault_session';
-const REFRESH_COOKIE_NAME = '__vault_refresh';
+const SESSION_COOKIE_NAME = '__fantasticauth_session';
+const REFRESH_COOKIE_NAME = '__fantasticauth_refresh';
+const LEGACY_SESSION_COOKIE_NAME = '__vault_session';
+const LEGACY_REFRESH_COOKIE_NAME = '__vault_refresh';
+
+function getApiBase(apiUrl: string): string {
+  const normalized = apiUrl.replace(/\/$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+}
 
 // Context types
 interface VaultContextValue {
@@ -67,7 +74,7 @@ interface AuthState {
   orgRole: string | null;
 }
 
-interface VaultProviderProps extends VaultProviderConfig {
+export interface VaultProviderProps extends VaultProviderConfig {
   children: React.ReactNode;
   /**
    * Initial auth state from server (for SSR hydration)
@@ -123,12 +130,36 @@ function deleteCookie(name: string): void {
   document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
 }
 
+function getAuthCookie(
+  primaryName: string,
+  legacyName: string
+): string | null {
+  return getCookie(primaryName) || getCookie(legacyName);
+}
+
+function setAuthCookie(
+  primaryName: string,
+  legacyName: string,
+  value: string,
+  options: { maxAge?: number; path?: string; secure?: boolean; sameSite?: string } = {}
+): void {
+  setCookie(primaryName, value, options);
+  deleteCookie(legacyName);
+}
+
+function clearAuthCookies(): void {
+  deleteCookie(SESSION_COOKIE_NAME);
+  deleteCookie(REFRESH_COOKIE_NAME);
+  deleteCookie(LEGACY_SESSION_COOKIE_NAME);
+  deleteCookie(LEGACY_REFRESH_COOKIE_NAME);
+}
+
 /**
  * Fetch user data from API
  */
 async function fetchUser(apiUrl: string, tenantId: string, token: string): Promise<User | null> {
   try {
-    const response = await fetch(`${apiUrl}/v1/users/me`, {
+    const response = await fetch(`${getApiBase(apiUrl)}/v1/users/me`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'X-Tenant-ID': tenantId,
@@ -156,7 +187,7 @@ async function refreshSession(
   refreshToken: string
 ): Promise<{ token: string; refreshToken: string; user: User } | null> {
   try {
-    const response = await fetch(`${apiUrl}/v1/auth/refresh`, {
+    const response = await fetch(`${getApiBase(apiUrl)}/v1/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -217,8 +248,8 @@ export function VaultProvider({
     const initAuth = async () => {
       debugLog('Initializing auth state');
 
-      const token = getCookie(SESSION_COOKIE_NAME);
-      const refreshToken = getCookie(REFRESH_COOKIE_NAME);
+      const token = getAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME);
+      const refreshToken = getAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME);
 
       if (!token) {
         debugLog('No session token found');
@@ -237,9 +268,9 @@ export function VaultProvider({
             debugLog('Session refreshed successfully');
 
             // Update cookies
-            setCookie(SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
+            setAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
             if (refreshed.refreshToken) {
-              setCookie(REFRESH_COOKIE_NAME, refreshed.refreshToken, {
+              setAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME, refreshed.refreshToken, {
                 maxAge: sessionLifetime * 4, // Refresh tokens last longer
               });
             }
@@ -271,8 +302,7 @@ export function VaultProvider({
 
         // Refresh failed, clear cookies
         debugLog('Token refresh failed');
-        deleteCookie(SESSION_COOKIE_NAME);
-        deleteCookie(REFRESH_COOKIE_NAME);
+        clearAuthCookies();
         setState({
           isLoaded: true,
           isSignedIn: false,
@@ -311,8 +341,7 @@ export function VaultProvider({
         onAuthStateChange?.(newState);
       } else {
         debugLog('Failed to fetch user, clearing session');
-        deleteCookie(SESSION_COOKIE_NAME);
-        deleteCookie(REFRESH_COOKIE_NAME);
+        clearAuthCookies();
         setState({
           isLoaded: true,
           isSignedIn: false,
@@ -334,19 +363,19 @@ export function VaultProvider({
     }
 
     const checkAndRefreshToken = async () => {
-      const token = getCookie(SESSION_COOKIE_NAME);
+      const token = getAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME);
 
       if (!token || isTokenExpired(token)) {
         debugLog('Token expiring, refreshing...');
-        const refreshToken = getCookie(REFRESH_COOKIE_NAME);
+        const refreshToken = getAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME);
 
         if (refreshToken) {
           const refreshed = await refreshSession(apiUrl, tenantId, refreshToken);
 
           if (refreshed) {
-            setCookie(SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
+            setAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
             if (refreshed.refreshToken) {
-              setCookie(REFRESH_COOKIE_NAME, refreshed.refreshToken, {
+              setAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME, refreshed.refreshToken, {
                 maxAge: sessionLifetime * 4,
               });
             }
@@ -383,12 +412,12 @@ export function VaultProvider({
   const signOut = React.useCallback(async (): Promise<void> => {
     debugLog('Signing out');
 
-    const token = getCookie(SESSION_COOKIE_NAME);
+    const token = getAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME);
 
     // Call sign out API
     if (token) {
       try {
-        await fetch(`${apiUrl}/v1/auth/signout`, {
+        await fetch(`${getApiBase(apiUrl)}/v1/auth/signout`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -402,8 +431,7 @@ export function VaultProvider({
     }
 
     // Clear cookies
-    deleteCookie(SESSION_COOKIE_NAME);
-    deleteCookie(REFRESH_COOKIE_NAME);
+    clearAuthCookies();
 
     // Update state
     const newState: AuthState = {
@@ -424,7 +452,7 @@ export function VaultProvider({
 
   // Get token function
   const getToken = React.useCallback(async (): Promise<string | null> => {
-    const token = getCookie(SESSION_COOKIE_NAME);
+    const token = getAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME);
 
     if (!token) {
       return null;
@@ -432,15 +460,15 @@ export function VaultProvider({
 
     // Check if token needs refresh
     if (isTokenExpired(token)) {
-      const refreshToken = getCookie(REFRESH_COOKIE_NAME);
+      const refreshToken = getAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME);
 
       if (refreshToken) {
         const refreshed = await refreshSession(apiUrl, tenantId, refreshToken);
 
         if (refreshed) {
-          setCookie(SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
+          setAuthCookie(SESSION_COOKIE_NAME, LEGACY_SESSION_COOKIE_NAME, refreshed.token, { maxAge: sessionLifetime });
           if (refreshed.refreshToken) {
-            setCookie(REFRESH_COOKIE_NAME, refreshed.refreshToken, {
+            setAuthCookie(REFRESH_COOKIE_NAME, LEGACY_REFRESH_COOKIE_NAME, refreshed.refreshToken, {
               maxAge: sessionLifetime * 4,
             });
           }
@@ -471,3 +499,7 @@ export function VaultProvider({
     </VaultContext.Provider>
   );
 }
+
+export const FantasticauthProvider = VaultProvider;
+export const useFantasticauthContext = useVaultContext;
+export type FantasticauthProviderProps = VaultProviderProps;

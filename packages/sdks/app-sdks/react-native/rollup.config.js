@@ -37,7 +37,7 @@ export default [
     external: [
       'react',
       'react-native',
-      '@vault/react',
+      '@fantasticauth/react',
       'react-native-keychain',
       'react-native-inappbrowser-reborn',
       '@react-native-async-storage/async-storage',

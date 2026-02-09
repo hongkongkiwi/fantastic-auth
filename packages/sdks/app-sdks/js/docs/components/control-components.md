@@ -9,7 +9,7 @@ Renders children only when user is signed in.
 ### Usage
 
 ```tsx
-import { SignedIn } from '@vault/react';
+import { SignedIn } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -36,7 +36,7 @@ Renders children only when user is signed out.
 ### Usage
 
 ```tsx
-import { SignedOut } from '@vault/react';
+import { SignedOut } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -63,7 +63,7 @@ Renders children only when user is signed in, with fallback support.
 ### Usage
 
 ```tsx
-import { RequireAuth } from '@vault/react';
+import { RequireAuth } from '@fantasticauth/react';
 
 function ProfileSection() {
   return (
@@ -88,7 +88,7 @@ function ProfileSection() {
 ## Complete Example
 
 ```tsx
-import { SignedIn, SignedOut, UserButton } from '@vault/react';
+import { SignedIn, SignedOut, UserButton } from '@fantasticauth/react';
 
 function Navigation() {
   return (

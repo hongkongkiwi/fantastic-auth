@@ -7,7 +7,7 @@ Complete reference for configuring the Vault React SDK.
 The `VaultProvider` accepts a `config` object with the following properties:
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 <VaultProvider
   config={{
@@ -109,7 +109,7 @@ import { VaultProvider } from '@vault/react';
 // app/providers.tsx
 'use client';
 
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -136,7 +136,7 @@ export function Providers({ children, initialUser, initialSessionToken }: Provid
 
 ```tsx
 // pages/_app.tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 import type { AppProps } from 'next/app';
 
 export default function MyApp({ Component, pageProps }: AppProps) {
@@ -163,9 +163,9 @@ If you need to extend the User type:
 
 ```tsx
 // types/vault.d.ts
-import '@vault/react';
+import '@fantasticauth/react';
 
-declare module '@vault/react' {
+declare module '@fantasticauth/react' {
   interface User {
     customField?: string;
     preferences?: {
@@ -335,7 +335,7 @@ export function createVaultConfig({ environment }: VaultConfigFactory) {
 Validate your configuration at runtime:
 
 ```tsx
-import { VaultProvider, VaultConfig } from '@vault/react';
+import { VaultProvider, VaultConfig } from '@fantasticauth/react';
 
 function validateConfig(config: VaultConfig): void {
   if (!config.apiUrl) {
@@ -368,7 +368,7 @@ validateConfig(config);
 ## Complete Configuration Example
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 const config = {
   // Required

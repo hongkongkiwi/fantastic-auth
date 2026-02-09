@@ -8,7 +8,7 @@
  * ```svelte
  * <!-- +layout.svelte -->
  * <script>
- *   import { VaultProvider } from '@vault/svelte';
+ *   import { VaultProvider } from '@fantasticauth/svelte';
  * </script>
  * 
  * <VaultProvider config={{ apiUrl: "https://api.vault.dev", tenantId: "my-tenant" }}>
@@ -21,7 +21,7 @@
  * <!-- +page.svelte -->
  * <script>
  *   // Svelte 5 - Runes
- *   import { useAuth } from '@vault/svelte';
+ *   import { useAuth } from '@fantasticauth/svelte';
  *   const { isSignedIn, user, signOut } = useAuth();
  * </script>
  * 
@@ -40,6 +40,12 @@
 
 export { default as VaultProvider } from './VaultProvider.svelte';
 export { getVaultContext, hasVaultContext, VAULT_CONTEXT_KEY } from './context.js';
+export { default as FantasticauthProvider } from './VaultProvider.svelte';
+export {
+  getVaultContext as getFantasticauthContext,
+  hasVaultContext as hasFantasticauthContext,
+  VAULT_CONTEXT_KEY as FANTASTICAUTH_CONTEXT_KEY,
+} from './context.js';
 
 // ============================================================================
 // Components
@@ -95,7 +101,12 @@ export { protect, type ProtectActionOptions } from './actions/index.js';
 // API Client
 // ============================================================================
 
-export { VaultApiClientImpl, createVaultClient } from './api.js';
+export {
+  VaultApiClientImpl,
+  createVaultClient,
+  VaultApiClientImpl as FantasticauthApiClient,
+  createVaultClient as createFantasticauthClient,
+} from './api.js';
 
 // ============================================================================
 // Types
@@ -171,10 +182,15 @@ export type {
   VaultContextValue,
   VaultProviderProps,
   VaultApiClient,
+  VaultContextValue as FantasticauthContextValue,
+  VaultProviderProps as FantasticauthProviderProps,
+  VaultApiClient as FantasticauthApiClientType,
   
   // SvelteKit server types
   VaultAuthConfig,
   VaultLocals,
+  VaultAuthConfig as FantasticauthAuthConfig,
+  VaultLocals as FantasticauthLocals,
 } from './types.js';
 
 // ============================================================================

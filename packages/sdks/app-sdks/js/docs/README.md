@@ -61,13 +61,13 @@ The Vault React SDK provides a complete set of tools for implementing authentica
 ## Installation
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Quick Start
 
 ```tsx
-import { VaultProvider, SignIn, useAuth, UserButton } from '@vault/react';
+import { VaultProvider, SignIn, useAuth, UserButton } from '@fantasticauth/react';
 
 function App() {
   return (

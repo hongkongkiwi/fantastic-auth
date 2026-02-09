@@ -320,7 +320,7 @@ module.exports = {
 
 ```tsx
 import styled from 'styled-components';
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 const StyledSignIn = styled(SignIn)`
   max-width: 450px;

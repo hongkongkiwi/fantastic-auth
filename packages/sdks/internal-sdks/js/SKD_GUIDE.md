@@ -55,7 +55,7 @@ High-level abstractions for common operations:
 Custom error class with detailed information:
 
 ```typescript
-import { VaultInternalError } from '@vault/internal-sdk';
+import { VaultInternalError } from '@fantasticauth/internal-sdk';
 
 try {
   await client.createTenant({ ... });
@@ -88,7 +88,7 @@ await client.createTenant(data, { timeout: 5000 });
 ### SaaS Signup Flow
 
 ```typescript
-import { VaultInternalClient, TenantManager } from '@vault/internal-sdk';
+import { VaultInternalClient, TenantManager } from '@fantasticauth/internal-sdk';
 
 const client = new VaultInternalClient({...});
 const tenants = new TenantManager(client);
@@ -111,7 +111,7 @@ app.post('/signup', async (req, res) => {
 ### Feature Flag Evaluation
 
 ```typescript
-import { FeatureFlagManager } from '@vault/internal-sdk';
+import { FeatureFlagManager } from '@fantasticauth/internal-sdk';
 
 const features = new FeatureFlagManager(client);
 
@@ -130,7 +130,7 @@ app.use(async (req, res, next) => {
 ### Billing Webhooks
 
 ```typescript
-import { BillingManager } from '@vault/internal-sdk';
+import { BillingManager } from '@fantasticauth/internal-sdk';
 
 const billing = new BillingManager(client);
 

@@ -1,4 +1,4 @@
-# @vault/nextjs
+# @fantasticauth/nextjs
 
 Next.js SDK for Vault - Authentication and identity management with first-class support for the Next.js App Router.
 
@@ -14,11 +14,11 @@ Next.js SDK for Vault - Authentication and identity management with first-class 
 ## Installation
 
 ```bash
-npm install @vault/nextjs
+npm install @fantasticauth/nextjs
 # or
-yarn add @vault/nextjs
+yarn add @fantasticauth/nextjs
 # or
-pnpm add @vault/nextjs
+pnpm add @fantasticauth/nextjs
 ```
 
 ## Quick Start
@@ -41,7 +41,7 @@ NEXT_PUBLIC_VAULT_PUBLISHABLE_KEY=your-publishable-key
 
 ```tsx
 // app/layout.tsx
-import { VaultProvider } from '@vault/nextjs';
+import { VaultProvider } from '@fantasticauth/nextjs';
 
 export default function RootLayout({
   children,
@@ -68,7 +68,7 @@ export default function RootLayout({
 
 ```tsx
 // middleware.ts
-import { authMiddleware } from '@vault/nextjs/server';
+import { authMiddleware } from '@fantasticauth/nextjs/server';
 
 export default authMiddleware({
   publicRoutes: ['/', '/sign-in', '/sign-up', '/forgot-password'],
@@ -85,7 +85,7 @@ export const config = {
 
 ```tsx
 // app/dashboard/page.tsx
-import { auth, currentUser } from '@vault/nextjs/server';
+import { auth, currentUser } from '@fantasticauth/nextjs/server';
 import { redirect } from 'next/navigation';
 
 export default async function Dashboard() {
@@ -111,7 +111,7 @@ export default async function Dashboard() {
 // app/components/Profile.tsx
 'use client';
 
-import { useUser, useAuth } from '@vault/nextjs/client';
+import { useUser, useAuth } from '@fantasticauth/nextjs/client';
 
 export function Profile() {
   const { user, isLoaded } = useUser();
@@ -132,14 +132,14 @@ export function Profile() {
 
 ## API Reference
 
-### Server-Side (`@vault/nextjs/server`)
+### Server-Side (`@fantasticauth/nextjs/server`)
 
 #### `auth()`
 
 Validates the current session and returns auth state.
 
 ```tsx
-import { auth } from '@vault/nextjs/server';
+import { auth } from '@fantasticauth/nextjs/server';
 
 const { userId, session, orgId, orgRole, isSignedIn } = await auth();
 ```
@@ -149,7 +149,7 @@ const { userId, session, orgId, orgRole, isSignedIn } = await auth();
 Fetches the full user object for the authenticated user.
 
 ```tsx
-import { currentUser } from '@vault/nextjs/server';
+import { currentUser } from '@fantasticauth/nextjs/server';
 
 const user = await currentUser();
 ```
@@ -159,7 +159,7 @@ const user = await currentUser();
 Returns the session token for making authenticated API calls.
 
 ```tsx
-import { getToken } from '@vault/nextjs/server';
+import { getToken } from '@fantasticauth/nextjs/server';
 
 const token = await getToken();
 ```
@@ -169,7 +169,7 @@ const token = await getToken();
 Edge middleware for protecting routes.
 
 ```tsx
-import { authMiddleware } from '@vault/nextjs/server';
+import { authMiddleware } from '@fantasticauth/nextjs/server';
 
 export default authMiddleware({
   // Routes that don't require auth
@@ -197,14 +197,14 @@ Options:
 | `afterSignInUrl` | `string` | URL to redirect to after sign-in |
 | `debug` | `boolean` | Enable debug logging |
 
-### Client-Side (`@vault/nextjs/client`)
+### Client-Side (`@fantasticauth/nextjs/client`)
 
 #### `useAuth()`
 
 Access authentication state and methods.
 
 ```tsx
-import { useAuth } from '@vault/nextjs/client';
+import { useAuth } from '@fantasticauth/nextjs/client';
 
 const { 
   isLoaded,      // Boolean indicating if auth state is loaded
@@ -222,7 +222,7 @@ const {
 Access the current user object.
 
 ```tsx
-import { useUser } from '@vault/nextjs/client';
+import { useUser } from '@fantasticauth/nextjs/client';
 
 const { user, isLoaded, isSignedIn } = useUser();
 ```
@@ -232,7 +232,7 @@ const { user, isLoaded, isSignedIn } = useUser();
 Access the current session.
 
 ```tsx
-import { useSession } from '@vault/nextjs/client';
+import { useSession } from '@fantasticauth/nextjs/client';
 
 const { session, isLoaded } = useSession();
 ```
@@ -242,19 +242,19 @@ const { session, isLoaded } = useSession();
 Access organization context.
 
 ```tsx
-import { useOrganization } from '@vault/nextjs/client';
+import { useOrganization } from '@fantasticauth/nextjs/client';
 
 const { orgId, orgRole, isLoaded, isSignedIn } = useOrganization();
 ```
 
-### API Routes (`@vault/nextjs/api`)
+### API Routes (`@fantasticauth/nextjs/api`)
 
 #### `withAuth(handler, options)`
 
 Wrap a route handler with authentication.
 
 ```tsx
-import { withAuth } from '@vault/nextjs/api';
+import { withAuth } from '@fantasticauth/nextjs/api';
 
 export const GET = withAuth(
   async (request, { auth, user, token }) => {
@@ -269,7 +269,7 @@ export const GET = withAuth(
 Create a route handler with multiple methods.
 
 ```tsx
-import { createRouteHandler } from '@vault/nextjs/api';
+import { createRouteHandler } from '@fantasticauth/nextjs/api';
 
 export const { GET, POST, DELETE } = createRouteHandler({
   GET: async (req, { auth }) => Response.json({ items: [] }),
@@ -284,7 +284,7 @@ export const { GET, POST, DELETE } = createRouteHandler({
 
 ```tsx
 // app/api/protected/route.ts
-import { withAuth } from '@vault/nextjs/api';
+import { withAuth } from '@fantasticauth/nextjs/api';
 
 export const GET = withAuth(
   async (request, { auth, user, token }) => {
@@ -304,7 +304,7 @@ export const GET = withAuth(
 // app/actions.ts
 'use server';
 
-import { auth } from '@vault/nextjs/server';
+import { auth } from '@fantasticauth/nextjs/server';
 
 export async function updateProfile(formData: FormData) {
   const { userId, isSignedIn } = await auth();
@@ -321,7 +321,7 @@ export async function updateProfile(formData: FormData) {
 
 ```tsx
 // app/admin/page.tsx
-import { auth } from '@vault/nextjs/server';
+import { auth } from '@fantasticauth/nextjs/server';
 import { redirect } from 'next/navigation';
 
 export default async function AdminPage() {
@@ -340,7 +340,7 @@ Client-side:
 ```tsx
 'use client';
 
-import { useHasRole } from '@vault/nextjs/client';
+import { useHasRole } from '@fantasticauth/nextjs/client';
 
 export function AdminOnly({ children }: { children: React.ReactNode }) {
   const hasAdminRole = useHasRole(['admin', 'owner']);
@@ -357,7 +357,7 @@ export function AdminOnly({ children }: { children: React.ReactNode }) {
 
 ```tsx
 // app/api/webhooks/vault/route.ts
-import { handleWebhook } from '@vault/nextjs/api';
+import { handleWebhook } from '@fantasticauth/nextjs/api';
 
 export async function POST(request: Request) {
   return handleWebhook(request, {
@@ -392,7 +392,7 @@ import type {
   Session, 
   AuthResult, 
   AuthMiddlewareOptions 
-} from '@vault/nextjs';
+} from '@fantasticauth/nextjs';
 ```
 
 ## License

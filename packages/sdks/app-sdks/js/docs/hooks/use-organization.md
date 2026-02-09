@@ -17,7 +17,7 @@ Manage organizations and their members.
 ### Basic Usage
 
 ```tsx
-import { useOrganization } from '@vault/react';
+import { useOrganization } from '@fantasticauth/react';
 
 function OrganizationSwitcher() {
   const { organizations, organization, setActive, isLoading } = useOrganization();
@@ -103,7 +103,7 @@ interface OrganizationMember {
 #### Create Organization
 
 ```tsx
-import { useOrganization } from '@vault/react';
+import { useOrganization } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function CreateOrganizationForm() {
@@ -140,7 +140,7 @@ function CreateOrganizationForm() {
 #### Organization Selector
 
 ```tsx
-import { useOrganization } from '@vault/react';
+import { useOrganization } from '@fantasticauth/react';
 
 function OrganizationSelector() {
   const { organizations, organization, setActiveOrganization, isLoading } = useOrganization();
@@ -177,7 +177,7 @@ Get just the active organization.
 ### Usage
 
 ```tsx
-import { useActiveOrganization } from '@vault/react';
+import { useActiveOrganization } from '@fantasticauth/react';
 
 function CurrentOrgBadge() {
   const org = useActiveOrganization();
@@ -201,7 +201,7 @@ Check if user has a specific organization role.
 ### Usage
 
 ```tsx
-import { useOrganizationRole } from '@vault/react';
+import { useOrganizationRole } from '@fantasticauth/react';
 
 function AdminOnlyFeature() {
   const isAdmin = useOrganizationRole('admin');
@@ -221,7 +221,7 @@ Check if user is an organization admin or owner.
 ### Usage
 
 ```tsx
-import { useIsOrgAdmin } from '@vault/react';
+import { useIsOrgAdmin } from '@fantasticauth/react';
 
 function SettingsLink() {
   const isAdmin = useIsOrgAdmin();
@@ -238,7 +238,7 @@ function SettingsLink() {
 ## Complete B2B Example
 
 ```tsx
-import { useOrganization, useIsOrgAdmin } from '@vault/react';
+import { useOrganization, useIsOrgAdmin } from '@fantasticauth/react';
 
 function OrganizationDashboard() {
   const {

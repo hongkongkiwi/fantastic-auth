@@ -13,7 +13,7 @@ import type { Organization, OrganizationMember, ApiError, OrganizationRole } fro
  * @example
  * ```svelte
  * <script>
- *   import { useOrganization } from '@vault/svelte';
+ *   import { useOrganization } from '@fantasticauth/svelte';
  *   const { organization, organizations, setActive, create } = useOrganization();
  * </script>
  * 
@@ -115,7 +115,7 @@ export function useOrganization() {
  * @example
  * ```svelte
  * <script>
- *   import { useOrganizationRole } from '@vault/svelte';
+ *   import { useOrganizationRole } from '@fantasticauth/svelte';
  *   const isAdmin = useOrganizationRole('admin');
  * </script>
  * 
@@ -145,7 +145,7 @@ export function useOrganizationRole(role: OrganizationRole | OrganizationRole[])
  * @example
  * ```svelte
  * <script>
- *   import { useOrganizationMembers } from '@vault/svelte';
+ *   import { useOrganizationMembers } from '@fantasticauth/svelte';
  *   const { members, invite, remove, updateRole } = useOrganizationMembers('org-id');
  * </script>
  * ```

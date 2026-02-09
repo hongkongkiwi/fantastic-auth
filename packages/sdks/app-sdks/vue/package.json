@@ -1,5 +1,5 @@
 {
-  "name": "@vault/vue",
+  "name": "@fantasticauth/vue",
   "version": "0.1.0",
   "description": "Vue 3 SDK for Vault - Secure user management with Composition API",
   "main": "dist/index.cjs",
@@ -62,7 +62,7 @@
     "vue": "^3.3.0"
   },
   "dependencies": {
-    "@vault/sdk": "file:../../../generated/typescript"
+    "@fantasticauth/sdk": "file:../../../generated/typescript"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

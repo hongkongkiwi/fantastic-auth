@@ -13,19 +13,19 @@ This guide covers all the ways to install and set up the Vault React SDK in your
 ### npm
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ### yarn
 
 ```bash
-yarn add @vault/react
+yarn add @fantasticauth/react
 ```
 
 ### pnpm
 
 ```bash
-pnpm add @vault/react
+pnpm add @fantasticauth/react
 ```
 
 ## Peer Dependencies
@@ -43,7 +43,7 @@ npm install react react-dom
 For Next.js projects, additional configuration may be needed for SSR:
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 Create a provider wrapper:
@@ -52,7 +52,7 @@ Create a provider wrapper:
 // app/providers.tsx (App Router)
 'use client';
 
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -73,7 +73,7 @@ See the [Next.js App Router](./examples/nextjs-app-router.md) guide for complete
 ### Vite
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 No additional configuration needed. The SDK works out of the box with Vite.
@@ -81,7 +81,7 @@ No additional configuration needed. The SDK works out of the box with Vite.
 ### Create React App
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 Standard setup works without additional configuration.
@@ -89,14 +89,14 @@ Standard setup works without additional configuration.
 ### Remix
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 For Remix, you may want to configure the SDK for server-side rendering:
 
 ```tsx
 // app/root.tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 export default function App() {
   return (
@@ -146,7 +146,7 @@ Create a simple test component:
 
 ```tsx
 // TestVault.tsx
-import { useAuth, SignIn } from '@vault/react';
+import { useAuth, SignIn } from '@fantasticauth/react';
 
 export function TestVault() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -173,9 +173,9 @@ export function TestVault() {
 
 If you get a "Module not found" error:
 
-1. Ensure you installed the package: `npm list @vault/react`
+1. Ensure you installed the package: `npm list @fantasticauth/react`
 2. Clear your node_modules and reinstall: `rm -rf node_modules && npm install`
-3. Check your import path: `import { ... } from '@vault/react'`
+3. Check your import path: `import { ... } from '@fantasticauth/react'`
 
 ### TypeScript errors
 

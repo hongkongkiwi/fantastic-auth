@@ -15,7 +15,7 @@ The UserButton component provides:
 ## Basic Usage
 
 ```tsx
-import { UserButton } from '@vault/react';
+import { UserButton } from '@fantasticauth/react';
 
 function Header() {
   return <UserButton />;
@@ -256,7 +256,7 @@ const menuItems = [
 Hide the UserButton when not signed in:
 
 ```tsx
-import { UserButton, SignedIn, SignedOut } from '@vault/react';
+import { UserButton, SignedIn, SignedOut } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -275,7 +275,7 @@ function Header() {
 Or use the `useAuth` hook:
 
 ```tsx
-import { UserButton, useAuth } from '@vault/react';
+import { UserButton, useAuth } from '@fantasticauth/react';
 
 function Header() {
   const { isSignedIn } = useAuth();
@@ -318,7 +318,7 @@ function Navbar() {
 ### With Organization Switcher
 
 ```tsx
-import { UserButton, OrganizationSwitcher } from '@vault/react';
+import { UserButton, OrganizationSwitcher } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -337,7 +337,7 @@ The UserButton is a client component and should be marked as such:
 ```tsx
 'use client';
 
-import { UserButton } from '@vault/react';
+import { UserButton } from '@fantasticauth/react';
 
 export default function Header() {
   return <UserButton />;
@@ -350,7 +350,7 @@ Or use dynamic imports in Next.js:
 import dynamic from 'next/dynamic';
 
 const UserButton = dynamic(
-  () => import('@vault/react').then((mod) => mod.UserButton),
+  () => import('@fantasticauth/react').then((mod) => mod.UserButton),
   { ssr: false }
 );
 ```
@@ -360,7 +360,7 @@ const UserButton = dynamic(
 Full TypeScript support:
 
 ```tsx
-import { UserButton, UserButtonProps } from '@vault/react';
+import { UserButton, UserButtonProps } from '@fantasticauth/react';
 
 const props: UserButtonProps = {
   showName: true,
@@ -379,7 +379,7 @@ Test the UserButton component:
 
 ```tsx
 import { render, screen, fireEvent } from '@testing-library/react';
-import { UserButton } from '@vault/react';
+import { UserButton } from '@fantasticauth/react';
 
 const mockUser = {
   id: 'user_123',
@@ -390,8 +390,8 @@ const mockUser = {
 };
 
 // Mock the auth context
-jest.mock('@vault/react', () => ({
-  ...jest.requireActual('@vault/react'),
+jest.mock('@fantasticauth/react', () => ({
+  ...jest.requireActual('@fantasticauth/react'),
   useAuth: () => ({
     isSignedIn: true,
     user: mockUser,

@@ -167,6 +167,19 @@ export interface VaultConfig {
     github?: { clientId: string };
     microsoft?: { clientId: string };
   };
+  /**
+   * Browser token storage mode.
+   * `sessionStorage` is safer than `localStorage` and is the default.
+   */
+  tokenStorage?: 'memory' | 'sessionStorage' | 'localStorage';
+  /**
+   * Custom token storage adapter for advanced integrations.
+   */
+  tokenStorageAdapter?: {
+    getItem: (key: string) => string | null;
+    setItem: (key: string, value: string) => void;
+    removeItem: (key: string) => void;
+  };
 }
 
 export interface VaultPluginOptions {
@@ -448,6 +461,7 @@ export interface VaultContextValue {
   // Session methods
   getToken: () => Promise<string | null>;
   refreshSession: () => Promise<void>;
+  setSessionTokens: (session: Session) => Promise<void>;
 
   // Error handling
   clearError: () => void;

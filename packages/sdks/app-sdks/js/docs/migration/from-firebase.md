@@ -10,7 +10,7 @@ Firebase Auth and Vault take different approaches to authentication. This guide 
 
 | Feature | Firebase Auth | Vault |
 |---------|---------------|-------|
-| React SDK | `firebase/auth` | `@vault/react` |
+| React SDK | `firebase/auth` | `@fantasticauth/react` |
 | Provider | Context via `onAuthStateChanged` | `<VaultProvider>` |
 | Auth State | `useAuthState` hook | `useAuth()` hook |
 | Sign In | `signInWithEmailAndPassword()` | `signIn()` / `<SignIn />` |
@@ -30,7 +30,7 @@ npm uninstall firebase
 ### Install Vault
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Configuration
@@ -102,7 +102,7 @@ function AuthProvider({ children }) {
 ### After (Vault)
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -139,7 +139,7 @@ function Component() {
 ### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function Component() {
   const { isLoaded, isSignedIn, user } = useAuth();
@@ -197,7 +197,7 @@ function SignInForm() {
 Using pre-built component:
 
 ```tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 function SignInPage() {
   return <SignIn redirectUrl="/dashboard" />;
@@ -207,7 +207,7 @@ function SignInPage() {
 Using hook:
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignInForm() {
@@ -262,7 +262,7 @@ async function signUp(email, password, displayName) {
 Using pre-built component:
 
 ```tsx
-import { SignUp } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
 
 function SignUpPage() {
   return <SignUp redirectUrl="/dashboard" requireName={true} />;
@@ -272,7 +272,7 @@ function SignUpPage() {
 Using hook:
 
 ```tsx
-import { useSignUp } from '@vault/react';
+import { useSignUp } from '@fantasticauth/react';
 
 function SignUpForm() {
   const { signUp, isLoading, error } = useSignUp();
@@ -300,7 +300,7 @@ async function signInWithGoogle() {
 ### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function GoogleSignIn() {
   const { signInWithOAuth } = useAuth();
@@ -329,7 +329,7 @@ async function logOut() {
 ### After (Vault)
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function SignOutButton() {
   const { signOut } = useAuth();
@@ -360,7 +360,7 @@ function ProtectedRoute({ children }) {
 ### After (Vault)
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function ProtectedRoute({ children }) {
   return <Protect>{children}</Protect>;
@@ -393,7 +393,7 @@ async function updateUserPassword(password) {
 Using pre-built component:
 
 ```tsx
-import { UserProfile } from '@vault/react';
+import { UserProfile } from '@fantasticauth/react';
 
 function ProfilePage() {
   return <UserProfile />;
@@ -403,7 +403,7 @@ function ProfilePage() {
 Using hook:
 
 ```tsx
-import { useUserManager } from '@vault/react';
+import { useUserManager } from '@fantasticauth/react';
 
 function ProfileEditor() {
   const { update, changePassword } = useUserManager();
@@ -438,7 +438,7 @@ async function getToken() {
 ### After (Vault)
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 async function fetchWithAuth() {
   const { getToken } = useSession();
@@ -461,7 +461,7 @@ async function fetchWithAuth() {
 
 ## Migration Checklist
 
-- [ ] Install `@vault/react`
+- [ ] Install `@fantasticauth/react`
 - [ ] Remove Firebase dependencies
 - [ ] Delete Firebase config file
 - [ ] Set up environment variables

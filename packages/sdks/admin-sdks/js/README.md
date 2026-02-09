@@ -5,17 +5,17 @@ TypeScript SDK for the Vault Admin API. Designed for building admin dashboards a
 ## Installation
 
 ```bash
-npm install @vault/admin-sdk
+npm install @fantasticauth/admin-sdk
 # or
-yarn add @vault/admin-sdk
+yarn add @fantasticauth/admin-sdk
 # or
-pnpm add @vault/admin-sdk
+pnpm add @fantasticauth/admin-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { VaultAdminClient, UserManager } from '@vault/admin-sdk';
+import { VaultAdminClient, UserManager } from '@fantasticauth/admin-sdk';
 
 const client = new VaultAdminClient({
   baseUrl: 'https://api.vault.dev/api/v1',
@@ -70,7 +70,7 @@ console.log(`Database: ${health.services.database.status}`);
 ### User Management
 
 ```typescript
-import { UserManager } from '@vault/admin-sdk';
+import { UserManager } from '@fantasticauth/admin-sdk';
 
 const users = new UserManager(client);
 
@@ -108,7 +108,7 @@ const inactive = await users.getInactive(30); // 30+ days
 ### Organization Management
 
 ```typescript
-import { OrganizationManager } from '@vault/admin-sdk';
+import { OrganizationManager } from '@fantasticauth/admin-sdk';
 
 const orgs = new OrganizationManager(client);
 
@@ -135,7 +135,7 @@ const orphaned = await orgs.getOrphaned();
 ### Audit Logs
 
 ```typescript
-import { AuditManager } from '@vault/admin-sdk';
+import { AuditManager } from '@fantasticauth/admin-sdk';
 
 const audit = new AuditManager(client);
 
@@ -167,7 +167,7 @@ const export = await audit.exportForCompliance(
 ### Tenant Settings
 
 ```typescript
-import { SettingsManager } from '@vault/admin-sdk';
+import { SettingsManager } from '@fantasticauth/admin-sdk';
 
 const settings = new SettingsManager(client);
 
@@ -198,7 +198,7 @@ console.log(`MFA status: ${security.mfaStatus}`);
 ## Error Handling
 
 ```typescript
-import { VaultAdminError } from '@vault/admin-sdk';
+import { VaultAdminError } from '@fantasticauth/admin-sdk';
 
 try {
   await client.getUser('invalid-id');
@@ -277,7 +277,7 @@ import type {
   AdminOrganizationResponse,
   AuditLogEntry,
   TenantSettings 
-} from '@vault/admin-sdk';
+} from '@fantasticauth/admin-sdk';
 ```
 
 ## License

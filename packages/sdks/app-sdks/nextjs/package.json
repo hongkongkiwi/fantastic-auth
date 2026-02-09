@@ -1,5 +1,5 @@
 {
-  "name": "@vault/nextjs",
+  "name": "@fantasticauth/nextjs",
   "version": "0.1.0",
   "description": "Next.js SDK for Vault - Authentication and identity management",
   "license": "MIT",
@@ -86,7 +86,7 @@
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@vault/react": "workspace:*",
+    "@fantasticauth/react": "workspace:*",
     "cookie": "^0.6.0",
     "jose": "^5.2.0"
   },

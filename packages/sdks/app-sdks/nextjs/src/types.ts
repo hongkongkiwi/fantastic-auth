@@ -1,8 +1,8 @@
 /**
- * Core types for @vault/nextjs
+ * Core types for @fantasticauth/nextjs
  */
 
-import type { User, Session } from '@vault/react';
+import type { User, Session } from '@fantasticauth/react';
 
 export type { User, Session };
 

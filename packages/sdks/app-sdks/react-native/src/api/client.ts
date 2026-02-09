@@ -9,7 +9,7 @@ import { Platform } from 'react-native';
 import { 
   VaultApiClient as BaseVaultApiClient,
   createVaultClient as createBaseVaultClient,
-} from '@vault/react';
+} from '@fantasticauth/react';
 import { VaultConfig, User, Session, ApiError } from '../types';
 import {
   storeSessionToken,

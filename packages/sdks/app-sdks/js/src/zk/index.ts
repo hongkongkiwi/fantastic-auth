@@ -11,7 +11,7 @@
  *   encryptUserData, 
  *   decryptUserData,
  *   ZkPasswordProver 
- * } from '@vault/sdk/zk';
+ * } from '@fantasticauth/sdk/zk';
  * 
  * // Derive master key from password
  * const salt = generateSalt();

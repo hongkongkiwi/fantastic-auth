@@ -15,7 +15,7 @@ Set up and manage multi-factor authentication.
 ### Basic Usage
 
 ```tsx
-import { useMfa } from '@vault/react';
+import { useMfa } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function MfaSetup() {
@@ -115,7 +115,7 @@ Verify MFA during the sign-in flow.
 ### Basic Usage
 
 ```tsx
-import { useMfaChallenge, useAuth } from '@vault/react';
+import { useMfaChallenge, useAuth } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function MfaVerification() {
@@ -194,7 +194,7 @@ type MfaMethod = 'totp' | 'email' | 'sms' | 'webauthn' | 'backup_codes';
 ### Complete MFA Setup Flow
 
 ```tsx
-import { useMfa, useUser } from '@vault/react';
+import { useMfa, useUser } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function MfaSetupFlow() {
@@ -295,8 +295,8 @@ function MfaSetupFlow() {
 ### Sign In with MFA
 
 ```tsx
-import { useAuth, useMfaChallenge } from '@vault/react';
-import { SignIn, MFAForm } from '@vault/react';
+import { useAuth, useMfaChallenge } from '@fantasticauth/react';
+import { SignIn, MFAForm } from '@fantasticauth/react';
 
 function SignInPage() {
   const { authState } = useAuth();
@@ -332,7 +332,7 @@ function SignInPage() {
 ### Backup Codes Management
 
 ```tsx
-import { useMfa, useUser } from '@vault/react';
+import { useMfa, useUser } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function BackupCodesManager() {
@@ -388,7 +388,7 @@ function BackupCodesManager() {
 ### Disable MFA
 
 ```tsx
-import { useMfa, useUser } from '@vault/react';
+import { useMfa, useUser } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function DisableMfa() {
@@ -447,7 +447,7 @@ Test MFA hooks:
 
 ```tsx
 import { renderHook, act } from '@testing-library/react';
-import { useMfa, VaultProvider } from '@vault/react';
+import { useMfa, VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

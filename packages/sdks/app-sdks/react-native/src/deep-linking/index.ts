@@ -5,7 +5,7 @@
  * 
  * @example
  * ```tsx
- * import { useOAuthDeepLink, OAuthHandler } from '@vault/react-native';
+ * import { useOAuthDeepLink, OAuthHandler } from '@fantasticauth/react-native';
  * 
  * function OAuthScreen() {
  *   const { startOAuth, isOAuthInProgress } = useOAuthDeepLink({

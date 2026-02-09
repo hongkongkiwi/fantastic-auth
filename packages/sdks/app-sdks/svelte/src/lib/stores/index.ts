@@ -7,7 +7,7 @@
  * @example
  * ```svelte
  * <script>
- *   import { authStore, userStore } from '@vault/svelte/stores';
+ *   import { authStore, userStore } from '@fantasticauth/svelte/stores';
  * </script>
  * 
  * {#if $authStore.isSignedIn}

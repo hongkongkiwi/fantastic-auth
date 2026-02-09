@@ -5,13 +5,13 @@ Official Node.js/TypeScript SDK for Vault authentication and user management.
 ## Installation
 
 ```bash
-npm install @vault/auth
+npm install @fantasticauth/auth
 ```
 
 ## Quick Start
 
 ```typescript
-import { VaultAuth } from '@vault/auth';
+import { VaultAuth } from '@fantasticauth/auth';
 
 // Initialize client
 const vault = new VaultAuth({
@@ -131,8 +131,8 @@ await vault.sessions.revokeAllUserSessions('user_123');
 
 ```typescript
 import express from 'express';
-import { VaultAuth, vaultAuthMiddleware, requireAuth } from '@vault/auth';
-import { vaultErrorHandler } from '@vault/auth/middleware/express';
+import { VaultAuth, vaultAuthMiddleware, requireAuth } from '@fantasticauth/auth';
+import { vaultErrorHandler } from '@fantasticauth/auth/middleware/express';
 
 const app = express();
 
@@ -167,8 +167,8 @@ app.listen(3000);
 
 ```typescript
 import Fastify from 'fastify';
-import vaultAuthPlugin, { requireAuth, requireOrgMember } from '@vault/auth/middleware/fastify';
-import { VaultAuth } from '@vault/auth';
+import vaultAuthPlugin, { requireAuth, requireOrgMember } from '@fantasticauth/auth/middleware/fastify';
+import { VaultAuth } from '@fantasticauth/auth';
 
 const fastify = Fastify({ logger: true });
 
@@ -203,7 +203,7 @@ await fastify.listen({ port: 3000 });
 ```typescript
 import Koa from 'koa';
 import Router from '@koa/router';
-import { VaultAuth, vaultAuthMiddleware, requireAuth } from '@vault/auth/middleware/koa';
+import { VaultAuth, vaultAuthMiddleware, requireAuth } from '@fantasticauth/auth/middleware/koa';
 
 const app = new Koa();
 const router = new Router();
@@ -243,7 +243,7 @@ import {
   RateLimitError,
   ServerError,
   isVaultAuthError
-} from '@vault/auth';
+} from '@fantasticauth/auth';
 
 const vault = new VaultAuth({ apiKey: 'vault_m2m_...' });
 
@@ -313,7 +313,7 @@ const vault = new VaultAuth({
 Full TypeScript types are included. Import types as needed:
 
 ```typescript
-import { User, Organization, TokenPayload, VaultAuthConfig } from '@vault/auth';
+import { User, Organization, TokenPayload, VaultAuthConfig } from '@fantasticauth/auth';
 
 function processUser(user: User): string {
   return user.email;

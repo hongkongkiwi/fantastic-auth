@@ -5,7 +5,7 @@
  * 
  * @example
  * ```tsx
- * import { SignIn, UserButton, OrganizationSwitcher } from '@vault/react-native';
+ * import { SignIn, UserButton, OrganizationSwitcher } from '@fantasticauth/react-native';
  * 
  * function App() {
  *   return (

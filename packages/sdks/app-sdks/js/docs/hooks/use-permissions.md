@@ -5,7 +5,7 @@ The `usePermissions` hook provides permission checking functionality.
 ## Basic Usage
 
 ```tsx
-import { usePermissions } from '@vault/react';
+import { usePermissions } from '@fantasticauth/react';
 
 function AdminPanel() {
   const { has, hasRole, role } = usePermissions();

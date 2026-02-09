@@ -1,5 +1,5 @@
 {
-  "name": "@vault/auth",
+  "name": "@fantasticauth/auth",
   "version": "1.0.0",
   "description": "Official Node.js SDK for Vault authentication and user management",
   "main": "dist/index.js",

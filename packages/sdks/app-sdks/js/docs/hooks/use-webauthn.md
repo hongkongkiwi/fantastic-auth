@@ -15,7 +15,7 @@ Register and authenticate with passkeys/WebAuthn.
 ### Basic Usage
 
 ```tsx
-import { useWebAuthn } from '@vault/react';
+import { useWebAuthn } from '@fantasticauth/react';
 
 function PasskeyButtons() {
   const { isSupported, register, authenticate, isLoading, error } = useWebAuthn();
@@ -65,7 +65,7 @@ interface UseWebAuthnReturn {
 #### Register Passkey
 
 ```tsx
-import { useWebAuthn } from '@vault/react';
+import { useWebAuthn } from '@fantasticauth/react';
 
 function RegisterPasskey() {
   const { register, isLoading, error, isSupported } = useWebAuthn();
@@ -94,7 +94,7 @@ function RegisterPasskey() {
 #### Sign In with Passkey
 
 ```tsx
-import { useWebAuthn } from '@vault/react';
+import { useWebAuthn } from '@fantasticauth/react';
 import { useRouter } from 'next/router';
 
 function PasskeySignIn() {
@@ -132,7 +132,7 @@ Simple hook to check WebAuthn support.
 ### Usage
 
 ```tsx
-import { useIsWebAuthnSupported } from '@vault/react';
+import { useIsWebAuthnSupported } from '@fantasticauth/react';
 
 function Component() {
   const isSupported = useIsWebAuthnSupported();

@@ -7,7 +7,7 @@ Using Vault with Next.js Pages Router.
 ### Install
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ### Environment Variables
@@ -20,7 +20,7 @@ NEXT_PUBLIC_VAULT_TENANT_ID=your-tenant-id
 ### _app.tsx
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 import type { AppProps } from 'next/app';
 
 export default function MyApp({ Component, pageProps }: AppProps) {
@@ -45,7 +45,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
 
 ```tsx
 // pages/sign-in.tsx
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 export default function SignInPage() {
   return (
@@ -60,7 +60,7 @@ export default function SignInPage() {
 
 ```tsx
 // pages/dashboard.tsx
-import { Protect, UserButton, useAuth } from '@vault/react';
+import { Protect, UserButton, useAuth } from '@fantasticauth/react';
 
 export default function Dashboard() {
   return (
@@ -91,7 +91,7 @@ function DashboardContent() {
 import { GetServerSideProps } from 'next';
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
-  const token = req.cookies.vault_session_token;
+  const token = req.cookies.fantasticauth_session_token;
   
   if (!token) {
     return {

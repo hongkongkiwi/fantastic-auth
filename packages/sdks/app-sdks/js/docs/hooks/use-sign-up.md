@@ -5,7 +5,7 @@ The `useSignUp` hook provides sign-up functionality with loading states and erro
 ## Basic Usage
 
 ```tsx
-import { useSignUp } from '@vault/react';
+import { useSignUp } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function SignUpForm() {

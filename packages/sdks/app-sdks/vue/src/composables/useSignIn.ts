@@ -7,7 +7,7 @@
  * ```vue
  * <script setup lang="ts">
  * import { ref } from 'vue';
- * import { useSignIn } from '@vault/vue';
+ * import { useSignIn } from '@fantasticauth/vue';
  *
  * const email = ref('');
  * const password = ref('');

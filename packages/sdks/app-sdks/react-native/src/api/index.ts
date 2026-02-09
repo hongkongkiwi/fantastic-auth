@@ -5,7 +5,7 @@
  * 
  * @example
  * ```typescript
- * import { createVaultClient, VaultApiClient } from '@vault/react-native';
+ * import { createVaultClient, VaultApiClient } from '@fantasticauth/react-native';
  * 
  * const client = createVaultClient({
  *   apiUrl: 'https://api.vault.dev',

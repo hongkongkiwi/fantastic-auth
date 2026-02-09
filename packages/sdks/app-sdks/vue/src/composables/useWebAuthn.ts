@@ -6,7 +6,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useWebAuthn } from '@vault/vue';
+ * import { useWebAuthn } from '@fantasticauth/vue';
  *
  * const { isSupported, register, authenticate, isLoading } = useWebAuthn();
  * </script>
@@ -30,6 +30,7 @@
 import { ref, onMounted } from 'vue';
 import type { Ref } from 'vue';
 import type { UseWebAuthnReturn, ApiError, Session } from '../types';
+import { useVault } from '../plugin';
 
 // ============================================================================
 // WebAuthn Utilities
@@ -67,6 +68,7 @@ function base64urlToBuffer(base64url: string): ArrayBuffer {
  * @returns WebAuthn methods and state
  */
 export function useWebAuthn(): UseWebAuthnReturn {
+  const vault = useVault();
   const isSupported = ref(false);
   const isLoading = ref(false);
   const error = ref<ApiError | null>(null);
@@ -223,10 +225,7 @@ export function useWebAuthn(): UseWebAuthnReturn {
 
       // Store session
       if (result.session) {
-        localStorage.setItem('vault_session_token', result.session.accessToken);
-        if (result.session.refreshToken) {
-          localStorage.setItem('vault_refresh_token', result.session.refreshToken);
-        }
+        await vault.setSessionTokens(result.session);
       }
 
       return result.session || null;

@@ -14,9 +14,16 @@ import { cache } from 'react';
 import type { AuthResult, User, TokenValidationResult } from '../types';
 import { verifyToken, createAuthClient } from './authClient';
 
-// Session cookie name
-const SESSION_COOKIE_NAME = '__vault_session';
-const REFRESH_COOKIE_NAME = '__vault_refresh';
+// Session cookie names
+const SESSION_COOKIE_NAME = '__fantasticauth_session';
+const REFRESH_COOKIE_NAME = '__fantasticauth_refresh';
+const LEGACY_SESSION_COOKIE_NAME = '__vault_session';
+const LEGACY_REFRESH_COOKIE_NAME = '__vault_refresh';
+
+function getApiBase(apiUrl: string): string {
+  const normalized = apiUrl.replace(/\/$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+}
 
 /**
  * Get environment configuration
@@ -43,7 +50,9 @@ function getConfig() {
 async function getSessionToken(): Promise<string | null> {
   try {
     const cookieStore = cookies();
-    const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const token =
+      cookieStore.get(SESSION_COOKIE_NAME)?.value ||
+      cookieStore.get(LEGACY_SESSION_COOKIE_NAME)?.value;
     return token || null;
   } catch {
     // Cookies not available (e.g., in some edge cases)
@@ -57,7 +66,9 @@ async function getSessionToken(): Promise<string | null> {
 async function getRefreshToken(): Promise<string | null> {
   try {
     const cookieStore = cookies();
-    const token = cookieStore.get(REFRESH_COOKIE_NAME)?.value;
+    const token =
+      cookieStore.get(REFRESH_COOKIE_NAME)?.value ||
+      cookieStore.get(LEGACY_REFRESH_COOKIE_NAME)?.value;
     return token || null;
   } catch {
     return null;
@@ -143,7 +154,7 @@ const validateSession = cache(async (): Promise<AuthResult> => {
  * @example
  * ```tsx
  * // app/dashboard/page.tsx
- * import { auth } from '@vault/nextjs/server';
+ * import { auth } from '@fantasticauth/nextjs/server';
  * import { redirect } from 'next/navigation';
  * 
  * export default async function Dashboard() {
@@ -169,7 +180,7 @@ export async function auth(): Promise<AuthResult> {
  * @example
  * ```tsx
  * // app/profile/page.tsx
- * import { currentUser } from '@vault/nextjs/server';
+ * import { currentUser } from '@fantasticauth/nextjs/server';
  * 
  * export default async function Profile() {
  *   const user = await currentUser();
@@ -190,6 +201,7 @@ export async function currentUser(): Promise<User | null> {
   }
 
   const { apiUrl, tenantId } = getConfig();
+  const apiBase = getApiBase(apiUrl);
   const token = await getSessionToken();
 
   if (!token) {
@@ -197,7 +209,7 @@ export async function currentUser(): Promise<User | null> {
   }
 
   try {
-    const response = await fetch(`${apiUrl}/v1/users/${userId}`, {
+    const response = await fetch(`${apiBase}/v1/users/${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'X-Tenant-ID': tenantId,
@@ -230,7 +242,7 @@ export async function currentUser(): Promise<User | null> {
  * @example
  * ```tsx
  * // app/api/data/route.ts
- * import { getToken } from '@vault/nextjs/server';
+ * import { getToken } from '@fantasticauth/nextjs/server';
  * 
  * export async function GET() {
  *   const token = await getToken();
@@ -264,7 +276,7 @@ export async function getToken(): Promise<string | null> {
  * @example
  * ```tsx
  * // app/admin/page.tsx
- * import { protect } from '@vault/nextjs/server';
+ * import { protect } from '@fantasticauth/nextjs/server';
  * 
  * export default async function AdminPage() {
  *   const { userId } = await protect();
@@ -292,7 +304,7 @@ export async function protect(): Promise<AuthResult> {
  * @example
  * ```tsx
  * // app/team/page.tsx
- * import { hasRole } from '@vault/nextjs/server';
+ * import { hasRole } from '@fantasticauth/nextjs/server';
  * import { redirect } from 'next/navigation';
  * 
  * export default async function TeamPage() {
@@ -322,7 +334,7 @@ export async function hasRole(roles: string[]): Promise<boolean> {
  * @example
  * ```tsx
  * // app/components/SignOutButton.tsx
- * import { signOut } from '@vault/nextjs/server';
+ * import { signOut } from '@fantasticauth/nextjs/server';
  * 
  * export function SignOutButton() {
  *   return (
@@ -337,12 +349,13 @@ export async function signOut(): Promise<void> {
   'use server';
 
   const { apiUrl, tenantId } = getConfig();
+  const apiBase = getApiBase(apiUrl);
   const token = await getSessionToken();
 
   // Call the sign out API
   if (token) {
     try {
-      await fetch(`${apiUrl}/v1/auth/signout`, {
+      await fetch(`${apiBase}/v1/auth/signout`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -360,6 +373,8 @@ export async function signOut(): Promise<void> {
     const cookieStore = cookies();
     cookieStore.delete(SESSION_COOKIE_NAME);
     cookieStore.delete(REFRESH_COOKIE_NAME);
+    cookieStore.delete(LEGACY_SESSION_COOKIE_NAME);
+    cookieStore.delete(LEGACY_REFRESH_COOKIE_NAME);
   } catch {
     // Cookies not available
   }

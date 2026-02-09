@@ -5,16 +5,16 @@
  * 
  * @example
  * ```typescript
- * import { SecureStorage } from '@vault/react-native';
+ * import { SecureStorage } from '@fantasticauth/react-native';
  * 
  * // Store session token securely
- * await SecureStorage.setItem('vault_session_token', token);
+ * await SecureStorage.setItem('fantasticauth_session_token', token);
  * 
  * // Retrieve session token
- * const token = await SecureStorage.getItem('vault_session_token');
+ * const token = await SecureStorage.getItem('fantasticauth_session_token');
  * 
  * // Remove item
- * await SecureStorage.removeItem('vault_session_token');
+ * await SecureStorage.removeItem('fantasticauth_session_token');
  * ```
  */
 

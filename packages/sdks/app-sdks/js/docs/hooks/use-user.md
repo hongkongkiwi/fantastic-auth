@@ -16,7 +16,7 @@ Get the current user object.
 ### Basic Usage
 
 ```tsx
-import { useUser } from '@vault/react';
+import { useUser } from '@fantasticauth/react';
 
 function Profile() {
   const user = useUser();
@@ -74,7 +74,7 @@ interface UserProfile {
 #### Display User Information
 
 ```tsx
-import { useUser } from '@vault/react';
+import { useUser } from '@fantasticauth/react';
 
 function UserCard() {
   const user = useUser();
@@ -100,7 +100,7 @@ function UserCard() {
 #### Check User Status
 
 ```tsx
-import { useUser } from '@vault/react';
+import { useUser } from '@fantasticauth/react';
 
 function StatusBadge() {
   const user = useUser();
@@ -129,7 +129,7 @@ Update user profile with loading and error states.
 ### Basic Usage
 
 ```tsx
-import { useUpdateUser } from '@vault/react';
+import { useUpdateUser } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function EditProfile() {
@@ -181,7 +181,7 @@ interface UseUpdateUserReturn {
 #### Update Profile
 
 ```tsx
-import { useUpdateUser, useUser } from '@vault/react';
+import { useUpdateUser, useUser } from '@fantasticauth/react';
 import { useState, useEffect } from 'react';
 
 function ProfileEditor() {
@@ -235,7 +235,7 @@ function ProfileEditor() {
 #### Refresh User Data
 
 ```tsx
-import { useUpdateUser } from '@vault/react';
+import { useUpdateUser } from '@fantasticauth/react';
 
 function RefreshButton() {
   const { reloadUser, isLoading } = useUpdateUser();
@@ -255,7 +255,7 @@ Complete user management including password changes and account deletion.
 ### Basic Usage
 
 ```tsx
-import { useUserManager } from '@vault/react';
+import { useUserManager } from '@fantasticauth/react';
 
 function AccountSettings() {
   const {
@@ -296,7 +296,7 @@ interface UseUserManagerReturn {
 #### Change Password
 
 ```tsx
-import { useUserManager } from '@vault/react';
+import { useUserManager } from '@fantasticauth/react';
 import { useState } from 'react';
 
 function ChangePasswordForm() {
@@ -348,7 +348,7 @@ function ChangePasswordForm() {
 #### Delete Account
 
 ```tsx
-import { useUserManager } from '@vault/react';
+import { useUserManager } from '@fantasticauth/react';
 import { useRouter } from 'next/router';
 
 function DeleteAccountButton() {
@@ -377,7 +377,7 @@ function DeleteAccountButton() {
 #### Complete Profile Management
 
 ```tsx
-import { useUserManager } from '@vault/react';
+import { useUserManager } from '@fantasticauth/react';
 import { useState, useEffect } from 'react';
 
 function ProfileManagement() {
@@ -471,7 +471,7 @@ Test user hooks:
 
 ```tsx
 import { renderHook } from '@testing-library/react';
-import { useUser, useUpdateUser, VaultProvider } from '@vault/react';
+import { useUser, useUpdateUser, VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

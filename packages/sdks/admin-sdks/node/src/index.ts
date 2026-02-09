@@ -5,7 +5,14 @@
  */
 
 // Main client
-export { VaultAuth, UsersAPI, OrganizationsAPI, SessionsAPI } from './client.js';
+export {
+  VaultAuth,
+  Fantasticauth,
+  UsersAPI,
+  OrganizationsAPI,
+  SessionsAPI,
+  VaultAuth as FantasticauthAuth,
+} from './client.js';
 
 // Types
 export {
@@ -26,12 +33,14 @@ export {
   type AddMemberRequest,
   type UpdateMemberRoleRequest,
   type VaultAuthConfig,
+  type VaultAuthConfig as FantasticauthConfig,
   type APIResponse,
 } from './types.js';
 
 // Errors
 export {
   VaultAuthError,
+  VaultAuthError as FantasticauthError,
   AuthenticationError,
   AuthorizationError,
   NotFoundError,
@@ -42,6 +51,7 @@ export {
   InvalidTokenError,
   ConfigurationError,
   isVaultAuthError,
+  isVaultAuthError as isFantasticauthError,
   errorFromResponse,
 } from './errors.js';
 

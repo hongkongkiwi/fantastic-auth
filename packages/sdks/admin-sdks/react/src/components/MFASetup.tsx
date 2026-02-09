@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useMfa } from '@vault/react';
+import { useMfa } from '@fantasticauth/react';
 import type { MFASetupProps, AuthError } from '../types';
 import { Button, Input, Alert, Spinner } from './ui';
 import { classNames, getThemeClass } from '../styles';

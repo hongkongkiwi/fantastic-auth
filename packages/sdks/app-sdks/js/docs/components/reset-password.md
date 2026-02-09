@@ -5,7 +5,7 @@ The `ResetPassword` component provides a password reset form.
 ## Basic Usage
 
 ```tsx
-import { ResetPassword } from '@vault/react';
+import { ResetPassword } from '@fantasticauth/react';
 
 function ResetPasswordPage() {
   return (

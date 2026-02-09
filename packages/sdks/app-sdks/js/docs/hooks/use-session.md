@@ -17,7 +17,7 @@ Access the current session data, get tokens, and refresh sessions.
 ### Basic Usage
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 function App() {
   const { session, getToken, isLoaded } = useSession();
@@ -70,7 +70,7 @@ interface Session {
 #### Get Token for API Calls
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 import { useEffect } from 'react';
 
 function DataFetcher() {
@@ -102,7 +102,7 @@ function DataFetcher() {
 #### Manual Session Refresh
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 function RefreshButton() {
   const { refresh, isLoaded } = useSession();
@@ -123,7 +123,7 @@ function RefreshButton() {
 #### Check Session Expiry
 
 ```tsx
-import { useSession } from '@vault/react';
+import { useSession } from '@fantasticauth/react';
 
 function SessionInfo() {
   const { session } = useSession();
@@ -154,7 +154,7 @@ Simple hook to get just the token getter function.
 ### Basic Usage
 
 ```tsx
-import { useToken } from '@vault/react';
+import { useToken } from '@fantasticauth/react';
 
 function ApiClient() {
   const getToken = useToken();
@@ -184,7 +184,7 @@ Manage all user sessions across devices.
 ### Basic Usage
 
 ```tsx
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 
 function SessionManager() {
   const {
@@ -258,7 +258,7 @@ interface SessionInfo {
 #### Session List
 
 ```tsx
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 import { useEffect } from 'react';
 
 function SessionList() {
@@ -307,7 +307,7 @@ function parseUserAgent(ua?: string): string {
 #### Security Settings
 
 ```tsx
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 
 function SecuritySettings() {
   const { revokeAllSessions, isLoading } = useSessions();
@@ -342,7 +342,7 @@ Get just the current session ID.
 ### Basic Usage
 
 ```tsx
-import { useSessionId } from '@vault/react';
+import { useSessionId } from '@fantasticauth/react';
 
 function SessionTracker() {
   const sessionId = useSessionId();
@@ -368,7 +368,7 @@ Use session token with your API client:
 ### Axios
 
 ```tsx
-import { useToken } from '@vault/react';
+import { useToken } from '@fantasticauth/react';
 import axios from 'axios';
 
 function useApiClient() {
@@ -393,7 +393,7 @@ function useApiClient() {
 ### Fetch Wrapper
 
 ```tsx
-import { useToken } from '@vault/react';
+import { useToken } from '@fantasticauth/react';
 
 function useFetch() {
   const getToken = useToken();
@@ -415,7 +415,7 @@ function useFetch() {
 ### React Query
 
 ```tsx
-import { useToken } from '@vault/react';
+import { useToken } from '@fantasticauth/react';
 import { useQuery } from '@tanstack/react-query';
 
 function useUserData() {
@@ -446,7 +446,7 @@ Test session hooks:
 
 ```tsx
 import { renderHook } from '@testing-library/react';
-import { useSession, useToken, VaultProvider } from '@vault/react';
+import { useSession, useToken, VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

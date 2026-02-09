@@ -93,7 +93,7 @@ See the [Theming Guide](../theming/customization.md) for complete customization 
 ### Basic Authentication Flow
 
 ```tsx
-import { SignIn, SignUp, useAuth, UserButton } from '@vault/react';
+import { SignIn, SignUp, useAuth, UserButton } from '@fantasticauth/react';
 
 function App() {
   const { isSignedIn } = useAuth();
@@ -115,7 +115,7 @@ function App() {
 ### Conditional Rendering
 
 ```tsx
-import { SignedIn, SignedOut, UserButton, SignIn } from '@vault/react';
+import { SignedIn, SignedOut, UserButton, SignIn } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -137,7 +137,7 @@ function Header() {
 ### Route Protection
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function AdminPage() {
   return (
@@ -154,7 +154,7 @@ function AdminPage() {
 ### Multi-Factor Authentication
 
 ```tsx
-import { MFAForm, useAuth } from '@vault/react';
+import { MFAForm, useAuth } from '@fantasticauth/react';
 
 function SignInPage() {
   const { authState } = useAuth();
@@ -202,7 +202,7 @@ All components support SSR. For Next.js App Router:
 
 ```tsx
 // Server component
-import { SignIn } from '@vault/react';
+import { SignIn } from '@fantasticauth/react';
 
 export default function SignInPage() {
   return <SignIn />;
@@ -214,7 +214,7 @@ For pages that need client-side interactivity, use `'use client'`:
 ```tsx
 'use client';
 
-import { UserButton } from '@vault/react';
+import { UserButton } from '@fantasticauth/react';
 
 export default function Header() {
   return <UserButton />;
@@ -246,7 +246,7 @@ Example of ARIA attributes:
 All components are fully typed:
 
 ```tsx
-import { SignIn, SignInProps } from '@vault/react';
+import { SignIn, SignInProps } from '@fantasticauth/react';
 
 // Props are fully typed
 const props: SignInProps = {

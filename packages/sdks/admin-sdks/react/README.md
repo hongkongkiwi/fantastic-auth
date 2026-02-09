@@ -15,11 +15,11 @@ Pre-built React UI components for Vault authentication. This package provides re
 ## Installation
 
 ```bash
-npm install @vault/react-ui
+npm install @fantasticauth/react-ui
 # or
-yarn add @vault/react-ui
+yarn add @fantasticauth/react-ui
 # or
-pnpm add @vault/react-ui
+pnpm add @fantasticauth/react-ui
 ```
 
 ## Quick Start
@@ -27,7 +27,7 @@ pnpm add @vault/react-ui
 ### 1. Wrap your app with VaultAuthProvider
 
 ```tsx
-import { VaultAuthProvider } from '@vault/react-ui';
+import { VaultAuthProvider } from '@fantasticauth/react-ui';
 
 function App() {
   return (
@@ -45,7 +45,7 @@ function App() {
 ### 2. Use the components
 
 ```tsx
-import { LoginForm, useAuth, UserProfile } from '@vault/react-ui';
+import { LoginForm, useAuth, UserProfile } from '@fantasticauth/react-ui';
 
 function YourApp() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -78,7 +78,7 @@ function YourApp() {
 A complete login form with email/password, social login, and magic link support.
 
 ```tsx
-import { LoginForm } from '@vault/react-ui';
+import { LoginForm } from '@fantasticauth/react-ui';
 
 <LoginForm
   onSuccess={(user) => console.log('Logged in:', user)}
@@ -97,7 +97,7 @@ import { LoginForm } from '@vault/react-ui';
 User registration form with customizable fields and social signup.
 
 ```tsx
-import { SignupForm } from '@vault/react-ui';
+import { SignupForm } from '@fantasticauth/react-ui';
 
 <SignupForm
   onSuccess={(user) => console.log('Signed up:', user)}
@@ -116,7 +116,7 @@ import { SignupForm } from '@vault/react-ui';
 Password reset form with request and completion states.
 
 ```tsx
-import { PasswordResetForm } from '@vault/react-ui';
+import { PasswordResetForm } from '@fantasticauth/react-ui';
 
 // Request reset
 <PasswordResetForm onSuccess={() => console.log('Email sent')} />
@@ -134,7 +134,7 @@ import { PasswordResetForm } from '@vault/react-ui';
 Multi-factor authentication setup component.
 
 ```tsx
-import { MFASetup } from '@vault/react-ui';
+import { MFASetup } from '@fantasticauth/react-ui';
 
 <MFASetup
   methods={['totp', 'sms', 'email']}
@@ -149,7 +149,7 @@ import { MFASetup } from '@vault/react-ui';
 User profile management with edit, password change, and account deletion.
 
 ```tsx
-import { UserProfile } from '@vault/react-ui';
+import { UserProfile } from '@fantasticauth/react-ui';
 
 <UserProfile
   onUpdate={(user) => console.log('Updated:', user)}
@@ -164,7 +164,7 @@ import { UserProfile } from '@vault/react-ui';
 Organization switching and creation dropdown.
 
 ```tsx
-import { OrganizationSwitcher } from '@vault/react-ui';
+import { OrganizationSwitcher } from '@fantasticauth/react-ui';
 
 <OrganizationSwitcher
   hidePersonal={false}
@@ -178,7 +178,7 @@ import { OrganizationSwitcher } from '@vault/react-ui';
 Active session management with device information.
 
 ```tsx
-import { SessionList } from '@vault/react-ui';
+import { SessionList } from '@fantasticauth/react-ui';
 
 <SessionList
   onRevoke={(sessionId) => console.log('Revoked:', sessionId)}
@@ -195,7 +195,7 @@ import { SessionList } from '@vault/react-ui';
 Main authentication hook with login, logout, signup, and password reset.
 
 ```tsx
-import { useAuth } from '@vault/react-ui';
+import { useAuth } from '@fantasticauth/react-ui';
 
 function MyComponent() {
   const { 
@@ -227,7 +227,7 @@ function MyComponent() {
 User profile management hook.
 
 ```tsx
-import { useUser } from '@vault/react-ui';
+import { useUser } from '@fantasticauth/react-ui';
 
 function ProfileComponent() {
   const { user, update, changePassword, deleteAccount, isLoading } = useUser();
@@ -245,7 +245,7 @@ function ProfileComponent() {
 Organization management hook.
 
 ```tsx
-import { useOrganization, useIsOrgAdmin } from '@vault/react-ui';
+import { useOrganization, useIsOrgAdmin } from '@fantasticauth/react-ui';
 
 function OrgComponent() {
   const { 
@@ -335,7 +335,7 @@ Individual components can also specify their theme:
 Import the default styles:
 
 ```tsx
-import '@vault/react-ui/styles.css';
+import '@fantasticauth/react-ui/styles.css';
 ```
 
 ### Custom Styling
@@ -380,7 +380,7 @@ import type {
   UseAuthReturn, 
   User,
   AuthError 
-} from '@vault/react-ui';
+} from '@fantasticauth/react-ui';
 ```
 
 ## Browser Support

@@ -13,7 +13,7 @@ Before you begin, you'll need:
 ## Step 1: Install the SDK
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 ```
 
 ## Step 2: Configure Environment Variables
@@ -34,7 +34,7 @@ VAULT_TENANT_ID=your-tenant-id
 
 ```tsx
 // App.tsx or app/layout.tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -57,7 +57,7 @@ function App() {
 The simplest way to add authentication:
 
 ```tsx
-import { useAuth, SignIn, UserButton } from '@vault/react';
+import { useAuth, SignIn, UserButton } from '@fantasticauth/react';
 
 function Header() {
   const { isSignedIn } = useAuth();
@@ -84,7 +84,7 @@ function SignInPage() {
 For complete control over the UI:
 
 ```tsx
-import { useSignIn } from '@vault/react';
+import { useSignIn } from '@fantasticauth/react';
 
 function CustomSignIn() {
   const { signIn, isLoading, error } = useSignIn();
@@ -128,7 +128,7 @@ function CustomSignIn() {
 Use the `Protect` component to secure pages:
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function Dashboard() {
   return (
@@ -145,7 +145,7 @@ function Dashboard() {
 Or with role-based access:
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function AdminPanel() {
   return (
@@ -164,7 +164,7 @@ function AdminPanel() {
 Use the `useAuth` hook to access user information:
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function Profile() {
   const { user, isSignedIn, signOut } = useAuth();
@@ -187,7 +187,7 @@ function Profile() {
 ### Conditional Rendering
 
 ```tsx
-import { SignedIn, SignedOut } from '@vault/react';
+import { SignedIn, SignedOut } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -207,7 +207,7 @@ function Header() {
 ### Loading States
 
 ```tsx
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function App() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -228,7 +228,7 @@ function App() {
 
 ```tsx
 import { useEffect } from 'react';
-import { useAuth } from '@vault/react';
+import { useAuth } from '@fantasticauth/react';
 
 function App() {
   const { user, isSignedIn } = useAuth();
@@ -295,7 +295,7 @@ function App() {
 
 ```tsx
 // App.tsx
-import { VaultProvider, useAuth, SignIn, UserButton } from '@vault/react';
+import { VaultProvider, useAuth, SignIn, UserButton } from '@fantasticauth/react';
 
 function App() {
   return (

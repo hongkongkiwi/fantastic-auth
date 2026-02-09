@@ -233,9 +233,9 @@ export function useWebAuthn(): UseWebAuthnReturn {
 
       // Store session
       if (result.session) {
-        localStorage.setItem('vault_session_token', result.session.accessToken);
+        await vault.api.storeToken(result.session.accessToken);
         if (result.session.refreshToken) {
-          localStorage.setItem('vault_refresh_token', result.session.refreshToken);
+          await vault.api.storeRefreshToken(result.session.refreshToken);
         }
       }
 
@@ -250,7 +250,7 @@ export function useWebAuthn(): UseWebAuthnReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [isSupported]);
+  }, [isSupported, vault]);
 
   return {
     isSupported,

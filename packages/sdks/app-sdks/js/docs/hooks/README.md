@@ -93,7 +93,7 @@ const { organizations, setActive } = useOrganization();
 All hooks must be used within a `VaultProvider`:
 
 ```tsx
-import { VaultProvider, useAuth } from '@vault/react';
+import { VaultProvider, useAuth } from '@fantasticauth/react';
 
 // ✅ Correct
 function App() {

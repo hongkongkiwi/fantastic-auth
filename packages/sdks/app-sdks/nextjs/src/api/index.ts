@@ -1,10 +1,10 @@
 /**
- * @vault/nextjs/api - API route handlers for Vault
+ * @fantasticauth/nextjs/api - API route handlers for Vault
  * 
  * @example
  * ```tsx
  * // app/api/user/route.ts
- * import { auth } from '@vault/nextjs/server';
+ * import { auth } from '@fantasticauth/nextjs/server';
  * 
  * export async function GET() {
  *   const { userId } = await auth();
@@ -20,7 +20,7 @@
  * @example
  * ```tsx
  * // app/api/webhooks/vault/route.ts
- * import { verifyWebhook } from '@vault/nextjs/api';
+ * import { verifyWebhook } from '@fantasticauth/nextjs/api';
  * 
  * export async function POST(request: Request) {
  *   const payload = await request.json();

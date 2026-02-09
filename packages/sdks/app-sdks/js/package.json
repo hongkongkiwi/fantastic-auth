@@ -1,5 +1,5 @@
 {
-  "name": "@vault/react",
+  "name": "@fantasticauth/react",
   "version": "0.1.0",
   "type": "module",
   "description": "React SDK for Vault - Secure user management",
@@ -34,7 +34,7 @@
     "react-dom": ">=16.8.0"
   },
   "dependencies": {
-    "@vault/sdk": "file:../../../generated/typescript"
+    "@fantasticauth/sdk": "file:../../../generated/typescript"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^25.0.0",

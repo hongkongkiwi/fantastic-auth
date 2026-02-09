@@ -14,7 +14,7 @@ The Protect component:
 ## Basic Usage
 
 ```tsx
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 function Dashboard() {
   return (
@@ -125,7 +125,7 @@ The Protect component works with SSR:
 
 ```tsx
 // pages/dashboard.tsx (Next.js)
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 export default function DashboardPage() {
   return (
@@ -141,7 +141,7 @@ export default function DashboardPage() {
 For automatic redirection:
 
 ```tsx
-import { RedirectToSignIn, useAuth } from '@vault/react';
+import { RedirectToSignIn, useAuth } from '@fantasticauth/react';
 
 function ProtectedPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -157,7 +157,7 @@ function ProtectedPage() {
 
 ```tsx
 import { render, screen } from '@testing-library/react';
-import { Protect } from '@vault/react';
+import { Protect } from '@fantasticauth/react';
 
 test('renders children when authenticated', () => {
   render(

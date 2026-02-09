@@ -5,7 +5,7 @@
  *
  * @example
  * ```tsx
- * import { ThemeProvider, useTheme, lightTheme } from '@vault/react/theme';
+ * import { ThemeProvider, useTheme, lightTheme } from '@fantasticauth/react/theme';
  *
  * function App() {
  *   return (

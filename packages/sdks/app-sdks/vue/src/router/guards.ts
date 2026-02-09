@@ -7,7 +7,7 @@
  * ```ts
  * // router/index.ts
  * import { createRouter, createWebHistory } from 'vue-router';
- * import { requireAuth, requireRole } from '@vault/vue/router';
+ * import { requireAuth, requireRole } from '@fantasticauth/vue/router';
  *
  * const router = createRouter({
  *   history: createWebHistory(),
@@ -296,7 +296,7 @@ export function requireGuest(redirectTo: string = '/'): NavigationGuard {
  * ```ts
  * // router/index.ts
  * import { createRouter } from 'vue-router';
- * import { createAuthGuard } from '@vault/vue/router';
+ * import { createAuthGuard } from '@fantasticauth/vue/router';
  *
  * const router = createRouter({ ... });
  * router.beforeEach(createAuthGuard());

@@ -10,6 +10,7 @@ import type { VaultContextValue } from './types.js';
 
 // Context key symbol for secure context access
 export const VAULT_CONTEXT_KEY = Symbol('vault');
+export const FANTASTICAUTH_CONTEXT_KEY = VAULT_CONTEXT_KEY;
 
 /**
  * Get the Vault context value.
@@ -18,7 +19,7 @@ export const VAULT_CONTEXT_KEY = Symbol('vault');
  * @example
  * ```svelte
  * <script>
- *   import { getVaultContext } from '@vault/svelte';
+ *   import { getVaultContext } from '@fantasticauth/svelte';
  *   const vault = getVaultContext();
  * </script>
  * 
@@ -37,6 +38,10 @@ export function getVaultContext(): VaultContextValue {
   return context;
 }
 
+export function getFantasticauthContext(): VaultContextValue {
+  return getVaultContext();
+}
+
 /**
  * Check if the Vault context is available.
  * Useful for conditional logic in components.
@@ -44,7 +49,7 @@ export function getVaultContext(): VaultContextValue {
  * @example
  * ```svelte
  * <script>
- *   import { hasVaultContext } from '@vault/svelte';
+ *   import { hasVaultContext } from '@fantasticauth/svelte';
  *   
  *   const hasVault = hasVaultContext();
  * </script>
@@ -63,4 +68,8 @@ export function hasVaultContext(): boolean {
   } catch {
     return false;
   }
+}
+
+export function hasFantasticauthContext(): boolean {
+  return hasVaultContext();
 }

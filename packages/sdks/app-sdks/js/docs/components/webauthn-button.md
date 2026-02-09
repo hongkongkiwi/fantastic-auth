@@ -5,7 +5,7 @@ The `WebAuthnButton` component provides a button for passkey/WebAuthn authentica
 ## Basic Usage
 
 ```tsx
-import { WebAuthnButton } from '@vault/react';
+import { WebAuthnButton } from '@fantasticauth/react';
 
 function SignInOptions() {
   return (

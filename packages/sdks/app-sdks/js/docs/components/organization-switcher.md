@@ -5,7 +5,7 @@ The `OrganizationSwitcher` component provides a dropdown for switching between o
 ## Basic Usage
 
 ```tsx
-import { OrganizationSwitcher } from '@vault/react';
+import { OrganizationSwitcher } from '@fantasticauth/react';
 
 function Header() {
   return (

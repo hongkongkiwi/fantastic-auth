@@ -1,10 +1,10 @@
 /**
- * @vault/nextjs/client - Client-side components for Vault
+ * @fantasticauth/nextjs/client - Client-side components for Vault
  * 
  * @example
  * ```tsx
  * // app/layout.tsx
- * import { VaultProvider } from '@vault/nextjs';
+ * import { VaultProvider } from '@fantasticauth/nextjs';
  * 
  * export default function RootLayout({ children }) {
  *   return (
@@ -23,7 +23,7 @@
  * // app/components/Profile.tsx
  * 'use client';
  * 
- * import { useUser, useAuth } from '@vault/nextjs/client';
+ * import { useUser, useAuth } from '@fantasticauth/nextjs/client';
  * 
  * export function Profile() {
  *   const { user, isLoaded } = useUser();
@@ -42,13 +42,22 @@
  * ```
  */
 
-export { VaultProvider } from './VaultProvider';
+export {
+  VaultProvider,
+  FantasticauthProvider,
+  useFantasticauthContext,
+} from './VaultProvider';
 export { useAuth, useUser, useSession, useOrganization } from './ClientComponents';
 
 // Re-export types
 export type {
   AuthState,
   VaultProviderConfig,
+  VaultProviderConfig as FantasticauthProviderConfig,
   User,
   Session,
 } from '../types';
+export type {
+  VaultProviderProps,
+  FantasticauthProviderProps,
+} from './VaultProvider';

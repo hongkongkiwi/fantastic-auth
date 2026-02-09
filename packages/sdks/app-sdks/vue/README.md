@@ -1,4 +1,4 @@
-# @vault/vue
+# @fantasticauth/vue
 
 Vue 3 SDK for Vault - Secure user management with Composition API support.
 
@@ -16,11 +16,11 @@ Vue 3 SDK for Vault - Secure user management with Composition API support.
 ## Installation
 
 ```bash
-npm install @vault/vue
+npm install @fantasticauth/vue
 # or
-yarn add @vault/vue
+yarn add @fantasticauth/vue
 # or
-pnpm add @vault/vue
+pnpm add @fantasticauth/vue
 ```
 
 ## Quick Start
@@ -30,7 +30,7 @@ pnpm add @vault/vue
 ```typescript
 // main.ts
 import { createApp } from 'vue';
-import { createVault } from '@vault/vue';
+import { createVault } from '@fantasticauth/vue';
 import App from './App.vue';
 
 const vault = createVault({
@@ -49,7 +49,7 @@ app.mount('#app');
 
 ```vue
 <script setup lang="ts">
-import { useAuth, useUser } from '@vault/vue';
+import { useAuth, useUser } from '@fantasticauth/vue';
 
 const { isSignedIn, signOut } = useAuth();
 const { user } = useUser();
@@ -74,7 +74,7 @@ Main composable for authentication state and methods.
 
 ```vue
 <script setup lang="ts">
-import { useAuth } from '@vault/vue';
+import { useAuth } from '@fantasticauth/vue';
 
 const {
   isLoaded,      // Ref<boolean> - Auth state has been loaded
@@ -96,7 +96,7 @@ Sign in with loading and error states.
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useSignIn } from '@vault/vue';
+import { useSignIn } from '@fantasticauth/vue';
 
 const email = ref('');
 const password = ref('');
@@ -119,7 +119,7 @@ Access and manage user data.
 
 ```vue
 <script setup lang="ts">
-import { useUser, useUpdateUser } from '@vault/vue';
+import { useUser, useUpdateUser } from '@fantasticauth/vue';
 
 const user = useUser();
 const { updateUser, isLoading, error } = useUpdateUser();
@@ -132,7 +132,7 @@ Organization management.
 
 ```vue
 <script setup lang="ts">
-import { useOrganization } from '@vault/vue';
+import { useOrganization } from '@fantasticauth/vue';
 
 const {
   organization,       // Current active organization
@@ -150,7 +150,7 @@ Permission and role checking.
 
 ```vue
 <script setup lang="ts">
-import { usePermissions } from '@vault/vue';
+import { usePermissions } from '@fantasticauth/vue';
 
 const { has, hasRole, hasAnyRole } = usePermissions();
 
@@ -171,7 +171,7 @@ WebAuthn/Passkey authentication.
 
 ```vue
 <script setup lang="ts">
-import { useWebAuthn } from '@vault/vue';
+import { useWebAuthn } from '@fantasticauth/vue';
 
 const { isSupported, register, authenticate, isLoading } = useWebAuthn();
 </script>
@@ -269,7 +269,7 @@ Organization selection dropdown.
 ```typescript
 // router/index.ts
 import { createRouter, createWebHistory } from 'vue-router';
-import { requireAuth, requireRole, createAuthGuard } from '@vault/vue/router';
+import { requireAuth, requireRole, createAuthGuard } from '@fantasticauth/vue/router';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -320,7 +320,7 @@ export default router;
 ```typescript
 // stores/auth.ts
 import { defineStore } from 'pinia';
-import { useVault } from '@vault/vue';
+import { useVault } from '@fantasticauth/vue';
 
 export const useAuthStore = defineStore('auth', () => {
   const vault = useVault();
@@ -366,7 +366,7 @@ import type {
   Organization,
   SignInOptions,
   UseAuthReturn,
-} from '@vault/vue';
+} from '@fantasticauth/vue';
 ```
 
 ## Configuration Options
@@ -409,7 +409,7 @@ const vault = createVault({
 ```vue
 <!-- App.vue -->
 <script setup lang="ts">
-import { useAuth } from '@vault/vue';
+import { useAuth } from '@fantasticauth/vue';
 
 const { isLoaded, isSignedIn } = useAuth();
 </script>
@@ -438,7 +438,7 @@ const { isLoaded, isSignedIn } = useAuth();
 ```vue
 <!-- Dashboard.vue -->
 <script setup lang="ts">
-import { useAuth, useOrganization } from '@vault/vue';
+import { useAuth, useOrganization } from '@fantasticauth/vue';
 
 const { user } = useAuth();
 const { organization } = useOrganization();

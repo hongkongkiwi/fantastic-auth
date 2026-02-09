@@ -13,7 +13,7 @@ Organizations allow you to build B2B applications with:
 ## Basic Setup
 
 ```tsx
-import { OrganizationSwitcher, useOrganization } from '@vault/react';
+import { OrganizationSwitcher, useOrganization } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -34,7 +34,7 @@ function App() {
 ## Organization Content
 
 ```tsx
-import { useOrganization, useIsOrgAdmin } from '@vault/react';
+import { useOrganization, useIsOrgAdmin } from '@fantasticauth/react';
 
 function OrganizationContent() {
   const { organization, members } = useOrganization();
@@ -59,7 +59,7 @@ function OrganizationContent() {
 ## Creating Organizations
 
 ```tsx
-import { useOrganization } from '@vault/react';
+import { useOrganization } from '@fantasticauth/react';
 
 function CreateOrgButton() {
   const { create } = useOrganization();
@@ -79,7 +79,7 @@ function CreateOrgButton() {
 ## Role-Based Access
 
 ```tsx
-import { useOrganizationRole } from '@vault/react';
+import { useOrganizationRole } from '@fantasticauth/react';
 
 function MemberManager() {
   const canManageMembers = useOrganizationRole('admin');

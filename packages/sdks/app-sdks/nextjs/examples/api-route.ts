@@ -4,7 +4,7 @@
  * File: app/api/user/route.ts
  */
 
-import { withAuth } from '@vault/nextjs/api';
+import { withAuth } from '@fantasticauth/nextjs/api';
 
 // Simple authenticated GET endpoint
 export const GET = withAuth(

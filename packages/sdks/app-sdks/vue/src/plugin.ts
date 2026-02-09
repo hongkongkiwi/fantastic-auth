@@ -39,6 +39,7 @@ import { VaultInjectionKey } from './types';
 
 // Re-export the injection key
 export { VaultInjectionKey };
+export const FantasticauthInjectionKey = VaultInjectionKey;
 
 /**
  * Create the Vault plugin instance
@@ -50,7 +51,7 @@ export { VaultInjectionKey };
  * ```ts
  * // main.ts
  * import { createApp } from 'vue';
- * import { createVault } from '@vault/vue';
+ * import { createVault } from '@fantasticauth/vue';
  * import App from './App.vue';
  *
  * const vault = createVault({
@@ -498,6 +499,13 @@ export function createVault(options: VaultPluginOptions) {
         }
       };
 
+      const setSessionTokens = async (newSession: Session) => {
+        await api.storeToken(newSession.accessToken);
+        if (newSession.refreshToken) {
+          await api.storeRefreshToken(newSession.refreshToken);
+        }
+      };
+
       // ============================================================================
       // Error Handling
       // ============================================================================
@@ -602,6 +610,7 @@ export function createVault(options: VaultPluginOptions) {
         // Session methods
         getToken,
         refreshSession,
+        setSessionTokens,
 
         // Error handling
         clearError,
@@ -616,6 +625,10 @@ export function createVault(options: VaultPluginOptions) {
   };
 }
 
+export function createFantasticauth(options: VaultPluginOptions) {
+  return createVault(options);
+}
+
 /**
  * Inject the Vault context into a component
  *
@@ -625,7 +638,7 @@ export function createVault(options: VaultPluginOptions) {
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useVault } from '@vault/vue';
+ * import { useVault } from '@fantasticauth/vue';
  *
  * const vault = useVault();
  * console.log(vault.user.value?.email);
@@ -640,6 +653,10 @@ export function useVault(): VaultContextValue {
   }
 
   return context;
+}
+
+export function useFantasticauth(): VaultContextValue {
+  return useVault();
 }
 
 // Import watch for auth state changes

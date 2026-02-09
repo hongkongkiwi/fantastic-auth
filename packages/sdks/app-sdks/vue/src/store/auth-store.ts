@@ -8,7 +8,7 @@
  * ```ts
  * // store/index.ts
  * import { createPinia } from 'pinia';
- * import { useAuthStore } from '@vault/vue/store';
+ * import { useAuthStore } from '@fantasticauth/vue/store';
  *
  * const pinia = createPinia();
  * export { useAuthStore };
@@ -17,7 +17,7 @@
  * @example
  * ```vue
  * <script setup lang="ts">
- * import { useAuthStore } from '@vault/vue/store';
+ * import { useAuthStore } from '@fantasticauth/vue/store';
  *
  * const auth = useAuthStore();
  * </script>
@@ -142,7 +142,7 @@ export function createAuthStore(vault: any) {
  * ```ts
  * // stores/auth.ts
  * import { defineStore } from 'pinia';
- * import { useVault } from '@vault/vue';
+ * import { useVault } from '@fantasticauth/vue';
  *
  * export const useAuthStore = defineStore('auth', () => {
  *   const vault = useVault();

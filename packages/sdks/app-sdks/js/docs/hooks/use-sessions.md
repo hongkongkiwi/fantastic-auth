@@ -5,7 +5,7 @@ The `useSessions` hook provides session management functionality.
 ## Basic Usage
 
 ```tsx
-import { useSessions } from '@vault/react';
+import { useSessions } from '@fantasticauth/react';
 
 function SessionList() {
   const {

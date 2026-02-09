@@ -13,7 +13,7 @@ import type { SessionInfo, ApiError } from '../types.js';
  * @example
  * ```svelte
  * <script>
- *   import { useSession } from '@vault/svelte';
+ *   import { useSession } from '@fantasticauth/svelte';
  *   const { session, getToken, refresh } = useSession();
  * </script>
  * 
@@ -47,7 +47,7 @@ export function useSession() {
  * @example
  * ```svelte
  * <script>
- *   import { useSessions } from '@vault/svelte';
+ *   import { useSessions } from '@fantasticauth/svelte';
  *   const { sessions, revokeSession, revokeAllOther } = useSessions();
  * </script>
  * 

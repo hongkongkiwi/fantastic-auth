@@ -6,7 +6,7 @@
  * 
  * @example
  * ```typescript
- * import { VaultAdminClient, UserManager, OrganizationManager } from '@vault/admin-sdk';
+ * import { VaultAdminClient, UserManager, OrganizationManager } from '@fantasticauth/admin-sdk';
  * 
  * const client = new VaultAdminClient({
  *   baseUrl: 'https://api.vault.dev/api/v1',

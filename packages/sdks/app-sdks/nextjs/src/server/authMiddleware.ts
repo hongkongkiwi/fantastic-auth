@@ -6,7 +6,7 @@
  * @example
  * ```tsx
  * // middleware.ts
- * import { authMiddleware } from '@vault/nextjs/server';
+ * import { authMiddleware } from '@fantasticauth/nextjs/server';
  * 
  * export default authMiddleware({
  *   publicRoutes: ['/sign-in', '/sign-up', '/'],
@@ -21,11 +21,13 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 import type { AuthMiddlewareOptions, TokenValidationResult } from '../types';
-import { verifyToken, decodeToken } from './authClient';
+import { verifyToken, createAuthClient } from './authClient';
 
 // Cookie names
-const SESSION_COOKIE_NAME = '__vault_session';
-const REFRESH_COOKIE_NAME = '__vault_refresh';
+const SESSION_COOKIE_NAME = '__fantasticauth_session';
+const REFRESH_COOKIE_NAME = '__fantasticauth_refresh';
+const LEGACY_SESSION_COOKIE_NAME = '__vault_session';
+const LEGACY_REFRESH_COOKIE_NAME = '__vault_refresh';
 
 // Default configuration
 const DEFAULT_OPTIONS: Required<Omit<AuthMiddlewareOptions, 'publicRoutes' | 'protectedRoutes' | 'apiRoutes' | 'unauthorizedHandler'>> = {
@@ -51,6 +53,11 @@ function getEdgeConfig() {
   }
 
   return { apiUrl, tenantId, secretKey };
+}
+
+function getApiBase(apiUrl: string): string {
+  const normalized = apiUrl.replace(/\/$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
 }
 
 /**
@@ -80,34 +87,18 @@ function matchesPath(path: string, patterns: string[]): boolean {
  */
 async function validateSessionInEdge(
   token: string,
+  apiUrl: string,
+  tenantId: string,
   secretKey?: string
 ): Promise<TokenValidationResult> {
   if (secretKey) {
-    // Use JWT verification if we have a secret key
+    // Verify JWT signature with configured key.
     return verifyToken(token, secretKey);
   }
 
-  // Without secret key, do basic decoding and expiration check
-  const decoded = decodeToken(token);
-
-  if (!decoded) {
-    return { valid: false, error: 'Invalid token format' };
-  }
-
-  // Check expiration
-  if (decoded.exp && decoded.exp * 1000 < Date.now()) {
-    return { valid: false, error: 'Token expired' };
-  }
-
-  // Basic validation passed (but not cryptographically verified)
-  return {
-    valid: true,
-    userId: decoded.sub,
-    sessionId: decoded.sid,
-    orgId: decoded.org_id,
-    orgRole: decoded.org_role,
-    expiresAt: decoded.exp,
-  };
+  // Fall back to server-side session validation when no verification key is available.
+  const authClient = createAuthClient(apiUrl, tenantId);
+  return authClient.validateSession(token);
 }
 
 /**
@@ -150,7 +141,7 @@ function createLogger(debug: boolean) {
  * @example
  * ```tsx
  * // middleware.ts
- * import { authMiddleware } from '@vault/nextjs/server';
+ * import { authMiddleware } from '@fantasticauth/nextjs/server';
  * 
  * export default authMiddleware({
  *   publicRoutes: [
@@ -216,8 +207,12 @@ export function authMiddleware(options: AuthMiddlewareOptions = {}) {
     }
 
     // Get session token from cookies
-    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-    const refreshToken = request.cookies.get(REFRESH_COOKIE_NAME)?.value;
+    const sessionToken =
+      request.cookies.get(SESSION_COOKIE_NAME)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE_NAME)?.value;
+    const refreshToken =
+      request.cookies.get(REFRESH_COOKIE_NAME)?.value ||
+      request.cookies.get(LEGACY_REFRESH_COOKIE_NAME)?.value;
 
     logger.log('Session token present:', !!sessionToken);
 
@@ -227,8 +222,8 @@ export function authMiddleware(options: AuthMiddlewareOptions = {}) {
 
     if (sessionToken) {
       try {
-        const { secretKey } = getEdgeConfig();
-        validationResult = await validateSessionInEdge(sessionToken, secretKey);
+        const { apiUrl, tenantId, secretKey } = getEdgeConfig();
+        validationResult = await validateSessionInEdge(sessionToken, apiUrl, tenantId, secretKey);
         isAuthenticated = validationResult.valid;
       } catch (error) {
         logger.error('Session validation error:', error);
@@ -267,7 +262,7 @@ export function authMiddleware(options: AuthMiddlewareOptions = {}) {
     if (refreshToken && !isAuthenticated) {
       try {
         const { apiUrl, tenantId } = getEdgeConfig();
-        const refreshResponse = await fetch(`${apiUrl}/v1/auth/refresh`, {
+        const refreshResponse = await fetch(`${getApiBase(apiUrl)}/v1/auth/refresh`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -297,6 +292,8 @@ export function authMiddleware(options: AuthMiddlewareOptions = {}) {
               maxAge: 60 * 60 * 24 * 30, // 30 days
             });
           }
+          response.cookies.delete(LEGACY_SESSION_COOKIE_NAME);
+          response.cookies.delete(LEGACY_REFRESH_COOKIE_NAME);
 
           // Add user info to headers
           if (data.userId) {
@@ -351,7 +348,7 @@ export function authMiddleware(options: AuthMiddlewareOptions = {}) {
  * @example
  * ```tsx
  * // middleware.ts
- * import { createMiddleware } from '@vault/nextjs/server';
+ * import { createMiddleware } from '@fantasticauth/nextjs/server';
  * 
  * export default createMiddleware(async (request, auth) => {
  *   // Custom logic here
@@ -370,17 +367,24 @@ export function createMiddleware(
   ) => NextResponse | Promise<NextResponse | undefined> | undefined
 ) {
   return async function middleware(request: NextRequest): Promise<NextResponse> {
-    const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const sessionToken =
+      request.cookies.get(SESSION_COOKIE_NAME)?.value ||
+      request.cookies.get(LEGACY_SESSION_COOKIE_NAME)?.value;
     let auth = { userId: null as string | null, orgId: null as string | null, orgRole: null as string | null };
 
     if (sessionToken) {
-      const decoded = decodeToken(sessionToken);
-      if (decoded) {
-        auth = {
-          userId: decoded.sub,
-          orgId: decoded.org_id || null,
-          orgRole: decoded.org_role || null,
-        };
+      try {
+        const { apiUrl, tenantId, secretKey } = getEdgeConfig();
+        const validation = await validateSessionInEdge(sessionToken, apiUrl, tenantId, secretKey);
+        if (validation.valid) {
+          auth = {
+            userId: validation.userId ?? null,
+            orgId: validation.orgId ?? null,
+            orgRole: validation.orgRole ?? null,
+          };
+        }
+      } catch {
+        auth = { userId: null, orgId: null, orgRole: null };
       }
     }
 

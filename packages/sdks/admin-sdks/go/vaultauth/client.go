@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	urlpkg "net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -37,11 +37,11 @@ func DefaultConfig() Config {
 
 // Client is the main Vault Auth client
 type Client struct {
-	config       Config
-	httpClient   *http.Client
-	jwks         *JWKS
+	config        Config
+	httpClient    *http.Client
+	jwks          *JWKS
 	jwksFetchedAt time.Time
-	
+
 	// API sub-clients
 	Users         *UsersAPI
 	Organizations *OrganizationsAPI
@@ -56,7 +56,7 @@ func New(config Config) (*Client, error) {
 	if !strings.HasPrefix(config.APIKey, "vault_m2m_") {
 		return nil, NewConfigurationError("API key must start with 'vault_m2m_'")
 	}
-	
+
 	// Set defaults
 	if config.BaseURL == "" {
 		config.BaseURL = DefaultConfig().BaseURL
@@ -73,54 +73,59 @@ func New(config Config) (*Client, error) {
 	if config.JWKSCacheTTL == 0 {
 		config.JWKSCacheTTL = DefaultConfig().JWKSCacheTTL
 	}
-	
+
 	client := &Client{
 		config:     config,
 		httpClient: &http.Client{Timeout: config.Timeout},
 	}
-	
+
 	// Initialize sub-clients
 	client.Users = &UsersAPI{client: client}
 	client.Organizations = &OrganizationsAPI{client: client}
 	client.Sessions = &SessionsAPI{client: client}
-	
+
 	return client, nil
 }
 
 // makeRequest performs an HTTP request with retry logic
 func (c *Client) makeRequest(method, path string, body interface{}, queryParams map[string]string) ([]byte, error) {
-	var bodyReader io.Reader
+	var bodyBytes []byte
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
-		bodyReader = bytes.NewReader(jsonBody)
+		bodyBytes = jsonBody
 	}
-	
-	url := c.config.BaseURL + path
+
+	endpointURL := c.config.BaseURL + path
 	if len(queryParams) > 0 {
-		q := make(url.Values)
+		q := make(urlpkg.Values)
 		for key, value := range queryParams {
 			q.Set(key, value)
 		}
-		url = url + "?" + q.Encode()
+		endpointURL = endpointURL + "?" + q.Encode()
 	}
-	
+
 	var lastErr error
 	for attempt := 0; attempt < c.config.MaxRetries; attempt++ {
-		req, err := http.NewRequest(method, url, bodyReader)
+		var bodyReader io.Reader
+		if len(bodyBytes) > 0 {
+			bodyReader = bytes.NewReader(bodyBytes)
+		}
+
+		req, err := http.NewRequest(method, endpointURL, bodyReader)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
-		
+
 		req.Header.Set("Authorization", "Bearer "+c.config.APIKey)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("User-Agent", "vault-auth-go/1.0.0")
 		if c.config.RequestID != "" {
 			req.Header.Set("X-Request-ID", c.config.RequestID)
 		}
-		
+
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
 			lastErr = err
@@ -131,12 +136,12 @@ func (c *Client) makeRequest(method, path string, body interface{}, queryParams 
 			return nil, lastErr
 		}
 		defer resp.Body.Close()
-		
+
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		
+
 		// Handle response
 		requestID := resp.Header.Get("X-Request-ID")
 		result, err := c.handleResponse(resp.StatusCode, respBody, &requestID)
@@ -149,10 +154,10 @@ func (c *Client) makeRequest(method, path string, body interface{}, queryParams 
 			}
 			return nil, err
 		}
-		
+
 		return result, nil
 	}
-	
+
 	return nil, lastErr
 }
 
@@ -164,7 +169,7 @@ func (c *Client) handleResponse(statusCode int, body []byte, requestID *string) 
 	if statusCode == http.StatusNoContent {
 		return []byte{}, nil
 	}
-	
+
 	var errorResp struct {
 		Message string                 `json:"message"`
 		Code    *string                `json:"code,omitempty"`
@@ -173,7 +178,7 @@ func (c *Client) handleResponse(statusCode int, body []byte, requestID *string) 
 	if err := json.Unmarshal(body, &errorResp); err != nil {
 		errorResp.Message = string(body)
 	}
-	
+
 	switch statusCode {
 	case http.StatusBadRequest:
 		fieldErrors := make(map[string]string)
@@ -216,17 +221,17 @@ func (c *Client) getJWKS() (*JWKS, error) {
 	if c.jwks != nil && now.Sub(c.jwksFetchedAt) < c.config.JWKSCacheTTL {
 		return c.jwks, nil
 	}
-	
+
 	body, err := c.makeRequest("GET", "/.well-known/jwks.json", nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var jwks JWKS
 	if err := json.Unmarshal(body, &jwks); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JWKS: %w", err)
 	}
-	
+
 	c.jwks = &jwks
 	c.jwksFetchedAt = now
 	return &jwks, nil
@@ -238,59 +243,59 @@ func (c *Client) VerifyToken(token string) (*User, error) {
 	if len(parts) != 3 {
 		return nil, NewInvalidTokenError("Invalid token format", nil, nil, nil)
 	}
-	
+
 	// Decode header to get key ID
 	headerJSON, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to decode header: %v", err), nil, nil, nil)
 	}
-	
+
 	var header struct {
 		Kid string `json:"kid"`
 	}
 	if err := json.Unmarshal(headerJSON, &header); err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to unmarshal header: %v", err), nil, nil, nil)
 	}
-	
+
 	if header.Kid == "" {
 		return nil, NewInvalidTokenError("Token missing key ID", nil, nil, nil)
 	}
-	
+
 	// Get JWKS
 	_, err = c.getJWKS()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Decode payload to check expiration
 	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to decode payload: %v", err), nil, nil, nil)
 	}
-	
+
 	var payload struct {
 		Exp int64 `json:"exp"`
 	}
 	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to unmarshal payload: %v", err), nil, nil, nil)
 	}
-	
+
 	if payload.Exp > 0 && payload.Exp < time.Now().Unix() {
 		return nil, NewTokenExpiredError("", nil, nil, nil)
 	}
-	
+
 	// Verify token via API
 	reqBody := VerifyTokenRequest{Token: token}
 	respBody, err := c.makeRequest("POST", "/api/v1/auth/verify", reqBody, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[User]
 	if err := json.Unmarshal(respBody, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -300,17 +305,17 @@ func (c *Client) DecodeToken(token string) (*TokenPayload, error) {
 	if len(parts) != 3 {
 		return nil, NewInvalidTokenError("Invalid token format", nil, nil, nil)
 	}
-	
+
 	payloadJSON, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to decode payload: %v", err), nil, nil, nil)
 	}
-	
+
 	var payload TokenPayload
 	if err := json.Unmarshal(payloadJSON, &payload); err != nil {
 		return nil, NewInvalidTokenError(fmt.Sprintf("Failed to unmarshal payload: %v", err), nil, nil, nil)
 	}
-	
+
 	return &payload, nil
 }
 
@@ -325,12 +330,12 @@ func (c *Client) HealthCheck() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return result, nil
 }
 
@@ -345,12 +350,12 @@ func (u *UsersAPI) Get(userID string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[User]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -360,12 +365,12 @@ func (u *UsersAPI) GetByEmail(email string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[User]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -381,17 +386,17 @@ func (u *UsersAPI) List(page, perPage int, status, organizationID *string) (*Pag
 	if organizationID != nil {
 		params["organization_id"] = *organizationID
 	}
-	
+
 	body, err := u.client.makeRequest("GET", "/api/v1/users", nil, params)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[UserListResponse]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &PaginatedResponse[User]{
 		Data:    resp.Data.Users,
 		Total:   resp.Data.Total,
@@ -407,12 +412,12 @@ func (u *UsersAPI) Create(req CreateUserRequest) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[User]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -422,12 +427,12 @@ func (u *UsersAPI) Update(userID string, req UpdateUserRequest) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[User]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -450,14 +455,14 @@ func (u *UsersAPI) GetOrganizations(userID string) ([]OrganizationMembership, er
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[struct {
 		Memberships []OrganizationMembership `json:"memberships"`
 	}]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return resp.Data.Memberships, nil
 }
 
@@ -467,12 +472,12 @@ func (u *UsersAPI) GetSessions(userID string) ([]Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[SessionListResponse]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return resp.Data.Sessions, nil
 }
 
@@ -487,12 +492,12 @@ func (o *OrganizationsAPI) Get(orgID string) (*Organization, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[Organization]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -502,12 +507,12 @@ func (o *OrganizationsAPI) GetBySlug(slug string) (*Organization, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[Organization]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -517,17 +522,17 @@ func (o *OrganizationsAPI) List(page, perPage int) (*PaginatedResponse[Organizat
 		"page":     strconv.Itoa(page),
 		"per_page": strconv.Itoa(perPage),
 	}
-	
+
 	body, err := o.client.makeRequest("GET", "/api/v1/organizations", nil, params)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[OrganizationListResponse]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &PaginatedResponse[Organization]{
 		Data:    resp.Data.Organizations,
 		Total:   resp.Data.Total,
@@ -543,12 +548,12 @@ func (o *OrganizationsAPI) Create(req CreateOrganizationRequest) (*Organization,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[Organization]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -558,12 +563,12 @@ func (o *OrganizationsAPI) Update(orgID string, req UpdateOrganizationRequest) (
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[Organization]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -579,12 +584,12 @@ func (o *OrganizationsAPI) GetMembers(orgID string) ([]OrganizationMembership, e
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[MembershipListResponse]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return resp.Data.Members, nil
 }
 
@@ -594,12 +599,12 @@ func (o *OrganizationsAPI) AddMember(orgID string, req AddMemberRequest) (*Organ
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[OrganizationMembership]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -615,12 +620,12 @@ func (o *OrganizationsAPI) UpdateMemberRole(orgID, userID string, req UpdateMemb
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[OrganizationMembership]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 
@@ -635,12 +640,12 @@ func (s *SessionsAPI) Get(sessionID string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var resp APIResponse[Session]
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
-	
+
 	return &resp.Data, nil
 }
 

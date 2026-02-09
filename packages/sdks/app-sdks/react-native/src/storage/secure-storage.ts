@@ -10,11 +10,16 @@ import { SecureStorageOptions, SecureStorageItem } from '../types';
 
 // Storage keys
 const VAULT_SERVICE = 'com.vault.secure';
-const TOKEN_KEY = 'vault_session_token';
-const REFRESH_TOKEN_KEY = 'vault_refresh_token';
-const USER_DATA_KEY = 'vault_user_data';
-const ORG_DATA_KEY = 'vault_org_data';
-const BIOMETRIC_ENABLED_KEY = 'vault_biometric_enabled';
+const TOKEN_KEY = 'fantasticauth_session_token';
+const REFRESH_TOKEN_KEY = 'fantasticauth_refresh_token';
+const USER_DATA_KEY = 'fantasticauth_user_data';
+const ORG_DATA_KEY = 'fantasticauth_org_data';
+const BIOMETRIC_ENABLED_KEY = 'fantasticauth_biometric_enabled';
+const LEGACY_TOKEN_KEY = 'vault_session_token';
+const LEGACY_REFRESH_TOKEN_KEY = 'vault_refresh_token';
+const LEGACY_USER_DATA_KEY = 'vault_user_data';
+const LEGACY_ORG_DATA_KEY = 'vault_org_data';
+const LEGACY_BIOMETRIC_ENABLED_KEY = 'vault_biometric_enabled';
 
 // ============================================================================
 // Platform Detection
@@ -207,6 +212,11 @@ export async function clearVaultStorage(options: SecureStorageOptions = {}): Pro
     USER_DATA_KEY,
     ORG_DATA_KEY,
     BIOMETRIC_ENABLED_KEY,
+    LEGACY_TOKEN_KEY,
+    LEGACY_REFRESH_TOKEN_KEY,
+    LEGACY_USER_DATA_KEY,
+    LEGACY_ORG_DATA_KEY,
+    LEGACY_BIOMETRIC_ENABLED_KEY,
   ];
 
   await Promise.all(keys.map(key => removeItem(key, options)));
@@ -223,13 +233,15 @@ export async function storeSessionToken(token: string): Promise<void> {
   await setItem(TOKEN_KEY, token, {
     accessibility: 'AfterFirstUnlockThisDeviceOnly',
   });
+  await removeItem(LEGACY_TOKEN_KEY);
 }
 
 /**
  * Get stored session token
  */
 export async function getSessionToken(): Promise<string | null> {
-  return getItem(TOKEN_KEY);
+  const token = await getItem(TOKEN_KEY);
+  return token || getItem(LEGACY_TOKEN_KEY);
 }
 
 /**
@@ -239,13 +251,15 @@ export async function storeRefreshToken(token: string): Promise<void> {
   await setItem(REFRESH_TOKEN_KEY, token, {
     accessibility: 'AfterFirstUnlockThisDeviceOnly',
   });
+  await removeItem(LEGACY_REFRESH_TOKEN_KEY);
 }
 
 /**
  * Get stored refresh token
  */
 export async function getRefreshToken(): Promise<string | null> {
-  return getItem(REFRESH_TOKEN_KEY);
+  const token = await getItem(REFRESH_TOKEN_KEY);
+  return token || getItem(LEGACY_REFRESH_TOKEN_KEY);
 }
 
 /**
@@ -255,6 +269,8 @@ export async function clearSessionTokens(): Promise<void> {
   await Promise.all([
     removeItem(TOKEN_KEY),
     removeItem(REFRESH_TOKEN_KEY),
+    removeItem(LEGACY_TOKEN_KEY),
+    removeItem(LEGACY_REFRESH_TOKEN_KEY),
   ]);
 }
 
@@ -267,13 +283,14 @@ export async function clearSessionTokens(): Promise<void> {
  */
 export async function storeCachedUser(user: any): Promise<void> {
   await setItem(USER_DATA_KEY, JSON.stringify(user));
+  await removeItem(LEGACY_USER_DATA_KEY);
 }
 
 /**
  * Get cached user data
  */
 export async function getCachedUser(): Promise<any | null> {
-  const data = await getItem(USER_DATA_KEY);
+  const data = (await getItem(USER_DATA_KEY)) || (await getItem(LEGACY_USER_DATA_KEY));
   if (data) {
     try {
       return JSON.parse(data);
@@ -289,13 +306,14 @@ export async function getCachedUser(): Promise<any | null> {
  */
 export async function storeCachedOrganizations(orgs: any[]): Promise<void> {
   await setItem(ORG_DATA_KEY, JSON.stringify(orgs));
+  await removeItem(LEGACY_ORG_DATA_KEY);
 }
 
 /**
  * Get cached organization data
  */
 export async function getCachedOrganizations(): Promise<any[] | null> {
-  const data = await getItem(ORG_DATA_KEY);
+  const data = (await getItem(ORG_DATA_KEY)) || (await getItem(LEGACY_ORG_DATA_KEY));
   if (data) {
     try {
       return JSON.parse(data);
@@ -314,7 +332,9 @@ export async function getCachedOrganizations(): Promise<any[] | null> {
  * Check if biometric unlock is enabled
  */
 export async function isBiometricEnabled(): Promise<boolean> {
-  const value = await getItem(BIOMETRIC_ENABLED_KEY);
+  const value =
+    (await getItem(BIOMETRIC_ENABLED_KEY)) ||
+    (await getItem(LEGACY_BIOMETRIC_ENABLED_KEY));
   return value === 'true';
 }
 
@@ -323,6 +343,7 @@ export async function isBiometricEnabled(): Promise<boolean> {
  */
 export async function setBiometricEnabled(enabled: boolean): Promise<void> {
   await setItem(BIOMETRIC_ENABLED_KEY, enabled ? 'true' : 'false');
+  await removeItem(LEGACY_BIOMETRIC_ENABLED_KEY);
 }
 
 // ============================================================================

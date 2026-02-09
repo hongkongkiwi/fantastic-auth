@@ -7,12 +7,31 @@
 
 import { cookies } from 'next/headers';
 import type { NextRequest } from 'next/server';
-import type { AuthResult, User, RouteHandlerOptions, ApiError } from '../types';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { AuthResult, User, ApiError } from '../types';
 import { verifyToken, createAuthClient } from '../server/authClient';
 
 // Cookie names
-const SESSION_COOKIE_NAME = '__vault_session';
-const REFRESH_COOKIE_NAME = '__vault_refresh';
+const SESSION_COOKIE_NAME = '__fantasticauth_session';
+const LEGACY_SESSION_COOKIE_NAME = '__vault_session';
+
+function getApiBase(apiUrl: string): string {
+  const normalized = apiUrl.replace(/\/$/, '');
+  return normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+}
+
+function normalizeSignature(signature: string): string {
+  return signature.startsWith('sha256=') ? signature.slice(7) : signature;
+}
+
+function timingSafeHexEqual(aHex: string, bHex: string): boolean {
+  if (!/^[\da-f]+$/i.test(aHex) || !/^[\da-f]+$/i.test(bHex) || aHex.length !== bHex.length) {
+    return false;
+  }
+  const a = Buffer.from(aHex, 'hex');
+  const b = Buffer.from(bHex, 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /**
  * Get environment configuration
@@ -76,7 +95,9 @@ async function getTokenFromRequest(request: Request | NextRequest): Promise<stri
   // Try cookie first
   try {
     const cookieStore = cookies();
-    const cookieToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+    const cookieToken =
+      cookieStore.get(SESSION_COOKIE_NAME)?.value ||
+      cookieStore.get(LEGACY_SESSION_COOKIE_NAME)?.value;
     if (cookieToken) {
       return cookieToken;
     }
@@ -177,9 +198,10 @@ async function validateAuth(
  */
 async function fetchUser(userId: string, token: string): Promise<User | null> {
   const { apiUrl, tenantId } = getConfig();
+  const apiBase = getApiBase(apiUrl);
 
   try {
-    const response = await fetch(`${apiUrl}/v1/users/${userId}`, {
+    const response = await fetch(`${apiBase}/v1/users/${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'X-Tenant-ID': tenantId,
@@ -247,7 +269,7 @@ function methodNotAllowedResponse(allowed: string[]): Response {
  * @example
  * ```tsx
  * // app/api/protected/route.ts
- * import { withAuth } from '@vault/nextjs/api';
+ * import { withAuth } from '@fantasticauth/nextjs/api';
  * 
  * export const GET = withAuth(async (request, { auth, user, token }) => {
  *   return Response.json({
@@ -313,7 +335,7 @@ export function withAuth(
  * @example
  * ```tsx
  * // app/api/resource/route.ts
- * import { createRouteHandler } from '@vault/nextjs/api';
+ * import { createRouteHandler } from '@fantasticauth/nextjs/api';
  * 
  * export const { GET, POST, DELETE } = createRouteHandler({
  *   GET: async (request, { auth }) => {
@@ -369,7 +391,7 @@ export interface WebhookPayload {
  * @example
  * ```tsx
  * // app/api/webhooks/vault/route.ts
- * import { verifyWebhook } from '@vault/nextjs/api';
+ * import { verifyWebhook } from '@fantasticauth/nextjs/api';
  * 
  * export async function POST(request: Request) {
  *   const payload = await request.json();
@@ -385,7 +407,7 @@ export interface WebhookPayload {
  * ```
  */
 export function verifyWebhook(
-  payload: Record<string, unknown>,
+  payload: string | Record<string, unknown>,
   signature: string | null,
   secret: string | undefined
 ): boolean {
@@ -393,16 +415,11 @@ export function verifyWebhook(
     return false;
   }
 
-  // Simple HMAC verification (implement based on Vault's webhook format)
-  // This is a placeholder - adjust based on actual webhook signature format
   try {
-    // Import crypto for Node.js
-    const crypto = require('crypto');
-    const hmac = crypto.createHmac('sha256', secret);
-    hmac.update(JSON.stringify(payload));
-    const expectedSignature = hmac.digest('hex');
-    
-    return signature === expectedSignature;
+    const rawPayload = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    const normalized = normalizeSignature(signature);
+    const expected = createHmac('sha256', secret).update(rawPayload).digest('hex');
+    return timingSafeHexEqual(expected, normalized);
   } catch {
     return false;
   }
@@ -418,7 +435,7 @@ export function verifyWebhook(
  * @example
  * ```tsx
  * // app/api/webhooks/vault/route.ts
- * import { handleWebhook } from '@vault/nextjs/api';
+ * import { handleWebhook } from '@fantasticauth/nextjs/api';
  * 
  * export async function POST(request: Request) {
  *   return handleWebhook(request, {
@@ -444,10 +461,12 @@ export async function handleWebhook(
   // Get signature from headers
   const signature = request.headers.get('x-vault-signature');
 
-  // Parse payload
+  // Read raw payload for signature verification.
+  let rawPayload = '';
   let payload: Record<string, unknown>;
   try {
-    payload = await request.json();
+    rawPayload = await request.text();
+    payload = JSON.parse(rawPayload) as Record<string, unknown>;
   } catch {
     return Response.json(
       { error: 'Invalid JSON payload' },
@@ -456,7 +475,7 @@ export async function handleWebhook(
   }
 
   // Verify signature
-  if (!verifyWebhook(payload, signature, webhookSecret)) {
+  if (!verifyWebhook(rawPayload, signature, webhookSecret)) {
     return Response.json(
       { error: 'Invalid signature' },
       { status: 400 }

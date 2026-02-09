@@ -173,6 +173,9 @@ export function isVaultAuthError(error: unknown): error is VaultAuthError {
   return error instanceof VaultAuthError;
 }
 
+export const FantasticauthError = VaultAuthError;
+export const isFantasticauthError = isVaultAuthError;
+
 /** Convert HTTP status code to appropriate error class */
 export function errorFromResponse(
   statusCode: number,

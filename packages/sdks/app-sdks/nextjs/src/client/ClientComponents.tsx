@@ -20,7 +20,7 @@ import type { User, Session } from '../types';
  * ```tsx
  * 'use client';
  * 
- * import { useAuth } from '@vault/nextjs/client';
+ * import { useAuth } from '@fantasticauth/nextjs/client';
  * 
  * export function AuthButton() {
  *   const { isSignedIn, signOut, isLoaded } = useAuth();
@@ -66,7 +66,7 @@ export function useAuth(): {
  * ```tsx
  * 'use client';
  * 
- * import { useUser } from '@vault/nextjs/client';
+ * import { useUser } from '@fantasticauth/nextjs/client';
  * 
  * export function UserProfile() {
  *   const { user, isLoaded } = useUser();
@@ -107,7 +107,7 @@ export function useUser(): {
  * ```tsx
  * 'use client';
  * 
- * import { useSession } from '@vault/nextjs/client';
+ * import { useSession } from '@fantasticauth/nextjs/client';
  * 
  * export function SessionInfo() {
  *   const { session, isLoaded } = useSession();
@@ -140,7 +140,7 @@ export function useSession(): {
  * ```tsx
  * 'use client';
  * 
- * import { useOrganization } from '@vault/nextjs/client';
+ * import { useOrganization } from '@fantasticauth/nextjs/client';
  * 
  * export function OrgBadge() {
  *   const { orgId, orgRole, isLoaded } = useOrganization();
@@ -182,7 +182,7 @@ export function useOrganization(): {
  * ```tsx
  * 'use client';
  * 
- * import { useHasRole } from '@vault/nextjs/client';
+ * import { useHasRole } from '@fantasticauth/nextjs/client';
  * 
  * export function AdminOnly({ children }) {
  *   const hasAdminRole = useHasRole(['admin', 'owner']);
@@ -205,3 +205,4 @@ export function useHasRole(allowedRoles: string[]): boolean {
 
 // Re-export for convenience
 export { useVaultContext };
+export { useVaultContext as useFantasticauthContext };

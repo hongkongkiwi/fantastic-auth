@@ -26,16 +26,43 @@ import type {
   WebAuthnOptions,
 } from '../types';
 
-const STORAGE_KEY = 'vault_session_token';
-const STORAGE_REFRESH_KEY = 'vault_refresh_token';
+const STORAGE_KEY = 'fantasticauth_session_token';
+const STORAGE_REFRESH_KEY = 'fantasticauth_refresh_token';
+const LEGACY_STORAGE_KEY = 'vault_session_token';
+const LEGACY_STORAGE_REFRESH_KEY = 'vault_refresh_token';
+
+type TokenStorageAdapter = NonNullable<VaultConfig['tokenStorageAdapter']>;
 
 export class VaultApiClient {
   private config: VaultConfig;
   private baseUrl: string;
+  private memoryStorage = new Map<string, string>();
 
   constructor(config: VaultConfig) {
     this.config = config;
     this.baseUrl = config.apiUrl.replace(/\/$/, '');
+  }
+
+  private getBrowserStorage(): TokenStorageAdapter | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    if (this.config.tokenStorageAdapter) {
+      return this.config.tokenStorageAdapter;
+    }
+
+    const mode = this.config.tokenStorage ?? 'sessionStorage';
+    if (mode === 'memory') {
+      return null;
+    }
+
+    const storage = mode === 'localStorage' ? window.localStorage : window.sessionStorage;
+    return {
+      getItem: (key: string) => storage.getItem(key),
+      setItem: (key: string, value: string) => storage.setItem(key, value),
+      removeItem: (key: string) => storage.removeItem(key),
+    };
   }
 
   private async request<T>(
@@ -464,15 +491,33 @@ export class VaultApiClient {
   // ============================================================================
 
   async storeToken(token: string): Promise<void> {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, token);
+    const storage = this.getBrowserStorage();
+    if (storage) {
+      try {
+        storage.setItem(STORAGE_KEY, token);
+        storage.removeItem(LEGACY_STORAGE_KEY);
+        return;
+      } catch {
+        // Fall back to in-memory if browser storage is unavailable.
+      }
     }
+    this.memoryStorage.set(STORAGE_KEY, token);
+    this.memoryStorage.delete(LEGACY_STORAGE_KEY);
   }
 
   async storeRefreshToken(token: string): Promise<void> {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_REFRESH_KEY, token);
+    const storage = this.getBrowserStorage();
+    if (storage) {
+      try {
+        storage.setItem(STORAGE_REFRESH_KEY, token);
+        storage.removeItem(LEGACY_STORAGE_REFRESH_KEY);
+        return;
+      } catch {
+        // Fall back to in-memory if browser storage is unavailable.
+      }
     }
+    this.memoryStorage.set(STORAGE_REFRESH_KEY, token);
+    this.memoryStorage.delete(LEGACY_STORAGE_REFRESH_KEY);
   }
 
   async getStoredToken(): Promise<string | null> {
@@ -480,21 +525,62 @@ export class VaultApiClient {
       // SSR - return config token if provided
       return this.config.sessionToken || null;
     }
-    return localStorage.getItem(STORAGE_KEY);
+    const storage = this.getBrowserStorage();
+    if (storage) {
+      try {
+        return (
+          storage.getItem(STORAGE_KEY) ||
+          storage.getItem(LEGACY_STORAGE_KEY)
+        );
+      } catch {
+        // Fall back to in-memory if browser storage is unavailable.
+      }
+    }
+    return (
+      this.memoryStorage.get(STORAGE_KEY) ||
+      this.memoryStorage.get(LEGACY_STORAGE_KEY) ||
+      null
+    );
   }
 
   async getStoredRefreshToken(): Promise<string | null> {
     if (typeof window === 'undefined') {
       return null;
     }
-    return localStorage.getItem(STORAGE_REFRESH_KEY);
+    const storage = this.getBrowserStorage();
+    if (storage) {
+      try {
+        return (
+          storage.getItem(STORAGE_REFRESH_KEY) ||
+          storage.getItem(LEGACY_STORAGE_REFRESH_KEY)
+        );
+      } catch {
+        // Fall back to in-memory if browser storage is unavailable.
+      }
+    }
+    return (
+      this.memoryStorage.get(STORAGE_REFRESH_KEY) ||
+      this.memoryStorage.get(LEGACY_STORAGE_REFRESH_KEY) ||
+      null
+    );
   }
 
   async clearToken(): Promise<void> {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(STORAGE_REFRESH_KEY);
+    const storage = this.getBrowserStorage();
+    if (storage) {
+      try {
+        storage.removeItem(STORAGE_KEY);
+        storage.removeItem(STORAGE_REFRESH_KEY);
+        storage.removeItem(LEGACY_STORAGE_KEY);
+        storage.removeItem(LEGACY_STORAGE_REFRESH_KEY);
+      } catch {
+        // Ignore storage failures and clear in-memory copy below.
+      }
     }
+    this.memoryStorage.delete(STORAGE_KEY);
+    this.memoryStorage.delete(STORAGE_REFRESH_KEY);
+    this.memoryStorage.delete(LEGACY_STORAGE_KEY);
+    this.memoryStorage.delete(LEGACY_STORAGE_REFRESH_KEY);
   }
 
   // ============================================================================

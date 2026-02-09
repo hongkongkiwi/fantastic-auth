@@ -1,5 +1,5 @@
 {
-  "name": "@vault/svelte",
+  "name": "@fantasticauth/svelte",
   "version": "0.1.0",
   "description": "Svelte SDK for Vault - Secure user management with Svelte 4/5 support",
   "type": "module",
@@ -71,6 +71,6 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
-    "@vault/sdk": "file:../../../generated/typescript"
+    "@fantasticauth/sdk": "file:../../../generated/typescript"
   }
 }

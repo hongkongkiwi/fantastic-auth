@@ -14,7 +14,7 @@ The MFAForm component handles:
 ## Basic Usage
 
 ```tsx
-import { MFAForm } from '@vault/react';
+import { MFAForm } from '@fantasticauth/react';
 
 function SignInPage() {
   return (
@@ -82,7 +82,7 @@ function SignInPage() {
 ### Complete Sign In Flow with MFA
 
 ```tsx
-import { SignIn, MFAForm, useAuth } from '@vault/react';
+import { SignIn, MFAForm, useAuth } from '@fantasticauth/react';
 
 function SignInPage() {
   const { authState } = useAuth();
@@ -161,7 +161,7 @@ When `allowBackupCode` is true:
 
 ```tsx
 import { render, screen, fireEvent } from '@testing-library/react';
-import { MFAForm } from '@vault/react';
+import { MFAForm } from '@fantasticauth/react';
 
 test('renders 6 input fields', () => {
   render(<MFAForm />);

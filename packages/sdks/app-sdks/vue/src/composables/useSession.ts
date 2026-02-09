@@ -7,7 +7,7 @@
  * ```vue
  * <script setup lang="ts">
  * import { onMounted } from 'vue';
- * import { useSession } from '@vault/vue';
+ * import { useSession } from '@fantasticauth/vue';
  *
  * const { session, getToken } = useSession();
  *

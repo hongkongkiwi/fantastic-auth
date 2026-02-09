@@ -13,7 +13,7 @@ This component includes:
 ## Basic Usage
 
 ```tsx
-import { OrganizationProfile } from '@vault/react';
+import { OrganizationProfile } from '@fantasticauth/react';
 
 function OrganizationSettingsPage() {
   return (

@@ -15,7 +15,7 @@ The SignUp component handles:
 ## Basic Usage
 
 ```tsx
-import { SignUp } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
 
 function SignUpPage() {
   return <SignUp />;
@@ -314,7 +314,7 @@ The SignUp component works with SSR:
 
 ```tsx
 // Next.js App Router - Server Component
-import { SignUp } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
 
 export default function SignUpPage() {
   return <SignUp redirectUrl="/onboarding" />;
@@ -326,7 +326,7 @@ export default function SignUpPage() {
 Full TypeScript support:
 
 ```tsx
-import { SignUp, SignUpProps, ApiError } from '@vault/react';
+import { SignUp, SignUpProps, ApiError } from '@fantasticauth/react';
 
 const handleError = (error: ApiError) => {
   console.error(error.code, error.message);
@@ -346,7 +346,7 @@ const props: SignUpProps = {
 Common pattern for post-sign-up onboarding:
 
 ```tsx
-import { SignUp, useAuth } from '@vault/react';
+import { SignUp, useAuth } from '@fantasticauth/react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 
@@ -380,8 +380,8 @@ Test the SignUp component:
 
 ```tsx
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SignUp } from '@vault/react';
-import { VaultProvider } from '@vault/react';
+import { SignUp } from '@fantasticauth/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <VaultProvider config={{ apiUrl: 'https://test', tenantId: 'test' }}>

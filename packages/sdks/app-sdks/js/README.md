@@ -1,6 +1,6 @@
-# @vault/react
+# @fantasticauth/react
 
-[![npm version](https://badge.fury.io/js/@vault%2Freact.svg)](https://www.npmjs.com/package/@vault/react)
+[![npm version](https://badge.fury.io/js/@vault%2Freact.svg)](https://www.npmjs.com/package/@fantasticauth/react)
 [![build](https://github.com/vault/auth/actions/workflows/build.yml/badge.svg)](https://github.com/vault/auth/actions)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
@@ -22,11 +22,11 @@ A comprehensive React SDK for Vault authentication and user management.
 ## Installation
 
 ```bash
-npm install @vault/react
+npm install @fantasticauth/react
 # or
-yarn add @vault/react
+yarn add @fantasticauth/react
 # or
-pnpm add @vault/react
+pnpm add @fantasticauth/react
 ```
 
 ## Quick Start
@@ -34,7 +34,7 @@ pnpm add @vault/react
 ### 1. Wrap your app with `VaultProvider`
 
 ```tsx
-import { VaultProvider } from '@vault/react';
+import { VaultProvider } from '@fantasticauth/react';
 
 function App() {
   return (
@@ -53,7 +53,7 @@ function App() {
 ### 2. Add authentication to your app
 
 ```tsx
-import { useAuth, SignIn, SignedIn, SignedOut, UserButton } from '@vault/react';
+import { useAuth, SignIn, SignedIn, SignedOut, UserButton } from '@fantasticauth/react';
 
 function Header() {
   return (
@@ -160,7 +160,7 @@ Customize the look and feel:
 Full TypeScript support:
 
 ```tsx
-import type { User, Session, SignInProps } from '@vault/react';
+import type { User, Session, SignInProps } from '@fantasticauth/react';
 ```
 
 ## Framework Support
