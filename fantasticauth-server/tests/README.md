@@ -336,3 +336,7 @@ async fn test_new_feature() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 ```
+
+## Backlog Skeleton
+
+- `admin_routes_backlog_test.rs`: ignored placeholders for uncovered admin route modules.

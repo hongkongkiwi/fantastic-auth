@@ -5,7 +5,7 @@
 use axum::{body::Body, http::Request, Router};
 use serde_json::json;
 use std::net::SocketAddr;
-use tower::ServiceExt;
+use tower::util::ServiceExt;
 use vault_server::config::Config;
 use vault_server::state::AppState;
 
@@ -110,6 +110,24 @@ impl TestServer {
         self.app.clone().oneshot(request).await.unwrap()
     }
 
+    /// Make a PUT request with authorization header
+    pub async fn put_with_auth(
+        &self,
+        path: &str,
+        body: serde_json::Value,
+        token: &str,
+    ) -> axum::response::Response<Body> {
+        let request = Request::builder()
+            .method("PUT")
+            .uri(path)
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {}", token))
+            .body(Body::from(body.to_string()))
+            .unwrap();
+
+        self.app.clone().oneshot(request).await.unwrap()
+    }
+
     /// Make a DELETE request with authorization header
     pub async fn delete_with_auth(
         &self,
@@ -165,6 +183,13 @@ fn test_config() -> Config {
         observability: Default::default(),
         background_jobs: Default::default(),
         tls: Default::default(),
+        ldap: Default::default(),
+        custom_domains: Default::default(),
+        sms: Default::default(),
+        whatsapp: Default::default(),
+        web3_auth: Default::default(),
+        internal_api_key: None,
+        internal_admin_tenant_id: None,
     }
 }
 
@@ -203,6 +228,8 @@ impl TestUser {
             "email": self.email,
             "password": self.password,
             "name": self.name,
+            "termsAccepted": true,
+            "privacyAccepted": true,
         })
     }
 
@@ -320,13 +347,51 @@ impl TestContext {
         Ok((user, access_token, refresh_token))
     }
 
+    /// Promote an existing user to admin in its tenant.
+    pub async fn promote_user_to_admin(&self, email: &str) -> anyhow::Result<()> {
+        let (user_id, tenant_id): (String, String) = sqlx::query_as(
+            r#"SELECT id::text, tenant_id::text
+               FROM users
+               WHERE email = $1"#,
+        )
+        .bind(email)
+        .fetch_one(self.server.state.db.pool())
+        .await?;
+
+        sqlx::query(
+            r#"INSERT INTO tenant_admins (tenant_id, user_id, role, status, created_at, updated_at)
+               VALUES ($1::uuid, $2::uuid, $3::tenant_admin_role, $4::tenant_admin_status, NOW(), NOW())
+               ON CONFLICT (tenant_id, user_id)
+               DO UPDATE SET role = EXCLUDED.role, status = EXCLUDED.status, updated_at = NOW()"#,
+        )
+        .bind(&tenant_id)
+        .bind(&user_id)
+        .bind("admin")
+        .bind("active")
+        .execute(self.server.state.db.pool())
+        .await?;
+
+        Ok(())
+    }
+
+    /// Register and login a new admin user (JWT includes admin role).
+    pub async fn create_admin_user_and_login(&self) -> anyhow::Result<(TestUser, String, String)> {
+        let (user, _, _) = self.create_user_and_login().await?;
+        self.promote_user_to_admin(&user.email).await?;
+
+        let response = self.server.post("/api/v1/login", user.login_json()).await;
+        assert_status(&response, axum::http::StatusCode::OK);
+
+        let body = response_json(response).await;
+        let access_token = body["accessToken"].as_str().unwrap().to_string();
+        let refresh_token = body["refreshToken"].as_str().unwrap().to_string();
+
+        Ok((user, access_token, refresh_token))
+    }
+
     /// Create an admin user
     pub async fn create_admin_user(&self) -> anyhow::Result<(TestUser, String)> {
-        let (user, token, _) = self.create_user_and_login().await?;
-
-        // Note: In a real test, you'd need to promote this user to admin
-        // This depends on your admin promotion mechanism
-
+        let (user, token, _) = self.create_admin_user_and_login().await?;
         Ok((user, token))
     }
 }
@@ -354,7 +419,7 @@ pub async fn test_db_available() -> bool {
 
 /// WireMock helpers for external service mocking
 pub mod wiremock_helpers {
-    use wiremock::matchers::{body_contains, method, path};
+    use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Create a mock OAuth provider server

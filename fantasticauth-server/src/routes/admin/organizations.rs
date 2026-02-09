@@ -7,7 +7,9 @@ use axum::{
     routing::{delete, get, patch, post},
     Extension, Json, Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
@@ -147,6 +149,40 @@ struct MessageResponse {
     message: String,
 }
 
+#[derive(Debug, FromRow)]
+struct OrganizationAdminRow {
+    id: String,
+    name: String,
+    slug: String,
+    description: Option<String>,
+    logo_url: Option<String>,
+    website: Option<String>,
+    max_members: Option<i32>,
+    sso_required: bool,
+    status: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+fn to_org_response(row: OrganizationAdminRow, member_count: i64) -> AdminOrganizationResponse {
+    AdminOrganizationResponse {
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        description: row.description,
+        logo_url: row.logo_url,
+        website: row.website,
+        member_count,
+        max_members: row.max_members,
+        sso_required: row.sso_required,
+        status: row.status,
+        created_at: row.created_at.to_rfc3339(),
+        updated_at: row.updated_at.to_rfc3339(),
+        deleted_at: row.deleted_at.map(|dt| dt.to_rfc3339()),
+    }
+}
+
 // ============ Handlers ============
 
 /// List all organizations
@@ -163,17 +199,63 @@ async fn list_all_organizations(
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
 
-    let (orgs, total) = state
-        .db
-        .organizations()
-        .list_paginated(
-            &current_user.tenant_id,
-            page,
-            per_page,
-            query.status.as_deref(),
+    let offset = (page - 1) * per_page;
+
+    let total: i64 = if let Some(status) = query.status.as_deref() {
+        sqlx::query_scalar(
+            r#"SELECT COUNT(*)
+               FROM organizations
+               WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $2"#,
         )
+        .bind(&current_user.tenant_id)
+        .bind(status)
+        .fetch_one(state.db.pool())
         .await
-        .map_err(|_| ApiError::Internal)?;
+        .map_err(|_| ApiError::Internal)?
+    } else {
+        sqlx::query_scalar(
+            r#"SELECT COUNT(*)
+               FROM organizations
+               WHERE tenant_id = $1::uuid AND deleted_at IS NULL"#,
+        )
+        .bind(&current_user.tenant_id)
+        .fetch_one(state.db.pool())
+        .await
+        .map_err(|_| ApiError::Internal)?
+    };
+
+    let orgs: Vec<OrganizationAdminRow> = if let Some(status) = query.status.as_deref() {
+        sqlx::query_as(
+            r#"SELECT id::text, name, slug, description, logo_url, website,
+                      max_members, sso_required, status, created_at, updated_at, deleted_at
+               FROM organizations
+               WHERE tenant_id = $1::uuid AND deleted_at IS NULL AND status = $4
+               ORDER BY created_at DESC
+               LIMIT $2 OFFSET $3"#,
+        )
+        .bind(&current_user.tenant_id)
+        .bind(per_page)
+        .bind(offset)
+        .bind(status)
+        .fetch_all(state.db.pool())
+        .await
+        .map_err(|_| ApiError::Internal)?
+    } else {
+        sqlx::query_as(
+            r#"SELECT id::text, name, slug, description, logo_url, website,
+                      max_members, sso_required, status, created_at, updated_at, deleted_at
+               FROM organizations
+               WHERE tenant_id = $1::uuid AND deleted_at IS NULL
+               ORDER BY created_at DESC
+               LIMIT $2 OFFSET $3"#,
+        )
+        .bind(&current_user.tenant_id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(state.db.pool())
+        .await
+        .map_err(|_| ApiError::Internal)?
+    };
 
     let total_pages = (total + per_page - 1) / per_page;
 
@@ -186,21 +268,7 @@ async fn list_all_organizations(
             .await
             .unwrap_or(0);
 
-        data.push(AdminOrganizationResponse {
-            id: org.id,
-            name: org.name,
-            slug: org.slug,
-            description: None,
-            logo_url: None,
-            website: None,
-            member_count,
-            max_members: None,
-            sso_required: false,
-            status: "active".to_string(),
-            created_at: org.created_at.to_rfc3339(),
-            updated_at: org.updated_at.to_rfc3339(),
-            deleted_at: None,
-        });
+        data.push(to_org_response(org, member_count));
     }
 
     Ok(Json(PaginatedOrgsResponse {
@@ -225,13 +293,18 @@ async fn get_organization(
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    let org = state
-        .db
-        .organizations()
-        .get_by_id(&current_user.tenant_id, &org_id)
-        .await
-        .map_err(|_| ApiError::Internal)?
-        .ok_or(ApiError::NotFound)?;
+    let org: OrganizationAdminRow = sqlx::query_as(
+        r#"SELECT id::text, name, slug, description, logo_url, website,
+                  max_members, sso_required, status, created_at, updated_at, deleted_at
+           FROM organizations
+           WHERE tenant_id = $1::uuid AND id = $2::uuid AND deleted_at IS NULL"#,
+    )
+    .bind(&current_user.tenant_id)
+    .bind(&org_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?
+    .ok_or(ApiError::NotFound)?;
 
     let member_count = state
         .db
@@ -240,21 +313,7 @@ async fn get_organization(
         .await
         .unwrap_or(0);
 
-    Ok(Json(AdminOrganizationResponse {
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        description: None,
-        logo_url: None,
-        website: None,
-        member_count,
-        max_members: None,
-        sso_required: false,
-        status: "active".to_string(),
-        created_at: org.created_at.to_rfc3339(),
-        updated_at: org.updated_at.to_rfc3339(),
-        deleted_at: None,
-    }))
+    Ok(Json(to_org_response(org, member_count)))
 }
 
 /// Update organization
@@ -262,20 +321,41 @@ async fn update_organization(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
     Path(org_id): Path<String>,
-    Json(_req): Json<UpdateOrgRequest>,
+    Json(req): Json<UpdateOrgRequest>,
 ) -> Result<Json<AdminOrganizationResponse>, ApiError> {
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
         .map_err(|_| ApiError::Internal)?;
 
-    let org = state
-        .db
-        .organizations()
-        .get_by_id(&current_user.tenant_id, &org_id)
-        .await
-        .map_err(|_| ApiError::Internal)?
-        .ok_or(ApiError::NotFound)?;
+    let org: OrganizationAdminRow = sqlx::query_as(
+        r#"UPDATE organizations
+           SET name = COALESCE($1, name),
+               description = COALESCE($2, description),
+               logo_url = COALESCE($3, logo_url),
+               website = COALESCE($4, website),
+               max_members = COALESCE($5, max_members),
+               sso_required = COALESCE($6, sso_required),
+               status = COALESCE($7, status),
+               updated_at = $8
+           WHERE tenant_id = $9::uuid AND id = $10::uuid AND deleted_at IS NULL
+           RETURNING id::text, name, slug, description, logo_url, website,
+                     max_members, sso_required, status, created_at, updated_at, deleted_at"#,
+    )
+    .bind(req.name.as_deref())
+    .bind(req.description.as_deref())
+    .bind(req.logo_url.as_deref())
+    .bind(req.website.as_deref())
+    .bind(req.max_members)
+    .bind(req.sso_required)
+    .bind(req.status.as_deref())
+    .bind(Utc::now())
+    .bind(&current_user.tenant_id)
+    .bind(&org_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|_| ApiError::Internal)?
+    .ok_or(ApiError::NotFound)?;
 
     let member_count = state
         .db
@@ -284,21 +364,7 @@ async fn update_organization(
         .await
         .unwrap_or(0);
 
-    Ok(Json(AdminOrganizationResponse {
-        id: org.id,
-        name: org.name,
-        slug: org.slug,
-        description: None,
-        logo_url: None,
-        website: None,
-        member_count,
-        max_members: None,
-        sso_required: false,
-        status: "active".to_string(),
-        created_at: org.created_at.to_rfc3339(),
-        updated_at: org.updated_at.to_rfc3339(),
-        deleted_at: None,
-    }))
+    Ok(Json(to_org_response(org, member_count)))
 }
 
 /// Delete organization

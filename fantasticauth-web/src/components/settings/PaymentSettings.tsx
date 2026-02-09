@@ -239,7 +239,7 @@ export function PaymentSettings() {
                       id="stripe-pk"
                       value={config.stripePublishableKey}
                       onChange={(e) => updateConfig('stripePublishableKey', e.target.value)}
-                      placeholder="pk_fake_removed
+                      placeholder="pk_your_publishable_REMOVED
                     />
                   </div>
 
@@ -252,7 +252,7 @@ export function PaymentSettings() {
                       type={showSecrets ? 'text' : 'password'}
                       value={config.stripeSecretKey}
                       onChange={(e) => updateConfig('stripeSecretKey', e.target.value)}
-                      placeholder="sk_fake_removed
+                      placeholder="sk_your_secret_key_REMOVED
                     />
                   </div>
 

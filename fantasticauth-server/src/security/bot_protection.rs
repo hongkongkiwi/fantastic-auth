@@ -3,7 +3,7 @@
 //! Re-exports bot protection types from fantasticauth-core for server-side usage.
 //! Provides additional server-specific bot protection utilities.
 
-pub use fantasticauth_core::security::bot_protection::{
+pub use vault_core::security::bot_protection::{
     BotError, BotProtection, CloudflareTurnstile, DisabledBotProtection, HCaptcha,
     VerificationResult,
 };

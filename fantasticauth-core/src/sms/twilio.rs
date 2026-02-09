@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn test_twilio_config_validation() {
         let valid_config = TwilioConfig {
-            account_sid: "AC_FAKE_SID_REMOVED".to_string(),
+            account_sid: "AC_TEST_SID_12345678901234567890123456789012".to_string(),
             auth_token: "some_auth_token".to_string(),
             from_number: "+12345678901".to_string(),
         };
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn test_twilio_provider_name() {
         let provider = TwilioProvider::new(
-            "AC_FAKE_SID_REMOVED",
+            "AC_TEST_SID_12345678901234567890123456789012",
             "auth_token",
             "+12345678901",
         );

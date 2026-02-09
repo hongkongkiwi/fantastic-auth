@@ -201,7 +201,7 @@ struct ScimAuditLogEntry {
     action: String,
     resource_type: String,
     resource_id: String,
-    ip_address: Option<String>,
+    ip_address: Option<std::net::IpAddr>,
     user_agent: Option<String>,
     success: bool,
     error: Option<String>,
@@ -241,54 +241,42 @@ async fn list_audit_logs(
         return Err(ApiError::Forbidden);
     }
 
-    // Build query with filters
-    let mut sql = String::from(
+    let limit = query.limit.clamp(1, 100);
+    let action = query.action;
+    let resource_type = query.resource_type;
+    let start_date = query.start_date;
+    let end_date = query.end_date;
+
+    let logs = sqlx::query_as::<_, ScimAuditLogEntry>(
         r#"
-        SELECT id, tenant_id, token_id, action, resource_type, resource_id,
-               ip_address, user_agent, success, error, created_at
+        SELECT id::text as id,
+               tenant_id::text as tenant_id,
+               token_id::text as token_id,
+               action,
+               resource_type,
+               resource_id,
+               ip_address,
+               user_agent,
+               success,
+               error,
+               created_at
         FROM scim_audit_logs
-        WHERE tenant_id = $1
+        WHERE tenant_id = $1::uuid
+          AND ($2::text IS NULL OR action = $2)
+          AND ($3::text IS NULL OR resource_type = $3)
+          AND ($4::timestamptz IS NULL OR created_at >= $4)
+          AND ($5::timestamptz IS NULL OR created_at <= $5)
+        ORDER BY created_at DESC
+        LIMIT $6 OFFSET $7
         "#,
-    );
-
-    let mut param_idx = 2;
-    let mut params: Vec<String> = vec![current_user.tenant_id.clone()];
-
-    if let Some(action) = query.action {
-        sql.push_str(&format!(" AND action = ${} ", param_idx));
-        params.push(action);
-        param_idx += 1;
-    }
-
-    if let Some(resource_type) = query.resource_type {
-        sql.push_str(&format!(" AND resource_type = ${} ", param_idx));
-        params.push(resource_type);
-        param_idx += 1;
-    }
-
-    if let Some(start_date) = query.start_date {
-        sql.push_str(&format!(" AND created_at >= ${} ", param_idx));
-        params.push(start_date.to_rfc3339());
-        param_idx += 1;
-    }
-
-    if let Some(end_date) = query.end_date {
-        sql.push_str(&format!(" AND created_at <= ${} ", param_idx));
-        params.push(end_date.to_rfc3339());
-        param_idx += 1;
-    }
-
-    // Add ordering and pagination
-    sql.push_str(" ORDER BY created_at DESC");
-    sql.push_str(&format!(" LIMIT ${} OFFSET ${}", param_idx, param_idx + 1));
-
-    let limit = query.limit.min(100); // Cap at 100
-    params.push(limit.to_string());
-    params.push(query.offset.to_string());
-
-    // Execute query
-    let logs = sqlx::query_as::<_, ScimAuditLogEntry>(&sql)
+    )
         .bind(&current_user.tenant_id)
+        .bind(action.as_deref())
+        .bind(resource_type.as_deref())
+        .bind(start_date)
+        .bind(end_date)
+        .bind(limit)
+        .bind(query.offset.max(0))
         .fetch_all(state.db.pool())
         .await
         .map_err(|e| {
@@ -296,17 +284,22 @@ async fn list_audit_logs(
             ApiError::Internal
         })?;
 
-    // Get total count
-    let count_sql = sql.split("ORDER BY").next().unwrap_or(&sql).replace(
-        &format!(" LIMIT ${} OFFSET ${}", param_idx, param_idx + 1),
-        "",
-    );
-
-    let total: i64 = sqlx::query_scalar(&format!(
-        "SELECT COUNT(*) FROM ({}) AS count_query",
-        count_sql
-    ))
+    let total: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM scim_audit_logs
+        WHERE tenant_id = $1::uuid
+          AND ($2::text IS NULL OR action = $2)
+          AND ($3::text IS NULL OR resource_type = $3)
+          AND ($4::timestamptz IS NULL OR created_at >= $4)
+          AND ($5::timestamptz IS NULL OR created_at <= $5)
+        "#,
+    )
     .bind(&current_user.tenant_id)
+    .bind(action.as_deref())
+    .bind(resource_type.as_deref())
+    .bind(start_date)
+    .bind(end_date)
     .fetch_one(state.db.pool())
     .await
     .map_err(|_| ApiError::Internal)?;
