@@ -76,6 +76,10 @@ redis.workspace = true
 # YAML parsing
 serde_yaml.workspace = true
 
+[features]
+default = []
+zk = []
+
 [dev-dependencies]
 tokio-test.workspace = true
 mockall.workspace = true

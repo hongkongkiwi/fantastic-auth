@@ -560,7 +560,9 @@ async fn list_all_devices(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListDevicesQuery>,
 ) -> Result<Json<DeviceListResponse>, ApiError> {
-    let offset = (query.page - 1) * query.per_page;
+    const MAX_PER_PAGE: i64 = 100;
+    let per_page = query.per_page.min(MAX_PER_PAGE);
+    let offset = (query.page - 1) * per_page;
 
     // Get total count
     let mut count_builder =
@@ -597,7 +599,7 @@ async fn list_all_devices(
     }
     devices_builder
         .push(" ORDER BY d.last_used_at DESC NULLS LAST, d.created_at DESC LIMIT ")
-        .push_bind(query.per_page)
+        .push_bind(per_page)
         .push(" OFFSET ")
         .push_bind(offset);
 
@@ -902,7 +904,9 @@ async fn list_recent_requests(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<ListRequestsQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let offset = (query.page - 1) * query.per_page;
+    const MAX_PER_PAGE: i64 = 100;
+    let per_page = query.per_page.min(MAX_PER_PAGE);
+    let offset = (query.page - 1) * per_page;
 
     let mut sql = String::from(
         r#"
@@ -926,7 +930,7 @@ async fn list_recent_requests(
 
     let requests = sqlx::query(&sql)
         .bind(&current_user.tenant_id)
-        .bind(query.per_page)
+        .bind(per_page)
         .bind(offset)
         .fetch_all(state.db.pool())
         .await
@@ -957,7 +961,7 @@ async fn list_recent_requests(
     Ok(Json(serde_json::json!({
         "requests": request_list,
         "page": query.page,
-        "perPage": query.per_page,
+        "perPage": per_page,
     })))
 }
 

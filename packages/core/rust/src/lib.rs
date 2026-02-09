@@ -50,8 +50,9 @@ pub mod security;
 pub mod sms;
 pub mod webauthn;
 
-// ZK module is internal-only for now until fully implemented
-mod zk;
+// ZK module is behind a feature flag since it's experimental
+#[cfg(feature = "zk")]
+pub mod zk;
 
 pub use crypto::{
     generate_random_bytes, generate_secure_random, Claims, HybridJwt, HybridSigningKey,

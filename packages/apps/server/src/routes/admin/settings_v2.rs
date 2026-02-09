@@ -657,13 +657,15 @@ async fn get_settings_history(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<HistoryQuery>,
 ) -> Result<Json<HistoryResponse>, ApiError> {
+    const MAX_PER_PAGE: i64 = 100;
+    let per_page = query.per_page.min(MAX_PER_PAGE);
     let (rows, total) = state
         .settings_service
         .get_settings_history(
             &current_user.tenant_id,
             query.category.as_deref(),
             query.page,
-            query.per_page,
+            per_page,
         )
         .await?;
 

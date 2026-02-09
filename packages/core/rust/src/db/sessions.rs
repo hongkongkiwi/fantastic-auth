@@ -460,6 +460,115 @@ impl SessionRepository {
     // Session Limit Methods - Concurrent Session Management
     // =========================================================================
 
+    /// Atomically check session limits and revoke oldest if needed
+    /// 
+    /// SECURITY: Uses PostgreSQL advisory locks to prevent race conditions
+    /// where concurrent logins could exceed session limits.
+    /// 
+    /// Returns Ok(true) if a session slot is available/created, Ok(false) if limit reached
+    pub async fn check_and_enforce_session_limit(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        max_sessions: usize,
+        eviction_policy: &str,
+    ) -> Result<bool> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+
+        // SECURITY: Use advisory lock to prevent race conditions
+        // Lock ID is based on hash of tenant_id + user_id for uniqueness
+        let lock_id = Self::compute_advisory_lock_id(tenant_id, user_id);
+        
+        // Acquire exclusive lock (blocks concurrent checks for same user)
+        sqlx::query("SELECT pg_advisory_xact_lock($1)")
+            .bind(lock_id)
+            .execute(&mut *conn)
+            .await?;
+
+        // Now safely count active sessions
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) 
+            FROM sessions 
+            WHERE tenant_id = $1 
+              AND user_id = $2 
+              AND status = 'active' 
+              AND expires_at > NOW()
+            "#
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        let current_count = count as usize;
+
+        if current_count < max_sessions {
+            // Slot available
+            return Ok(true);
+        }
+
+        // At or over limit - apply eviction policy
+        match eviction_policy {
+            "oldest_first" => {
+                // Revoke oldest sessions to make room
+                let to_keep = max_sessions.saturating_sub(1);
+                let result = sqlx::query(
+                    r#"
+                    UPDATE sessions SET
+                        status = 'revoked',
+                        revoked_at = NOW(),
+                        revoked_reason = 'session_limit_eviction',
+                        updated_at = NOW()
+                    WHERE id IN (
+                        SELECT id FROM sessions
+                        WHERE tenant_id = $1 
+                          AND user_id = $2 
+                          AND status = 'active' 
+                          AND expires_at > NOW()
+                        ORDER BY created_at ASC
+                        OFFSET $3
+                    )
+                    "#
+                )
+                .bind(tenant_id)
+                .bind(user_id)
+                .bind(to_keep as i64)
+                .execute(&mut *conn)
+                .await?;
+
+                tracing::info!(
+                    "Session limit eviction: revoked {} sessions for user {}",
+                    result.rows_affected(),
+                    user_id
+                );
+                
+                // Return true if we made room
+                Ok(result.rows_affected() > 0 || current_count < max_sessions)
+            }
+            "deny_new" => {
+                // Deny new session
+                Ok(false)
+            }
+            _ => {
+                // Default: deny new
+                Ok(false)
+            }
+        }
+    }
+
+    /// Compute advisory lock ID from tenant_id and user_id
+    fn compute_advisory_lock_id(tenant_id: &str, user_id: &str) -> i64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        tenant_id.hash(&mut hasher);
+        user_id.hash(&mut hasher);
+        // Ensure positive value (PostgreSQL advisory locks use signed 64-bit)
+        (hasher.finish() & 0x7FFF_FFFF_FFFF_FFFF) as i64
+    }
+
     /// Count active sessions for a user
     pub async fn count_active_sessions_for_user(
         &self,

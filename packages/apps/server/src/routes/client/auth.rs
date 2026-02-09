@@ -3,6 +3,8 @@
 use axum::{
     extract::{ConnectInfo, Extension, Path, Query, State},
     http::{HeaderMap, StatusCode},
+    middleware,
+    response::IntoResponse,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -20,7 +22,7 @@ use crate::{
         StepUpPolicy, StepUpRequest, StepUpService, StepUpTokenResponse,
     },
     middleware::{
-        bot_protection_middleware, conditional_bot_protection_middleware,
+        auth::auth_middleware, bot_protection_middleware, conditional_bot_protection_middleware,
         is_captcha_required_for_login, record_failed_login, reset_failed_login,
         CaptchaSiteKeyResponse,
     },
@@ -29,6 +31,31 @@ use crate::{
     state::{AppState, CurrentUser, SessionLimitStatus},
 };
 use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType, HybridJwt};
+
+/// Authentication middleware wrapper for auth routes.
+/// 
+/// This wrapper extracts the AppState from request extensions and calls the
+/// main auth_middleware. This is required because auth_middleware needs
+/// access to AppState for token validation and other operations.
+async fn auth_routes_middleware(
+    mut request: axum::extract::Request,
+    next: middleware::Next,
+) -> axum::response::Response {
+    let state = match request.extensions().get::<AppState>().cloned() {
+        Some(state) => state,
+        None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    let addr = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0)
+        .unwrap_or_else(|| SocketAddr::from(([0, 0, 0, 0], 0)));
+
+    match auth_middleware(State(state), ConnectInfo(addr), request, next).await {
+        Ok(response) => response,
+        Err(status) => status.into_response(),
+    }
+}
 
 /// Auth routes
 ///
@@ -39,15 +66,19 @@ use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType, HybridJwt};
 /// - POST /magic-link - Always protected
 /// - POST /oauth/:provider - Optional protection (based on config)
 pub fn routes() -> Router<AppState> {
-    Router::new()
-        // Public auth endpoints with CAPTCHA protection
+    // Public auth endpoints - no authentication required
+    let public_routes = Router::new()
+        // Registration and login
         .route("/register", post(register))
         .route("/login", post(login))
         .route("/refresh", post(refresh_token))
+        // Magic link authentication
         .route("/magic-link", post(send_magic_link))
         .route("/magic-link/verify", post(verify_magic_link))
+        // Password reset
         .route("/forgot-password", post(forgot_password))
         .route("/reset-password", post(reset_password))
+        // Email verification (token-based, no auth required)
         .route("/verify-email", post(verify_email))
         // CAPTCHA site key endpoint (no protection needed)
         .route("/captcha-site-key", get(get_captcha_site_key))
@@ -60,9 +91,7 @@ pub fn routes() -> Router<AppState> {
         .route("/sso/redirect", get(sso_redirect))
         .route("/sso/callback", post(sso_callback))
         .route("/sso/metadata", get(sso_metadata))
-        // WebAuthn/Passkey endpoints
-        .route("/webauthn/register/begin", post(webauthn_register_begin))
-        .route("/webauthn/register/finish", post(webauthn_register_finish))
+        // WebAuthn/Passkey authentication (public - for logging in)
         .route(
             "/webauthn/authenticate/begin",
             post(webauthn_authenticate_begin),
@@ -73,16 +102,6 @@ pub fn routes() -> Router<AppState> {
         )
         // Step-up authentication endpoint
         .route("/step-up", post(step_up))
-        // Authenticated endpoints
-        .route("/logout", post(logout))
-        .route("/me", get(get_current_user))
-        .route("/webauthn/credentials", get(list_webauthn_credentials))
-        .route(
-            "/webauthn/credentials/:id",
-            delete(delete_webauthn_credential),
-        )
-        // OAuth account linking (authenticated)
-        .route("/oauth/:provider/link", post(oauth_link_account))
         // Web3 authentication endpoints
         .route("/web3/nonce", post(web3_nonce))
         .route("/web3/verify", post(web3_verify))
@@ -91,9 +110,35 @@ pub fn routes() -> Router<AppState> {
         .route("/anonymous/convert", post(convert_anonymous_handler))
         // Biometric authentication endpoints
         .route("/biometric/challenge", post(biometric_challenge))
-        .route("/biometric/authenticate", post(biometric_authenticate))
+        .route("/biometric/authenticate", post(biometric_authenticate));
+
+    // Authenticated endpoints - require valid authentication
+    // CSRF protection is provided by requiring a valid access token
+    let authenticated_routes = Router::new()
+        // Session management (state-changing, requires auth)
+        .route("/logout", post(logout))
+        // User profile (requires auth)
+        .route("/me", get(get_current_user))
+        // WebAuthn credential management (requires auth)
+        .route("/webauthn/register/begin", post(webauthn_register_begin))
+        .route("/webauthn/register/finish", post(webauthn_register_finish))
+        .route("/webauthn/credentials", get(list_webauthn_credentials))
+        .route(
+            "/webauthn/credentials/:id",
+            delete(delete_webauthn_credential),
+        )
+        // OAuth account linking (requires auth)
+        .route("/oauth/:provider/link", post(oauth_link_account))
+        // Biometric key management (requires auth)
         .route("/biometric/keys", post(biometric_register_key).get(biometric_list_keys))
         .route("/biometric/keys/:id", delete(biometric_revoke_key))
+        // Apply authentication middleware to all routes in this router
+        .layer(middleware::from_fn(auth_routes_middleware));
+
+    // Combine public and authenticated routes
+    Router::new()
+        .merge(public_routes)
+        .merge(authenticated_routes)
 }
 
 #[derive(Debug, Deserialize)]

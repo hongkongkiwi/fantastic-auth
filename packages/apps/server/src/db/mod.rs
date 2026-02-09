@@ -239,16 +239,53 @@ impl AuditRepository {
     }
 
     /// Delete audit log entries older than cutoff for a tenant
+    /// 
+    /// SECURITY: Audit logs have strict retention requirements:
+    /// - Minimum retention period of 30 days is enforced
+    /// - All deletions are logged
+    /// - Only system processes should call this
     pub async fn prune_older_than(
         &self,
         tenant_id: &str,
         cutoff: chrono::DateTime<chrono::Utc>,
     ) -> anyhow::Result<u64> {
+        // SECURITY: Enforce minimum retention period (30 days)
+        let minimum_retention = chrono::Utc::now() - chrono::Duration::days(30);
+        if cutoff > minimum_retention {
+            anyhow::bail!(
+                "SECURITY: Audit log pruning rejected. Cannot delete logs newer than 30 days. \
+                 Requested cutoff: {}, Minimum allowed: {}",
+                cutoff, minimum_retention
+            );
+        }
+
         let mut conn = self.pool.acquire().await?;
         sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
             .bind(tenant_id)
             .execute(&mut *conn)
             .await?;
+
+        // Get count before deletion for logging
+        let count_to_delete: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs WHERE tenant_id = $1 AND timestamp < $2"
+        )
+        .bind(tenant_id)
+        .bind(&cutoff)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        if count_to_delete == 0 {
+            return Ok(0);
+        }
+
+        // SECURITY: Log all audit log deletions
+        tracing::info!(
+            event = "audit_log_pruning",
+            tenant_id = %tenant_id,
+            cutoff = %cutoff,
+            count_to_delete = count_to_delete,
+            "Pruning audit logs older than retention period"
+        );
 
         let result = sqlx::query(
             r#"DELETE FROM audit_logs WHERE tenant_id = $1 AND timestamp < $2"#,
@@ -258,7 +295,18 @@ impl AuditRepository {
         .execute(&mut *conn)
         .await?;
 
-        Ok(result.rows_affected())
+        let deleted = result.rows_affected();
+
+        // SECURITY: Create an audit log entry about the pruning (if possible)
+        // This creates a record that pruning occurred
+        tracing::info!(
+            event = "audit_log_pruning_complete",
+            tenant_id = %tenant_id,
+            deleted = deleted,
+            "Audit log pruning completed"
+        );
+
+        Ok(deleted)
     }
 }
 

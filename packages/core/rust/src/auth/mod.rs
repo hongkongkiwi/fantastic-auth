@@ -385,9 +385,28 @@ impl AuthService {
             }
         }
 
-        // Create session
+        // Load tenant roles for JWT claims
+        let mut roles = self
+            .db
+            .tenant_admins()
+            .get_roles_for_user(&tenant_id, &user.id)
+            .await
+            .unwrap_or_default();
+        if roles.is_empty() {
+            roles.push("user".to_string());
+        }
+
+        // Generate tokens BEFORE creating session so we can store the correct hash
+        let token_pair = self.generate_tokens_with_roles(&user, "pending", roles)?;
+        
+        // Compute hash of the actual refresh token for storage
+        let refresh_token_hash = format!("{:x}", Sha256::digest(token_pair.refresh_token.as_bytes()));
+        let access_token_jti = generate_secure_random(16);
+        let token_family = generate_secure_random(16);
+
+        // Create session with the actual token hash
         let session = self
-            .create_session(&user, ip_address.clone(), user_agent.clone())
+            .create_session_with_hashes(&user, ip_address.clone(), user_agent.clone(), access_token_jti, refresh_token_hash, token_family)
             .await?;
 
         // Store session in database
@@ -416,20 +435,6 @@ impl AuthService {
             .create(session_req)
             .await
             .map_err(|e| VaultError::internal(format!("Failed to create session: {}", e)))?;
-
-        // Load tenant roles for JWT claims
-        let mut roles = self
-            .db
-            .tenant_admins()
-            .get_roles_for_user(&tenant_id, &user.id)
-            .await
-            .unwrap_or_default();
-        if roles.is_empty() {
-            roles.push("user".to_string());
-        }
-
-        // Generate tokens
-        let token_pair = self.generate_tokens_with_roles(&user, &session.id, roles)?;
 
         Ok(AuthResult {
             user,
@@ -490,7 +495,6 @@ impl AuthService {
 
         // Generate new tokens
         let new_access_token_jti = generate_secure_random(16);
-        let new_refresh_token_hash = format!("{:x}", Sha256::digest(generate_secure_random(64).as_bytes()));
 
         // Create claims for new tokens
         let access_claims = Claims::new(
@@ -675,9 +679,17 @@ impl AuthService {
             .map_err(|e| VaultError::internal(format!("Database error: {}", e)))?
             .ok_or_else(|| VaultError::authentication("User not found"))?;
 
-        // Create session
+        // Generate tokens BEFORE creating session so we can store the correct hash
+        let token_pair = self.generate_tokens(&user, "pending")?;
+        
+        // Compute hash of the actual refresh token for storage
+        let refresh_token_hash = format!("{:x}", Sha256::digest(token_pair.refresh_token.as_bytes()));
+        let access_token_jti = generate_secure_random(16);
+        let token_family = generate_secure_random(16);
+
+        // Create session with the actual token hash
         let session = self
-            .create_session(&user, ip_address.clone(), user_agent.clone())
+            .create_session_with_hashes(&user, ip_address.clone(), user_agent.clone(), access_token_jti, refresh_token_hash, token_family)
             .await?;
 
         let session_req = crate::db::sessions::CreateSessionRequest {
@@ -705,9 +717,6 @@ impl AuthService {
             .create(session_req)
             .await
             .map_err(|e| VaultError::internal(format!("Failed to create session: {}", e)))?;
-
-        // Generate tokens
-        let token_pair = self.generate_tokens(&user, &session.id)?;
 
         Ok(AuthResult {
             user,
@@ -1013,6 +1022,46 @@ impl AuthService {
             access_token_jti: generate_secure_random(16),
             refresh_token_hash: generate_secure_random(32),
             token_family: generate_secure_random(16),
+            ip_address,
+            user_agent,
+            device_fingerprint: None,
+            device_info: None,
+            location: None,
+            mfa_verified: false,
+            mfa_verified_at: None,
+            created_at: now,
+            updated_at: now,
+            last_activity_at: now,
+            expires_at: now + Duration::days(7),
+            revoked_at: None,
+            revoked_reason: None,
+        };
+
+        Ok(session)
+    }
+
+    /// Create a new session with specific token hashes
+    /// 
+    /// SECURITY: This ensures the stored refresh_token_hash matches the actual token,
+    /// enabling proper token rotation and theft detection.
+    async fn create_session_with_hashes(
+        &self,
+        user: &User,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+        access_token_jti: String,
+        refresh_token_hash: String,
+        token_family: String,
+    ) -> Result<Session> {
+        let now = Utc::now();
+        let session = Session {
+            id: uuid::Uuid::new_v4().to_string(),
+            tenant_id: user.tenant_id.clone(),
+            user_id: user.id.clone(),
+            status: crate::models::session::SessionStatus::Active,
+            access_token_jti,
+            refresh_token_hash,
+            token_family,
             ip_address,
             user_agent,
             device_fingerprint: None,

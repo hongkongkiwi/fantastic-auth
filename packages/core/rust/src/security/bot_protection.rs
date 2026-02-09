@@ -280,62 +280,6 @@ pub struct HCaptchaResponse {
     pub error_codes: Option<Vec<String>>,
 }
 
-/// Middleware helper for Axum
-#[cfg(feature = "axum")]
-#[allow(unexpected_cfgs)]
-pub mod middleware {
-    use super::*;
-    use axum::{
-        extract::{Request, State},
-        middleware::Next,
-        response::Response,
-    };
-
-    /// Extract Turnstile token from request
-    #[derive(Debug, Clone, Deserialize)]
-    pub struct TurnstileToken {
-        #[serde(rename = "cf-turnstile-response")]
-        pub token: String,
-    }
-
-    /// Bot protection middleware
-    pub async fn bot_protection_middleware<B>(
-        State(bot_protection): State<Arc<dyn BotProtection>>,
-        request: Request<B>,
-        next: Next<B>,
-    ) -> Result<Response, BotError> {
-        // Skip if disabled
-        if !bot_protection.is_enabled() {
-            return Ok(next.run(request).await);
-        }
-
-        // Extract token from header
-        let token = request
-            .headers()
-            .get("X-Turnstile-Token")
-            .and_then(|v| v.to_str().ok())
-            .ok_or_else(|| {
-                BotError::VerificationFailed("Missing X-Turnstile-Token header".to_string())
-            })?;
-
-        // Get client IP
-        let remote_ip = request
-            .headers()
-            .get("X-Forwarded-For")
-            .or_else(|| request.headers().get("X-Real-IP"))
-            .and_then(|v| v.to_str().ok());
-
-        // Verify token
-        let result = bot_protection.verify_token(token, remote_ip).await?;
-
-        if !result.success {
-            return Err(BotError::VerificationFailed(result.error_codes.join(", ")));
-        }
-
-        Ok(next.run(request).await)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -170,7 +170,8 @@ async fn search_platform_users(
         })
         .collect();
 
-    let per_page = query.per_page.unwrap_or(20);
+    const MAX_PER_PAGE: i64 = 100;
+    let per_page = query.per_page.unwrap_or(20).min(MAX_PER_PAGE);
     let page = query.page.unwrap_or(1);
     let total = filtered.len() as i64;
     let start = ((page - 1) * per_page) as usize;

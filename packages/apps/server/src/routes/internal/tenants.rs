@@ -68,11 +68,14 @@ struct MessageResponse {
 async fn list_tenants(
     State(_state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
-    Query(_query): Query<ListTenantsQuery>,
+    Query(query): Query<ListTenantsQuery>,
 ) -> Result<Json<PaginatedTenantsResponse>, ApiError> {
+    const MAX_PER_PAGE: i64 = 100;
+    let per_page = query.per_page.unwrap_or(20).min(MAX_PER_PAGE);
+    let page = query.page.unwrap_or(1);
     Ok(Json(PaginatedTenantsResponse {
         data: vec![],
-        pagination: serde_json::json!({"page": 1, "per_page": 20, "total": 0}),
+        pagination: serde_json::json!({"page": page, "per_page": per_page, "total": 0}),
     }))
 }
 

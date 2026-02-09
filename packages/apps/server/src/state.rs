@@ -97,8 +97,38 @@ impl AppState {
 
         // Connect to Redis if configured
         let redis = if let Some(ref redis_url) = config.redis_url {
-            let client = redis::Client::open(redis_url.as_str())?;
-            Some(redis::aio::ConnectionManager::new(client).await?)
+            // Validate TLS scheme if TLS is required
+            if config.redis_require_tls && !redis_url.starts_with("rediss://") {
+                anyhow::bail!(
+                    "Redis TLS is required (redis_require_tls=true) but URL does not use rediss:// scheme. \
+                     Current URL scheme indicates insecure connection. \
+                     Please update REDIS_URL to use rediss:// for encrypted connections."
+                );
+            }
+            
+            let client = redis::Client::open(redis_url.as_str())
+                .map_err(|e| anyhow::anyhow!("Failed to create Redis client: {}", e))?;
+            
+            match redis::aio::ConnectionManager::new(client).await {
+                Ok(conn) => {
+                    tracing::info!(
+                        tls_enabled = redis_url.starts_with("rediss://"),
+                        "Redis connection established"
+                    );
+                    Some(conn)
+                }
+                Err(e) => {
+                    if redis_url.starts_with("rediss://") {
+                        anyhow::bail!(
+                            "Failed to establish TLS Redis connection: {}. \
+                             Please verify your Redis server supports TLS and the certificate is valid.",
+                            e
+                        );
+                    } else {
+                        anyhow::bail!("Failed to establish Redis connection: {}", e);
+                    }
+                }
+            }
         } else {
             None
         };
@@ -541,6 +571,10 @@ impl AppState {
     }
 
     /// Check session limits for a user and apply eviction policy if needed
+    /// 
+    /// SECURITY: Uses atomic database operations with advisory locks to prevent
+    /// race conditions where concurrent logins could exceed session limits.
+    /// 
     /// Returns Ok(()) if the new session can proceed, Err if it should be denied
     pub async fn check_session_limits(
         &self,
@@ -550,61 +584,42 @@ impl AppState {
     ) -> anyhow::Result<std::result::Result<(), SessionLimitError>> {
         let limits = &self.config.security.session_limits;
 
-        // Get current active session count
-        let current_count = self
+        // SECURITY: Use atomic check-and-enforce to prevent race conditions
+        let eviction_policy = match limits.eviction_policy {
+            EvictionPolicy::OldestFirst => "oldest_first",
+            EvictionPolicy::DenyNew => "deny_new",
+            EvictionPolicy::NewestFirst => "deny_new", // Treat as deny for now
+        };
+
+        let can_proceed = self
             .db
             .sessions()
-            .count_active_sessions_for_user(tenant_id, user_id)
+            .check_and_enforce_session_limit(
+                tenant_id,
+                user_id,
+                limits.max_concurrent_sessions,
+                eviction_policy,
+            )
             .await
-            .map_err(|e| anyhow::anyhow!("Failed to count sessions: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("Failed to check session limits: {}", e))?;
 
-        let current_count = current_count as usize;
-        let max_sessions = limits.max_concurrent_sessions;
+        if !can_proceed {
+            // Get current count for error message
+            let current_count = self
+                .db
+                .sessions()
+                .count_active_sessions_for_user(tenant_id, user_id)
+                .await
+                .unwrap_or(0) as usize;
 
-        // Check if we're at or over the limit
-        if current_count >= max_sessions {
-            match limits.eviction_policy {
-                EvictionPolicy::DenyNew => {
-                    // Deny the new login
-                    return Ok(Err(SessionLimitError {
-                        current_sessions: current_count,
-                        max_sessions,
-                        message: format!(
-                            "Maximum concurrent sessions reached ({}). Please log out from another device.",
-                            max_sessions
-                        ),
-                    }));
-                }
-                EvictionPolicy::NewestFirst => {
-                    // Revoke the newest session (this shouldn't happen often as we're about to create a new one)
-                    // For simplicity, deny the new login in this case
-                    return Ok(Err(SessionLimitError {
-                        current_sessions: current_count,
-                        max_sessions,
-                        message: format!(
-                            "Maximum concurrent sessions reached ({}). Current login attempt cannot proceed.",
-                            max_sessions
-                        ),
-                    }));
-                }
-                EvictionPolicy::OldestFirst => {
-                    // Revoke oldest sessions to make room
-                    let to_revoke = current_count - max_sessions + 1; // +1 to make room for new session
-                    let revoked = self
-                        .db
-                        .sessions()
-                        .revoke_oldest_sessions_for_user(tenant_id, user_id, max_sessions - 1)
-                        .await
-                        .map_err(|e| anyhow::anyhow!("Failed to revoke sessions: {}", e))?;
-
-                    tracing::info!(
-                        "Revoked {} oldest sessions for user {} (limit: {})",
-                        revoked,
-                        user_id,
-                        max_sessions
-                    );
-                }
-            }
+            return Ok(Err(SessionLimitError {
+                current_sessions: current_count,
+                max_sessions: limits.max_concurrent_sessions,
+                message: format!(
+                    "Maximum concurrent sessions reached ({}). Please log out from another device.",
+                    limits.max_concurrent_sessions
+                ),
+            }));
         }
 
         // Check per-IP limit if enabled
@@ -669,6 +684,13 @@ impl AppState {
 }
 
 fn load_data_encryption_key() -> anyhow::Result<Vec<u8>> {
+    // SECURITY: In production, a persistent encryption key MUST be configured.
+    // Ephemeral keys cause all sessions to be invalidated on restart.
+    let is_production = std::env::var("ENVIRONMENT")
+        .or_else(|_| std::env::var("RUST_ENV"))
+        .map(|v| v == "production" || v == "prod")
+        .unwrap_or(false);
+
     if let Ok(path) = std::env::var("VAULT_MASTER_KEY_FILE")
         .or_else(|_| std::env::var("MASTER_KEY_FILE"))
     {
@@ -684,6 +706,16 @@ fn load_data_encryption_key() -> anyhow::Result<Vec<u8>> {
             }
             anyhow::bail!("MASTER_KEY_FILE must contain 32 raw bytes or base64-encoded 32 bytes");
         } else {
+            // SECURITY: Only auto-generate keys in development
+            if is_production {
+                anyhow::bail!(
+                    "SECURITY: VAULT_MASTER_KEY_FILE '{}' not found in production. \
+                     You must provide a persistent encryption key. \
+                     Set VAULT_MASTER_KEY_FILE to a path containing a 32-byte base64-encoded key, \
+                     or set VAULT_DATA_ENCRYPTION_KEY directly.",
+                    path
+                );
+            }
             let key = vault_core::crypto::generate_random_bytes(32);
             let encoded = base64::engine::general_purpose::STANDARD.encode(&key);
             std::fs::write(&path, encoded.as_bytes())?;
@@ -705,6 +737,17 @@ fn load_data_encryption_key() -> anyhow::Result<Vec<u8>> {
             anyhow::bail!("DATA_ENCRYPTION_KEY must decode to 32 bytes");
         }
         return Ok(decoded);
+    }
+
+    // SECURITY: In production, require explicit key configuration
+    if is_production {
+        anyhow::bail!(
+            "SECURITY: No data encryption key configured in production. \
+             You must set one of: \
+             1. VAULT_MASTER_KEY_FILE (path to 32-byte base64-encoded key file) \
+             2. VAULT_DATA_ENCRYPTION_KEY (32-byte base64-encoded key) \
+             Ephemeral keys are not allowed in production as they invalidate all sessions on restart."
+        );
     }
 
     tracing::warn!("No data encryption key configured; generating ephemeral key for this process");

@@ -298,19 +298,37 @@ impl VaultPasswordHasher {
     }
 
     /// Verify a password against a hash
+    /// 
+    /// SECURITY: This function is designed to prevent timing attacks:
+    /// - Returns only true/false, never distinguishes between error types
+    /// - Invalid hash format is treated the same as wrong password
+    /// - No error messages leak information about the hash structure
     pub fn verify(password: &str, hash: &str) -> Result<bool> {
-        let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| VaultError::crypto(format!("Invalid password hash: {}", e)))?;
+        // SECURITY: Parse hash, but treat parse errors the same as verification failures
+        // to prevent attackers from learning about valid hash formats through errors
+        let parsed_hash = match PasswordHash::new(hash) {
+            Ok(h) => h,
+            Err(_) => {
+                // SECURITY: Perform dummy verification to prevent timing attacks
+                // This ensures the function takes similar time regardless of hash validity
+                let dummy_hash = Self::hash("dummy_password_for_timing")?;
+                let _ = PasswordHash::new(&dummy_hash);
+                return Ok(false);
+            }
+        };
 
         let argon2 = Argon2::default();
 
+        // SECURITY: Map all errors to simple false result
+        // Never expose internal error details that could leak hash information
         match argon2.verify_password(password.as_bytes(), &parsed_hash) {
             Ok(()) => Ok(true),
             Err(argon2::password_hash::Error::Password) => Ok(false),
-            Err(e) => Err(VaultError::crypto(format!(
-                "Password verification error: {}",
-                e
-            ))),
+            Err(_) => {
+                // SECURITY: Treat all other errors as invalid password
+                // This prevents information leakage about hash format issues
+                Ok(false)
+            }
         }
     }
 }

@@ -22,6 +22,9 @@ pub struct Config {
     pub db_pool: DbPoolConfig,
     /// Redis URL
     pub redis_url: Option<String>,
+    /// Require TLS for Redis connections (enforces rediss:// scheme)
+    #[serde(default)]
+    pub redis_require_tls: bool,
     /// JWT configuration
     #[serde(default)]
     pub jwt: JwtConfig,
@@ -1379,6 +1382,20 @@ impl Config {
 
         if self.internal_api_key.is_some() && self.internal_admin_tenant_id.is_none() {
             anyhow::bail!("internal_admin_tenant_id is required when internal_api_key is set");
+        }
+
+        // Validate Redis TLS configuration
+        if self.redis_require_tls {
+            if let Some(ref redis_url) = self.redis_url {
+                if !redis_url.starts_with("rediss://") {
+                    anyhow::bail!(
+                        "redis_require_tls is enabled but REDIS_URL does not use rediss:// scheme. \
+                         When redis_require_tls is true, the Redis URL must use the rediss:// scheme for TLS encryption."
+                    );
+                }
+            } else {
+                anyhow::bail!("redis_require_tls is enabled but no REDIS_URL is configured");
+            }
         }
 
         if let Some(ref tenant_id) = self.internal_admin_tenant_id {

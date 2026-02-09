@@ -604,27 +604,6 @@ impl HybridJwt {
         Ok(claims)
     }
 
-    /// Decode without verification (for debugging only!)
-    ///
-    /// WARNING: This does NOT verify the signature and should only be used for debugging.
-    /// Never use this in production code for authentication/authorization decisions.
-    #[cfg(debug_assertions)]
-    pub fn decode_unverified(token: &str) -> Result<Claims> {
-        let parts: Vec<&str> = token.split('.').collect();
-        if parts.len() != 3 {
-            return Err(VaultError::crypto("Invalid JWT format"));
-        }
-
-        let claims_b64 = parts[1];
-        let claims_json = URL_SAFE_NO_PAD
-            .decode(claims_b64)
-            .map_err(|_| VaultError::crypto("Invalid claims encoding"))?;
-        let claims: Claims = serde_json::from_slice(&claims_json)
-            .map_err(|e| VaultError::crypto(format!("Invalid claims: {}", e)))?;
-
-        Ok(claims)
-    }
-
     /// Get the JWT algorithm identifier
     pub fn algorithm() -> &'static str {
         ALGORITHM
@@ -927,5 +906,24 @@ mod tests {
         assert_eq!(TokenType::MagicLink.as_str(), "magic_link");
         assert_eq!(TokenType::ApiKey.as_str(), "api_key");
         assert_eq!(TokenType::StepUp.as_str(), "step_up");
+    }
+
+    /// Decode JWT claims without signature verification.
+    /// 
+    /// WARNING: This is for testing/debugging only! Never use for authentication.
+    fn decode_unverified(token: &str) -> Result<Claims> {
+        let parts: Vec<&str> = token.split('.').collect();
+        if parts.len() != 3 {
+            return Err(VaultError::crypto("Invalid JWT format"));
+        }
+
+        let claims_b64 = parts[1];
+        let claims_json = URL_SAFE_NO_PAD
+            .decode(claims_b64)
+            .map_err(|_| VaultError::crypto("Invalid claims encoding"))?;
+        let claims: Claims = serde_json::from_slice(&claims_json)
+            .map_err(|e| VaultError::crypto(format!("Invalid claims: {}", e)))?;
+
+        Ok(claims)
     }
 }
