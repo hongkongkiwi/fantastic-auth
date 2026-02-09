@@ -99,7 +99,7 @@ mod tests {
     
     #[test]
     fn test_sign_payload() {
-        let secret = "whsec_fake_removed
+        let secret = "test_webhook_secret_placeholder";
         let payload = r#"{"id":"evt_123","type":"user.created"}"#;
         
         let signature = sign_payload(payload, secret).unwrap();
@@ -123,7 +123,7 @@ mod tests {
     
     #[test]
     fn test_verify_signature() {
-        let secret = "whsec_fake_removed
+        let secret = "test_webhook_secret_placeholder";
         let payload = r#"{"id":"evt_123","type":"user.created"}"#;
         
         let signature = sign_payload(payload, secret).unwrap();

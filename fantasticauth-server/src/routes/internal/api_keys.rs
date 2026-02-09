@@ -128,7 +128,7 @@ async fn create_api_key(
     require_settings_manage(&state, &current_user).await?;
 
     let id = Uuid::new_v4();
-    let prefix = format!("pk_fake_removed
+    let prefix = format!("fa_api_{}", &Uuid::new_v4().to_string()[..6]);
     let created_at = Utc::now();
     let expires_at = payload
         .expires_in_days
