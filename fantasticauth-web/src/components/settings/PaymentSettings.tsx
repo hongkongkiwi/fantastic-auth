@@ -239,7 +239,7 @@ export function PaymentSettings() {
                       id="stripe-pk"
                       value={config.stripePublishableKey}
                       onChange={(e) => updateConfig('stripePublishableKey', e.target.value)}
-                      placeholder="pk_your_publishable_REMOVED
+                      placeholder="pk_your_stripe_publishable_key"
                     />
                   </div>
 
@@ -252,7 +252,7 @@ export function PaymentSettings() {
                       type={showSecrets ? 'text' : 'password'}
                       value={config.stripeSecretKey}
                       onChange={(e) => updateConfig('stripeSecretKey', e.target.value)}
-                      placeholder="sk_your_secret_key_REMOVED
+                      placeholder="sk_your_stripe_secret_key"
                     />
                   </div>
 
@@ -265,7 +265,7 @@ export function PaymentSettings() {
                       type={showSecrets ? 'text' : 'password'}
                       value={config.stripeWebhookSecret}
                       onChange={(e) => updateConfig('stripeWebhookSecret', e.target.value)}
-                      placeholder="whsec_fake_removed
+                      placeholder="YOUR_STRIPE_WEBHOOK_SECRET"
                     />
                   </div>
                 </div>

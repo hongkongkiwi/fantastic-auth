@@ -147,7 +147,7 @@ vault migrate auth0 ... --password-help
 
 ```bash
 vault migrate clerk \
-  --clerk-secret-key sk_your_secret_key_REMOVED
+  --clerk-secret-key YOUR_CLERK_SECRET_KEY \
   --dry-run
 ```
 
@@ -155,7 +155,7 @@ vault migrate clerk \
 
 ```bash
 vault migrate clerk \
-  --clerk-secret-key sk_your_secret_key_REMOVED
+  --clerk-secret-key YOUR_CLERK_SECRET_KEY \
   --include-orgs \
   --on-conflict skip
 ```
@@ -164,7 +164,7 @@ vault migrate clerk \
 
 ```bash
 vault migrate clerk \
-  --clerk-secret-key sk_your_secret_key_REMOVED
+  --clerk-secret-key YOUR_CLERK_SECRET_KEY \
   --include-orgs \
   --batch-size 100 \
   --on-conflict skip \

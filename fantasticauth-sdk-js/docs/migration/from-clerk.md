@@ -41,8 +41,8 @@ npm install @vault/react
 ### Before (Clerk)
 
 ```bash
-REACT_APP_CLERK_PUBLISHABLE_KEY=pk_your_publishable_REMOVED
-CLERK_SECRET_KEY=sk_your_secret_key_REMOVED
+REACT_APP_CLERK_PUBLISHABLE_KEY=pk_clerk_xxx...
+CLERK_SECRET_KEY=sk_clerk_xxx...
 ```
 
 ### After (Vault)
