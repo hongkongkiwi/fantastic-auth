@@ -1,0 +1,86 @@
+{
+  "name": "@vault/vue",
+  "version": "0.1.0",
+  "description": "Vue 3 SDK for Vault - Secure user management with Composition API",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./components": {
+      "import": "./dist/components.mjs",
+      "require": "./dist/components.cjs",
+      "types": "./dist/components.d.ts"
+    },
+    "./composables": {
+      "import": "./dist/composables.mjs",
+      "require": "./dist/composables.cjs",
+      "types": "./dist/composables.d.ts"
+    },
+    "./router": {
+      "import": "./dist/router.mjs",
+      "require": "./dist/router.cjs",
+      "types": "./dist/router.d.ts"
+    },
+    "./store": {
+      "import": "./dist/store.mjs",
+      "require": "./dist/store.cjs",
+      "types": "./dist/store.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "vue-tsc --noEmit && vite build",
+    "dev": "vite build --watch",
+    "test": "vitest",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "eslint src --ext .ts,.vue",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "user-management",
+    "vue",
+    "vue3",
+    "composition-api",
+    "vault",
+    "security",
+    "oauth",
+    "mfa"
+  ],
+  "author": "Vault Team",
+  "license": "MIT",
+  "peerDependencies": {
+    "vue": "^3.3.0"
+  },
+  "dependencies": {
+    "@vault/sdk": "file:../../../generated/typescript"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/tsconfig": "^0.5.0",
+    "eslint": "^8.0.0",
+    "eslint-plugin-vue": "^9.0.0",
+    "pinia": "^2.1.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0",
+    "vite-plugin-dts": "^3.0.0",
+    "vitest": "^1.0.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0",
+    "vue-tsc": "^1.8.0"
+  },
+  "optionalDependencies": {
+    "pinia": "^2.1.0",
+    "vue-router": "^4.2.0"
+  }
+}

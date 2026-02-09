@@ -25,6 +25,69 @@ jobs:
         run: |
           python3 scripts/ci/migration_guard.py
 
+  web-lockfile-guard:
+    name: Web Lockfile Guard
+    runs-on: ubuntu-latest
+    needs: [migration-guard]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enforce pnpm lockfile policy
+        run: |
+          test ! -f packages/apps/web-platform/package-lock.json
+          test ! -f packages/apps/web-tenant/package-lock.json
+          test ! -f packages/apps/web-user/package-lock.json
+          test -f packages/apps/web-platform/pnpm-lock.yaml
+          test -f packages/apps/web-tenant/pnpm-lock.yaml
+          test -f packages/apps/web-user/pnpm-lock.yaml
+
+  web-ui:
+    name: Web UI (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    needs: [web-lockfile-guard]
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web-platform, web-tenant, web-user]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: packages/apps/${{ matrix.app }}/pnpm-lock.yaml
+
+      - name: Enable pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.28.1 --activate
+
+      - name: Install dependencies
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm lint
+
+      - name: Typecheck
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm typecheck
+
+      - name: Test
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm test
+
+      - name: Build
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm build
+
+      - name: Audit
+        working-directory: packages/apps/${{ matrix.app }}
+        run: pnpm audit --audit-level moderate
+
   # ==========================================
   # Code Quality Checks
   # ==========================================
@@ -238,7 +301,7 @@ jobs:
   docker-build:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [test, security-audit]
+    needs: [test, security-audit, web-ui]
     if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
@@ -250,7 +313,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./vault-server/Dockerfile
+          file: ./packages/apps/server/Dockerfile
           push: false
           load: true
           tags: vault-auth:test
@@ -259,7 +322,7 @@ jobs:
       
       - name: Test Docker image
         run: |
-          docker run --rm vault-auth:test ./vault-server --version || true
+          docker run --rm vault-auth:test ./fantasticauth-server --version || true
 
   # ==========================================
   # Release

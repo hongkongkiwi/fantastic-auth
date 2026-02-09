@@ -1,56 +1,46 @@
-# Remaining Feature Roadmap (Post-Alignment)
+# Remaining Feature Roadmap (After Admin Stabilization)
 
-## 1) IdP / OAuth Authorization Server
-- Implement OIDC authorization code + PKCE flows, token endpoint, JWKS endpoint.
-- Add client app registration and secrets management (admin API + DB table).
-- Support scopes, consent screens, and refresh token rotation policies.
-- Add UI admin screens for app clients and consent.
+Updated: 2026-02-09
 
-Dependencies
-- New DB tables: oauth_clients, oauth_consents, oauth_tokens, oauth_codes.
-- JWT signing key rotation policy and JWKS hosting.
+## Completed in this pass
+- Admin canonical route mounts stabilized for:
+  - `/api/v1/admin/dashboard`
+  - `/api/v1/admin/organizations`
+  - `/api/v1/admin/audit-logs`
+- Web admin API client aligned to backend paths with typed endpoint map:
+  - `/oidc/clients`
+  - `/sso/saml/connections`
+  - `/settings/v2/*`
+  - `/audit-logs/exports`
+- Password policy updates now persist via tenant settings service.
+- OIDC usage stats/isActive placeholders replaced with DB-backed values.
+- Consent export generation now writes real JSON export artifacts and exposes download:
+  - `/api/v1/consents/export/:export_id/download`
+- Bulk import lifecycle improved:
+  - Job status transitions persisted (`pending -> processing -> completed/failed`)
+  - `update_existing` implemented for imported users
+  - Optional welcome email delivery implemented (best-effort when email service is configured)
+- SCIM operational gaps addressed:
+  - User group memberships now populated in SCIM user responses
+  - PATCH remove filter semantics added for emails (`emails[value eq "..."]`, `emails[type eq "..."]`)
+  - SCIM audit logs now capture IP and User-Agent
+- SAML SLO GET now supports user-initiated flow (no `NotImplemented` response path).
+- Push MFA route surface no longer advertises a 501 websocket contract path.
+- Admin backlog test ledger no longer relies on ignored placeholders for touched areas.
 
-## 2) Actions/Rules Extensibility
-- Define action hooks (pre-login, post-login, pre-register, token-issue).
-- Provide JS/Wasmtime sandbox execution with timeout and resource limits.
-- Add admin API to manage action scripts and enable/disable by tenant.
+## Remaining High-Priority Work
+1. Admin route namespace cleanup outside canonical trio
+- Some admin modules are still mounted as flat roots and should be explicitly namespaced to avoid future ambiguity.
 
-Dependencies
-- Secure sandbox runtime selection (Wasmtime preferred).
-- Audit logging for action execution outcomes.
+2. OpenAPI source-of-truth alignment
+- `openapi/vault-admin-api.yaml` still needs route/shape synchronization for the newly stabilized and corrected admin paths.
+- SDK generation currently succeeds, but reflects the current OpenAPI spec, not guaranteed runtime parity.
 
-## 3) Log Streaming (SIEM/Analytics)
-- Add streaming destinations (HTTP, S3, Webhook, Datadog, Splunk).
-- Allow filtering by event types and severity.
-- Retry/backoff with dead-letter queue and delivery status.
+3. SDK and UI contract harmonization
+- Continue normalizing response payload shapes between backend and `fantasticauth-web-admin` to reduce per-endpoint adaptation logic.
 
-Dependencies
-- New DB tables: log_streams, log_stream_deliveries.
-- Background worker for delivery.
-
-## 4) MFA Hardening + Email OTP
-- Replace base64 secret storage with AES-256-GCM using KMS-managed keys.
-- Replace backup code hashing with Argon2id.
-- Implement Email OTP factor using existing email service.
-
-Dependencies
-- KMS or master key configuration for encryption.
-- Update MFA storage schema and migration.
-
-## 5) SCIM Admin Config Completion
-- Persist SCIM admin config in DB and expose update routes.
-- Add admin UI pages for SCIM tokens + config.
-
-Dependencies
-- DB table for scim_config (per-tenant).
-
-## 6) Internal API Auth
-- Add API key or super-admin JWT middleware to `/api/v1/internal/*`.
-- Enforce tenant isolation overrides only for platform roles.
-
-Dependencies
-- Internal auth key storage and rotation.
-
-## 7) Spec/SDK Hardening
-- Keep OpenAPI spec synced with route changes.
-- Regenerate SDKs as part of CI.
+4. CI enforcement
+- Add CI checks for:
+  - admin route map generation + uniqueness assertions
+  - OpenAPI drift detection
+  - SDK regeneration drift detection

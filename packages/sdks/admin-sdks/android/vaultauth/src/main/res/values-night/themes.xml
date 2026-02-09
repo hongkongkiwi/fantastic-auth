@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme for VaultAuth activities -->
+    <style name="Theme.VaultAuth" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/vault_primary</item>
+        <item name="colorPrimaryDark">@color/vault_primary_dark</item>
+        <item name="colorAccent">@color/vault_accent</item>
+        <item name="android:statusBarColor">@color/vault_primary_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

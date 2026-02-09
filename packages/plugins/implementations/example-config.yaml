@@ -1,0 +1,193 @@
+# Example Vault Plugin Configuration
+# This file demonstrates how to configure plugins in Vault
+
+plugins:
+  settings:
+    # Plugin directory - where to look for plugins
+    directory: "./plugins"
+    
+    # Auto-load plugins on startup
+    auto_load: true
+    
+    # Verify plugin signatures (for security)
+    verify_signatures: false
+
+  # Example Plugin - demonstrates the plugin API
+  - name: "example-plugin"
+    enabled: true
+    priority: 10  # Higher priority = executed first
+    config:
+      # Log all authentication attempts
+      log_auth: true
+      
+      # Add custom headers to requests
+      add_headers: false
+      
+      # Blocked email domains
+      blocked_domains:
+        - "tempmail.com"
+        - "10minutemail.com"
+      
+      # Custom attributes to add to new users
+      custom_attributes:
+        source: "example-plugin"
+        tracking_id: "abc123"
+
+  # LDAP/Active Directory Integration
+  - name: "ldap-plugin"
+    enabled: true
+    priority: 20
+    config:
+      # LDAP server configuration
+      servers:
+        - host: "ldap.example.com"
+          port: 636
+          use_ssl: true
+          allow_insecure_tls: false
+          bind_dn: "cn=admin,dc=example,dc=com"
+          bind_password: "${LDAP_PASSWORD}"  # Use environment variable
+          base_dn: "ou=users,dc=example,dc=com"
+          user_filter: "(&(objectClass=person)(uid={username}))"
+          username_attribute: "uid"
+          email_attribute: "mail"
+          name_attribute: "cn"
+          group_attribute: "memberOf"
+          timeout_secs: 30
+      
+      # Group to Vault role mappings
+      group_mappings:
+        - ldap_group: "cn=admins,ou=groups,dc=example,dc=com"
+          vault_role: "admin"
+        - ldap_group: "cn=users,ou=groups,dc=example,dc=com"
+          vault_role: "user"
+      
+      # Auto-create users on first LDAP login
+      auto_create_users: true
+      
+      # Sync user attributes from LDAP on each login
+      sync_on_login: true
+      
+      # Allow local fallback if LDAP fails
+      allow_local_fallback: true
+      
+      # Default tenant for LDAP users
+      default_tenant_id: "ldap-users"
+
+  # Advanced Webhook Delivery
+  - name: "webhook-plugin"
+    enabled: true
+    priority: 5
+    config:
+      # Webhook endpoints
+      webhooks:
+        # Audit log webhook
+        - name: "audit-log"
+          url: "https://example.com/webhooks/audit"
+          events:
+            - "user.login.success"
+            - "user.login.failure"
+            - "user.created"
+            - "user.deleted"
+          secret: "${WEBHOOK_SECRET}"
+          headers:
+            X-Custom-Header: "vault-webhook"
+          retry_policy:
+            max_retries: 3
+            backoff_secs: 1
+            max_backoff_secs: 300
+            multiplier: 2.0
+          timeout_secs: 30
+          rate_limit:
+            requests_per_second: 10
+            burst: 20
+          enabled: true
+        
+        # Slack notifications
+        - name: "slack-alerts"
+          url: "https://hooks.slack.com/services/xxx"
+          events:
+            - "user.login.failure"
+            - "security.alert"
+          secret: "${SLACK_SECRET}"
+          retry_policy:
+            max_retries: 2
+            backoff_secs: 5
+          timeout_secs: 15
+          enabled: true
+      
+      # Queue settings
+      queue_size: 10000
+      worker_count: 4
+      
+      # Enable batching for high-throughput scenarios
+      enable_batching: false
+      batch_size: 100
+      batch_interval_secs: 5
+
+  # Custom OAuth Provider
+  - name: "custom-oauth-plugin"
+    enabled: false  # Disabled by default
+    config:
+      provider_name: "Custom SSO"
+      client_id: "${OAUTH_CLIENT_ID}"
+      client_secret: "${OAUTH_CLIENT_SECRET}"
+      authorization_url: "https://sso.example.com/oauth/authorize"
+      token_url: "https://sso.example.com/oauth/token"
+      userinfo_url: "https://sso.example.com/oauth/userinfo"
+      scopes:
+        - "openid"
+        - "email"
+        - "profile"
+
+  # Rate Limiting Plugin
+  - name: "rate-limit-plugin"
+    enabled: true
+    priority: 100  # Run first
+    config:
+      rules:
+        - name: "login-attempts"
+          path: "/api/v1/auth/login"
+          method: "POST"
+          limit: 5
+          window_secs: 60
+        - name: "api-general"
+          path: "/api/v1/*"
+          method: "*"
+          limit: 100
+          window_secs: 60
+
+  # Audit Logger Plugin
+  - name: "audit-logger-plugin"
+    enabled: true
+    priority: 1  # Run last
+    config:
+      destinations:
+        - type: "file"
+          path: "/var/log/vault/audit.log"
+          rotation: "daily"
+        - type: "syslog"
+          facility: "local0"
+        - type: "http"
+          url: "https://siem.example.com/events"
+          batch_size: 100
+      
+      # Events to log
+      events:
+        - "auth.*"
+        - "user.*"
+        - "session.*"
+      
+      # Fields to include
+      include:
+        - timestamp
+        - tenant_id
+        - user_id
+        - action
+        - ip_address
+        - user_agent
+      
+      # PII fields to redact
+      redact:
+        - password
+        - token
+        - secret

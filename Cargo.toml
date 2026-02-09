@@ -1,0 +1,87 @@
+[workspace]
+members = [
+    "packages/core/rust",
+    "packages/apps/server",
+    "packages/apps/cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["FantasticAuth Team"]
+license = "MIT"
+repository = "https://github.com/hongkongkiwi/fantastic-auth"
+rust-version = "1.78"
+
+[workspace.dependencies]
+anyhow = "1"
+argon2 = "0.5"
+assert_fs = "1"
+async-trait = "0.1"
+aws-config = "1"
+aws-sdk-kms = "1"
+axum = { version = "0.7", features = ["macros", "multipart"] }
+azure_core = "0.21"
+azure_identity = "0.21"
+base32 = "0.5"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+comfy-table = "7"
+config = "0.14"
+dashmap = "6"
+dialoguer = "0.11"
+dirs = "5"
+dotenvy = "0.15"
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+fluent = "0.16"
+gcp_auth = "0.12"
+hex = "0.4"
+hmac = "0.12"
+hyper = { version = "1", features = ["full"] }
+indicatif = "0.17"
+intl-memoizer = "0.5"
+jsonwebtoken = "9"
+lazy_static = "1"
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-native-tls"] }
+mockall = "0.12"
+oauth2 = "4"
+once_cell = "1"
+openidconnect = "3"
+opentelemetry = "0.24"
+pqcrypto-mldsa = "0.1"
+pqcrypto-mlkem = "0.1"
+pqcrypto-traits = "0.3"
+predicates = "3"
+rand = "0.8"
+rand_core = "0.6"
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+regex = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+ring = "0.17"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_urlencoded = "0.7"
+serde_yaml = "0.9"
+sha1 = "0.10"
+sha2 = "0.10"
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+thiserror = "2"
+time = { version = "0.3", features = ["serde"] }
+tokio = { version = "1", features = ["full"] }
+tokio-test = "0.4"
+tokio-util = "0.7"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-full", "limit", "timeout"] }
+tracing = "0.1"
+tracing-opentelemetry = "0.25"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+unic-langid = "0.9"
+url = "2"
+urlencoding = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+validator = { version = "0.18", features = ["derive"] }
+wiremock = "0.6"
+x25519-dalek = "2"
