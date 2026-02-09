@@ -10,7 +10,7 @@ description = "Advanced webhook delivery plugin for Vault"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-vault-core = { path = "../../vault-core" }
+fantasticauth-core = { path = "../../fantasticauth-core" }
 async-trait = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

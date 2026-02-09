@@ -1,14 +1,14 @@
-app = "vault"
+app = "fantastic-auth"
 primary_region = "iad"
 
 [build]
-  image = "ghcr.io/your-org/vault-server:latest"
+  image = "ghcr.io/your-org/fantastic-auth-server:latest"
 
 [env]
-  VAULT_HOST = "0.0.0.0"
-  VAULT_PORT = "3000"
-  VAULT_METRICS_PORT = "9090"
-  VAULT_LOG_LEVEL = "info"
+  FANTASTICAUTH_HOST = "0.0.0.0"
+  FANTASTICAUTH_PORT = "3000"
+  FANTASTICAUTH_METRICS_PORT = "9090"
+  FANTASTICAUTH_LOG_LEVEL = "info"
 
 [http_service]
   internal_port = 3000

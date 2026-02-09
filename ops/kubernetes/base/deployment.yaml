@@ -1,9 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vault
+  name: fantasticauth
   labels:
-    app: vault
+    app: fantasticauth
 spec:
   replicas: 3
   strategy:
@@ -13,13 +13,13 @@ spec:
       maxUnavailable: 0
   selector:
     matchLabels:
-      app: vault
+      app: fantasticauth
   template:
     metadata:
       labels:
-        app: vault
+        app: fantasticauth
     spec:
-      serviceAccountName: vault
+      serviceAccountName: fantasticauth
       terminationGracePeriodSeconds: 30
       securityContext:
         fsGroup: 1000
@@ -30,7 +30,7 @@ spec:
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
-                    app: vault
+                    app: fantasticauth
                 topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
         - maxSkew: 1
@@ -38,10 +38,10 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: vault
+              app: fantasticauth
       containers:
-        - name: vault
-          image: ghcr.io/your-org/vault-server:latest
+        - name: fantasticauth
+          image: ghcr.io/your-org/fantasticauth-server:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -50,9 +50,9 @@ spec:
               containerPort: 9090
           envFrom:
             - configMapRef:
-                name: vault-config
+                name: fantasticauth-config
             - secretRef:
-                name: vault-secrets
+                name: fantasticauth-secrets
           readinessProbe:
             httpGet:
               path: /health

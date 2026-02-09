@@ -1,24 +1,24 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: vault-migrate
+  name: fantasticauth-migrate
   labels:
-    app: vault
+    app: fantasticauth
 spec:
   backoffLimit: 3
   template:
     metadata:
       labels:
-        app: vault
+        app: fantasticauth
     spec:
       restartPolicy: OnFailure
       containers:
         - name: migrate
-          image: ghcr.io/your-org/vault-server:latest
+          image: ghcr.io/your-org/fantasticauth-server:latest
           imagePullPolicy: IfNotPresent
           command: ["dbmate", "-d", "/app/migrations", "up"]
           envFrom:
             - configMapRef:
-                name: vault-config
+                name: fantasticauth-config
             - secretRef:
-                name: vault-secrets
+                name: fantasticauth-secrets
