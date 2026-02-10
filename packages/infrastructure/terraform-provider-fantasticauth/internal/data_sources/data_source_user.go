@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // User represents a Vault user for data source
@@ -76,7 +76,7 @@ func DataSourceUser() *schema.Resource {
 }
 
 func dataSourceUserRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	userID := d.Get("id").(string)
@@ -105,7 +105,7 @@ func dataSourceUserRead(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	var user User
-	if err := provider.UnmarshalResponse(resp, &user); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &user); err != nil {
 		return diag.FromErr(err)
 	}
 

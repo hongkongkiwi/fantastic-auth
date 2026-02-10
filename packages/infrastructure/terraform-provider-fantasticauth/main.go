@@ -1,12 +1,10 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/provider"
 )
 
 var (
@@ -21,11 +19,9 @@ func main() {
 
 	opts := &plugin.ServeOpts{
 		Debug:        debugMode,
-		ProviderAddr: "vault-auth/vault",
+		ProviderAddr: "fantasticauth/fantasticauth",
 		ProviderFunc: provider.New(version),
 	}
 
-	if err := plugin.Serve(opts); err != nil {
-		log.Fatal(err.Error())
-	}
+	plugin.Serve(opts)
 }

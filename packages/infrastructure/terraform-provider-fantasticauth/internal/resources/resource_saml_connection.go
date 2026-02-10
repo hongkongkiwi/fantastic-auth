@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // SAMLConnection represents a SAML connection
@@ -78,7 +78,7 @@ func ResourceSAMLConnection() *schema.Resource {
 }
 
 func resourceSAMLConnectionCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	attributeMappings := make(map[string]string)
 	if v, ok := d.GetOk("attribute_mappings"); ok {
@@ -101,7 +101,7 @@ func resourceSAMLConnectionCreate(ctx context.Context, d *schema.ResourceData, m
 	}
 
 	var createdConn SAMLConnection
-	if err := provider.UnmarshalResponse(resp, &createdConn); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &createdConn); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -111,7 +111,7 @@ func resourceSAMLConnectionCreate(ctx context.Context, d *schema.ResourceData, m
 }
 
 func resourceSAMLConnectionRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, fmt.Sprintf("/saml/connections/%s", d.Id()))
@@ -125,7 +125,7 @@ func resourceSAMLConnectionRead(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	var conn SAMLConnection
-	if err := provider.UnmarshalResponse(resp, &conn); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &conn); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -141,7 +141,7 @@ func resourceSAMLConnectionRead(ctx context.Context, d *schema.ResourceData, m i
 }
 
 func resourceSAMLConnectionUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	attributeMappings := make(map[string]string)
 	if v, ok := d.GetOk("attribute_mappings"); ok {
@@ -166,7 +166,7 @@ func resourceSAMLConnectionUpdate(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -174,7 +174,7 @@ func resourceSAMLConnectionUpdate(ctx context.Context, d *schema.ResourceData, m
 }
 
 func resourceSAMLConnectionDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Delete(ctx, fmt.Sprintf("/saml/connections/%s", d.Id()))
@@ -182,7 +182,7 @@ func resourceSAMLConnectionDelete(ctx context.Context, d *schema.ResourceData, m
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 

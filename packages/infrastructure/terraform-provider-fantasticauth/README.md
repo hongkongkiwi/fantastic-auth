@@ -1,6 +1,6 @@
-# Terraform Provider for Vault
+# Terraform Provider for Fantasticauth
 
-A Terraform provider for managing Vault resources. This provider allows you to manage users, organizations, OAuth clients, SAML connections, webhooks, and roles through infrastructure-as-code.
+A Terraform provider for managing Fantasticauth resources. This provider allows you to manage users, organizations, OAuth clients, SAML connections, webhooks, and roles through infrastructure-as-code.
 
 ## Requirements
 
@@ -11,8 +11,8 @@ A Terraform provider for managing Vault resources. This provider allows you to m
 
 ```bash
 # Clone the repository
-git clone https://github.com/vault-auth/terraform-provider-vault
-cd terraform-provider-vault
+git clone https://github.com/fantasticauth/terraform-provider-fantasticauth
+cd terraform-provider-fantasticauth
 
 # Build the provider
 make build
@@ -28,17 +28,17 @@ make install
 ```hcl
 terraform {
   required_providers {
-    vault = {
-      source  = "vault-auth/vault"
+    fantasticauth = {
+      source  = "fantasticauth/fantasticauth"
       version = "~> 1.0"
     }
   }
 }
 
-provider "vault" {
-  api_key   = var.vault_api_key
-  base_url  = "https://vault.example.com"
-  tenant_id = var.vault_tenant_id
+provider "fantasticauth" {
+  api_key   = var.fantasticauth_api_key
+  base_url  = "https://api.fantasticauth.com"
+  tenant_id = var.fantasticauth_tenant_id
 }
 ```
 
@@ -46,16 +46,16 @@ provider "vault" {
 
 The provider can also be configured using environment variables:
 
-- `VAULT_API_KEY` - The API key for Vault authentication
-- `VAULT_BASE_URL` - The base URL of the Vault server
-- `VAULT_TENANT_ID` - The tenant ID for Vault
+- `FANTASTICAUTH_API_KEY` - The API key for Fantasticauth authentication
+- `FANTASTICAUTH_BASE_URL` - The base URL of the Fantasticauth server
+- `FANTASTICAUTH_TENANT_ID` - The tenant ID for Fantasticauth
 
 ### Resources
 
-#### vault_user
+#### fantasticauth_user
 
 ```hcl
-resource "vault_user" "example" {
+resource "fantasticauth_user" "example" {
   email    = "user@example.com"
   password = "secure_password_123"
   
@@ -71,10 +71,10 @@ resource "vault_user" "example" {
 }
 ```
 
-#### vault_organization
+#### fantasticauth_organization
 
 ```hcl
-resource "vault_organization" "engineering" {
+resource "fantasticauth_organization" "engineering" {
   name        = "Engineering Team"
   slug        = "engineering"
   description = "Engineering department"
@@ -86,20 +86,20 @@ resource "vault_organization" "engineering" {
 }
 ```
 
-#### vault_organization_member
+#### fantasticauth_organization_member
 
 ```hcl
-resource "vault_organization_member" "john_engineering" {
-  organization_id = vault_organization.engineering.id
-  user_id         = vault_user.example.id
+resource "fantasticauth_organization_member" "john_engineering" {
+  organization_id = fantasticauth_organization.engineering.id
+  user_id         = fantasticauth_user.example.id
   role            = "admin"
 }
 ```
 
-#### vault_oauth_client
+#### fantasticauth_oauth_client
 
 ```hcl
-resource "vault_oauth_client" "web_app" {
+resource "fantasticauth_oauth_client" "web_app" {
   name        = "Web Application"
   description = "Main web app OAuth client"
   
@@ -115,10 +115,10 @@ resource "vault_oauth_client" "web_app" {
 }
 ```
 
-#### vault_saml_connection
+#### fantasticauth_saml_connection
 
 ```hcl
-resource "vault_saml_connection" "okta" {
+resource "fantasticauth_saml_connection" "okta" {
   name = "Okta SSO"
   
   idp_metadata_xml = file("okta-metadata.xml")
@@ -136,10 +136,10 @@ resource "vault_saml_connection" "okta" {
 }
 ```
 
-#### vault_webhook
+#### fantasticauth_webhook
 
 ```hcl
-resource "vault_webhook" "user_events" {
+resource "fantasticauth_webhook" "user_events" {
   name   = "User Events Webhook"
   url    = "https://api.example.com/webhooks/vault"
   events = ["user.created", "user.updated", "user.deleted"]
@@ -152,10 +152,10 @@ resource "vault_webhook" "user_events" {
 }
 ```
 
-#### vault_role
+#### fantasticauth_role
 
 ```hcl
-resource "vault_role" "custom_admin" {
+resource "fantasticauth_role" "custom_admin" {
   name        = "custom_admin"
   description = "Custom administrator role"
   
@@ -170,26 +170,26 @@ resource "vault_role" "custom_admin" {
 
 ### Data Sources
 
-#### vault_user
+#### fantasticauth_user
 
 ```hcl
-data "vault_user" "existing" {
+data "fantasticauth_user" "existing" {
   email = "admin@example.com"
 }
 ```
 
-#### vault_organization
+#### fantasticauth_organization
 
 ```hcl
-data "vault_organization" "engineering" {
+data "fantasticauth_organization" "engineering" {
   slug = "engineering"
 }
 ```
 
-#### vault_tenant
+#### fantasticauth_tenant
 
 ```hcl
-data "vault_tenant" "current" {}
+data "fantasticauth_tenant" "current" {}
 ```
 
 ## Development
@@ -218,13 +218,14 @@ make testacc
 ### Project Structure
 
 ```
-terraform-provider-vault/
+terraform-provider-fantasticauth/
 ├── main.go                      # Entry point
 ├── internal/
 │   ├── provider/
-│   │   ├── provider.go          # Provider schema and configuration
+│   │   └── provider.go          # Provider schema and configuration
+│   ├── tenantclient/
 │   │   ├── config.go            # Configuration structs
-│   │   └── client.go            # HTTP client for Vault API
+│   │   └── client.go            # HTTP client for Fantasticauth API
 │   ├── resources/
 │   │   ├── resource_user.go
 │   │   ├── resource_organization.go
@@ -254,12 +255,12 @@ make test
 
 ### Acceptance Tests
 
-Acceptance tests require a running Vault server:
+Acceptance tests require a running Fantasticauth server:
 
 ```bash
-export VAULT_API_KEY="your-api-key"
-export VAULT_BASE_URL="https://vault.example.com"
-export VAULT_TENANT_ID="your-tenant-id"
+export FANTASTICAUTH_API_KEY="your-api-key"
+export FANTASTICAUTH_BASE_URL="https://api.fantasticauth.com"
+export FANTASTICAUTH_TENANT_ID="your-tenant-id"
 make testacc
 ```
 

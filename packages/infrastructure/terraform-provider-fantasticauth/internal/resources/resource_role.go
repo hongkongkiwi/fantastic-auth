@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // Role represents a role
@@ -63,7 +63,7 @@ func ResourceRole() *schema.Resource {
 }
 
 func resourceRoleCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	role := &Role{
 		Name:        d.Get("name").(string),
@@ -77,7 +77,7 @@ func resourceRoleCreate(ctx context.Context, d *schema.ResourceData, m interface
 	}
 
 	var createdRole Role
-	if err := provider.UnmarshalResponse(resp, &createdRole); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &createdRole); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -87,7 +87,7 @@ func resourceRoleCreate(ctx context.Context, d *schema.ResourceData, m interface
 }
 
 func resourceRoleRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, fmt.Sprintf("/roles/%s", d.Id()))
@@ -101,7 +101,7 @@ func resourceRoleRead(ctx context.Context, d *schema.ResourceData, m interface{}
 	}
 
 	var role Role
-	if err := provider.UnmarshalResponse(resp, &role); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &role); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -115,7 +115,7 @@ func resourceRoleRead(ctx context.Context, d *schema.ResourceData, m interface{}
 }
 
 func resourceRoleUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	updateData := map[string]interface{}{
 		"name":        d.Get("name").(string),
@@ -128,7 +128,7 @@ func resourceRoleUpdate(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -136,7 +136,7 @@ func resourceRoleUpdate(ctx context.Context, d *schema.ResourceData, m interface
 }
 
 func resourceRoleDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Delete(ctx, fmt.Sprintf("/roles/%s", d.Id()))
@@ -144,7 +144,7 @@ func resourceRoleDelete(ctx context.Context, d *schema.ResourceData, m interface
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 

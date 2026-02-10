@@ -9,22 +9,22 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // OAuthClient represents an OAuth client
 type OAuthClient struct {
-	ID              string    `json:"id"`
-	Name            string    `json:"name"`
-	Description     string    `json:"description"`
-	ClientID        string    `json:"client_id"`
-	ClientSecret    string    `json:"client_secret,omitempty"`
-	RedirectURIs    []string  `json:"redirect_uris"`
-	AllowedScopes   []string  `json:"allowed_scopes"`
-	AllowedGrants   []string  `json:"allowed_grants"`
-	IsConfidential  bool      `json:"is_confidential"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	ClientID       string    `json:"client_id"`
+	ClientSecret   string    `json:"client_secret,omitempty"`
+	RedirectURIs   []string  `json:"redirect_uris"`
+	AllowedScopes  []string  `json:"allowed_scopes"`
+	AllowedGrants  []string  `json:"allowed_grants"`
+	IsConfidential bool      `json:"is_confidential"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 func ResourceOAuthClient() *schema.Resource {
@@ -105,7 +105,7 @@ func expandStringList(list []interface{}) []string {
 }
 
 func resourceOAuthClientCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	oauthClient := &OAuthClient{
 		Name:           d.Get("name").(string),
@@ -122,7 +122,7 @@ func resourceOAuthClientCreate(ctx context.Context, d *schema.ResourceData, m in
 	}
 
 	var createdClient OAuthClient
-	if err := provider.UnmarshalResponse(resp, &createdClient); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &createdClient); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -133,7 +133,7 @@ func resourceOAuthClientCreate(ctx context.Context, d *schema.ResourceData, m in
 }
 
 func resourceOAuthClientRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, fmt.Sprintf("/oauth/clients/%s", d.Id()))
@@ -147,7 +147,7 @@ func resourceOAuthClientRead(ctx context.Context, d *schema.ResourceData, m inte
 	}
 
 	var oauthClient OAuthClient
-	if err := provider.UnmarshalResponse(resp, &oauthClient); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &oauthClient); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -165,7 +165,7 @@ func resourceOAuthClientRead(ctx context.Context, d *schema.ResourceData, m inte
 }
 
 func resourceOAuthClientUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	updateData := map[string]interface{}{
 		"name":            d.Get("name").(string),
@@ -181,7 +181,7 @@ func resourceOAuthClientUpdate(ctx context.Context, d *schema.ResourceData, m in
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -189,7 +189,7 @@ func resourceOAuthClientUpdate(ctx context.Context, d *schema.ResourceData, m in
 }
 
 func resourceOAuthClientDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Delete(ctx, fmt.Sprintf("/oauth/clients/%s", d.Id()))
@@ -197,7 +197,7 @@ func resourceOAuthClientDelete(ctx context.Context, d *schema.ResourceData, m in
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 

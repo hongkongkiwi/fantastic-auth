@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // Organization represents a Vault organization for data source
@@ -70,7 +70,7 @@ func DataSourceOrganization() *schema.Resource {
 }
 
 func dataSourceOrganizationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	orgID := d.Get("id").(string)
@@ -99,7 +99,7 @@ func dataSourceOrganizationRead(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	var org Organization
-	if err := provider.UnmarshalResponse(resp, &org); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &org); err != nil {
 		return diag.FromErr(err)
 	}
 

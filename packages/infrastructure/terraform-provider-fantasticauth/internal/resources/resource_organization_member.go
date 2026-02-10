@@ -2,14 +2,15 @@ package resources
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
+	tenantauth "github.com/fantasticauth/tenant-sdk-go/vaultauth"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // OrganizationMember represents an organization membership
@@ -61,74 +62,75 @@ func ResourceOrganizationMember() *schema.Resource {
 }
 
 func resourceOrganizationMemberCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
-	member := &OrganizationMember{
-		OrganizationID: d.Get("organization_id").(string),
-		UserID:         d.Get("user_id").(string),
-		Role:           d.Get("role").(string),
-	}
-
-	resp, err := client.Post(ctx, fmt.Sprintf("/organizations/%s/members", member.OrganizationID), member)
-	if err != nil {
+	orgID := d.Get("organization_id").(string)
+	userID := d.Get("user_id").(string)
+	member, err := client.TenantSDK.Organizations.AddMember(orgID, tenantauth.AddMemberRequest{
+		UserID: userID,
+		Role:   d.Get("role").(string),
+	})
+	if err != nil || member == nil {
 		return diag.FromErr(err)
 	}
 
-	var createdMember OrganizationMember
-	if err := provider.UnmarshalResponse(resp, &createdMember); err != nil {
-		return diag.FromErr(err)
-	}
-
-	d.SetId(createdMember.ID)
+	// Stable Terraform ID based on identity tuple.
+	d.SetId(fmt.Sprintf("%s:%s", orgID, userID))
 
 	return resourceOrganizationMemberRead(ctx, d, m)
 }
 
 func resourceOrganizationMemberRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	orgID := d.Get("organization_id").(string)
+	userID := d.Get("user_id").(string)
 
-	resp, err := client.Get(ctx, fmt.Sprintf("/organizations/%s/members/%s", orgID, d.Id()))
+	members, err := client.TenantSDK.Organizations.GetMembers(orgID)
 	if err != nil {
+		var notFoundErr *tenantauth.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			d.SetId("")
+			return diags
+		}
 		return diag.FromErr(err)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
+	var matched *tenantauth.OrganizationMembership
+	for i := range members {
+		if members[i].UserID == userID {
+			matched = &members[i]
+			break
+		}
+	}
+
+	if matched == nil {
 		d.SetId("")
 		return diags
 	}
 
-	var member OrganizationMember
-	if err := provider.UnmarshalResponse(resp, &member); err != nil {
-		return diag.FromErr(err)
+	d.Set("organization_id", matched.OrganizationID)
+	d.Set("user_id", matched.UserID)
+	d.Set("role", string(matched.Role))
+	if matched.JoinedAt != nil {
+		d.Set("created_at", matched.JoinedAt.Format(time.RFC3339))
+		d.Set("updated_at", matched.JoinedAt.Format(time.RFC3339))
 	}
-
-	d.Set("organization_id", member.OrganizationID)
-	d.Set("user_id", member.UserID)
-	d.Set("role", member.Role)
-	d.Set("created_at", member.CreatedAt.Format(time.RFC3339))
-	d.Set("updated_at", member.UpdatedAt.Format(time.RFC3339))
 
 	return diags
 }
 
 func resourceOrganizationMemberUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	orgID := d.Get("organization_id").(string)
+	userID := d.Get("user_id").(string)
 
-	updateData := map[string]interface{}{
-		"role": d.Get("role").(string),
-	}
-
-	resp, err := client.Put(ctx, fmt.Sprintf("/organizations/%s/members/%s", orgID, d.Id()), updateData)
+	_, err := client.TenantSDK.Organizations.UpdateMemberRole(orgID, userID, tenantauth.UpdateMemberRoleRequest{
+		Role: d.Get("role").(string),
+	})
 	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -136,17 +138,18 @@ func resourceOrganizationMemberUpdate(ctx context.Context, d *schema.ResourceDat
 }
 
 func resourceOrganizationMemberDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	orgID := d.Get("organization_id").(string)
+	userID := d.Get("user_id").(string)
 
-	resp, err := client.Delete(ctx, fmt.Sprintf("/organizations/%s/members/%s", orgID, d.Id()))
-	if err != nil {
-		return diag.FromErr(err)
-	}
-
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := client.TenantSDK.Organizations.RemoveMember(orgID, userID); err != nil {
+		var notFoundErr *tenantauth.NotFoundError
+		if errors.As(err, &notFoundErr) {
+			d.SetId("")
+			return diags
+		}
 		return diag.FromErr(err)
 	}
 

@@ -8,18 +8,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // Tenant represents the current tenant
 type Tenant struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Slug        string    `json:"slug"`
-	Description string    `json:"description"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Slug        string                 `json:"slug"`
+	Description string                 `json:"description"`
 	Settings    map[string]interface{} `json:"settings"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
 }
 
 func DataSourceTenant() *schema.Resource {
@@ -67,7 +67,7 @@ func DataSourceTenant() *schema.Resource {
 }
 
 func dataSourceTenantRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, "/tenant")
@@ -80,7 +80,7 @@ func dataSourceTenantRead(ctx context.Context, d *schema.ResourceData, m interfa
 	}
 
 	var tenant Tenant
-	if err := provider.UnmarshalResponse(resp, &tenant); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &tenant); err != nil {
 		return diag.FromErr(err)
 	}
 

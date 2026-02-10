@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // Webhook represents a webhook configuration
@@ -84,7 +84,7 @@ func ResourceWebhook() *schema.Resource {
 }
 
 func resourceWebhookCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	headers := make(map[string]string)
 	if v, ok := d.GetOk("headers"); ok {
@@ -108,7 +108,7 @@ func resourceWebhookCreate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	var createdWebhook Webhook
-	if err := provider.UnmarshalResponse(resp, &createdWebhook); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &createdWebhook); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -118,7 +118,7 @@ func resourceWebhookCreate(ctx context.Context, d *schema.ResourceData, m interf
 }
 
 func resourceWebhookRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, fmt.Sprintf("/webhooks/%s", d.Id()))
@@ -132,7 +132,7 @@ func resourceWebhookRead(ctx context.Context, d *schema.ResourceData, m interfac
 	}
 
 	var webhook Webhook
-	if err := provider.UnmarshalResponse(resp, &webhook); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &webhook); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -149,7 +149,7 @@ func resourceWebhookRead(ctx context.Context, d *schema.ResourceData, m interfac
 }
 
 func resourceWebhookUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	headers := make(map[string]string)
 	if v, ok := d.GetOk("headers"); ok {
@@ -175,7 +175,7 @@ func resourceWebhookUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -183,7 +183,7 @@ func resourceWebhookUpdate(ctx context.Context, d *schema.ResourceData, m interf
 }
 
 func resourceWebhookDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Delete(ctx, fmt.Sprintf("/webhooks/%s", d.Id()))
@@ -191,7 +191,7 @@ func resourceWebhookDelete(ctx context.Context, d *schema.ResourceData, m interf
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 

@@ -1,9 +1,9 @@
-BINARY_NAME=terraform-provider-vault
+BINARY_NAME=terraform-provider-fantasticauth
 VERSION=1.0.0
 OS_ARCH=$(shell go env GOOS)_$(shell go env GOARCH)
-HOSTNAME=vault-auth
-NAMESPACE=vault
-PROVIDER_NAME=vault
+HOSTNAME=fantasticauth
+NAMESPACE=fantasticauth
+PROVIDER_NAME=fantasticauth
 
 .PHONY: all build install test clean fmt lint docs
 

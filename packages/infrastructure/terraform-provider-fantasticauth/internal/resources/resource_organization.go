@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 
-	"terraform-provider-vault/internal/provider"
+	"terraform-provider-fantasticauth/internal/tenantclient"
 )
 
 // Organization represents a Vault organization
@@ -70,7 +70,7 @@ func ResourceOrganization() *schema.Resource {
 }
 
 func resourceOrganizationCreate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	settings := make(map[string]interface{})
 	if v, ok := d.GetOk("settings"); ok {
@@ -92,7 +92,7 @@ func resourceOrganizationCreate(ctx context.Context, d *schema.ResourceData, m i
 	}
 
 	var createdOrg Organization
-	if err := provider.UnmarshalResponse(resp, &createdOrg); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &createdOrg); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -102,7 +102,7 @@ func resourceOrganizationCreate(ctx context.Context, d *schema.ResourceData, m i
 }
 
 func resourceOrganizationRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Get(ctx, fmt.Sprintf("/organizations/%s", d.Id()))
@@ -116,7 +116,7 @@ func resourceOrganizationRead(ctx context.Context, d *schema.ResourceData, m int
 	}
 
 	var org Organization
-	if err := provider.UnmarshalResponse(resp, &org); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, &org); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -131,7 +131,7 @@ func resourceOrganizationRead(ctx context.Context, d *schema.ResourceData, m int
 }
 
 func resourceOrganizationUpdate(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 
 	settings := make(map[string]interface{})
 	if v, ok := d.GetOk("settings"); ok {
@@ -151,7 +151,7 @@ func resourceOrganizationUpdate(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 
@@ -159,7 +159,7 @@ func resourceOrganizationUpdate(ctx context.Context, d *schema.ResourceData, m i
 }
 
 func resourceOrganizationDelete(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
-	client := m.(*provider.Client)
+	client := m.(*tenantclient.Client)
 	var diags diag.Diagnostics
 
 	resp, err := client.Delete(ctx, fmt.Sprintf("/organizations/%s", d.Id()))
@@ -167,7 +167,7 @@ func resourceOrganizationDelete(ctx context.Context, d *schema.ResourceData, m i
 		return diag.FromErr(err)
 	}
 
-	if err := provider.UnmarshalResponse(resp, nil); err != nil {
+	if err := tenantclient.UnmarshalResponse(resp, nil); err != nil {
 		return diag.FromErr(err)
 	}
 

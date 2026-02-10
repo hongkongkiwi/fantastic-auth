@@ -1,37 +1,37 @@
 terraform {
   required_providers {
-    vault = {
-      source  = "vault-auth/vault"
+    fantasticauth = {
+      source  = "fantasticauth/fantasticauth"
       version = "~> 1.0"
     }
   }
 }
 
-variable "vault_api_key" {
-  description = "Vault API Key"
+variable "fantasticauth_api_key" {
+  description = "Fantasticauth API Key"
   type        = string
   sensitive   = true
 }
 
-variable "vault_base_url" {
-  description = "Vault Base URL"
+variable "fantasticauth_base_url" {
+  description = "Fantasticauth Base URL"
   type        = string
-  default     = "https://vault.example.com"
+  default     = "https://api.fantasticauth.com"
 }
 
-variable "vault_tenant_id" {
-  description = "Vault Tenant ID"
+variable "fantasticauth_tenant_id" {
+  description = "Fantasticauth Tenant ID"
   type        = string
 }
 
-provider "vault" {
-  api_key   = var.vault_api_key
-  base_url  = var.vault_base_url
-  tenant_id = var.vault_tenant_id
+provider "fantasticauth" {
+  api_key   = var.fantasticauth_api_key
+  base_url  = var.fantasticauth_base_url
+  tenant_id = var.fantasticauth_tenant_id
 }
 
 # Create a user
-resource "vault_user" "example" {
+resource "fantasticauth_user" "example" {
   email    = "user@example.com"
   password = random_password.user_password.result
 
@@ -53,7 +53,7 @@ resource "random_password" "user_password" {
 }
 
 # Create an organization
-resource "vault_organization" "engineering" {
+resource "fantasticauth_organization" "engineering" {
   name        = "Engineering Team"
   slug        = "engineering"
   description = "Engineering department"
@@ -65,14 +65,14 @@ resource "vault_organization" "engineering" {
 }
 
 # Add user to organization
-resource "vault_organization_member" "john_engineering" {
-  organization_id = vault_organization.engineering.id
-  user_id         = vault_user.example.id
+resource "fantasticauth_organization_member" "john_engineering" {
+  organization_id = fantasticauth_organization.engineering.id
+  user_id         = fantasticauth_user.example.id
   role            = "admin"
 }
 
 # Create OAuth client
-resource "vault_oauth_client" "web_app" {
+resource "fantasticauth_oauth_client" "web_app" {
   name        = "Web Application"
   description = "Main web app OAuth client"
 
@@ -88,7 +88,7 @@ resource "vault_oauth_client" "web_app" {
 }
 
 # Create SAML connection
-resource "vault_saml_connection" "okta" {
+resource "fantasticauth_saml_connection" "okta" {
   name = "Okta SSO"
 
   idp_metadata_xml = file("${path.module}/okta-metadata.xml")
@@ -106,9 +106,9 @@ resource "vault_saml_connection" "okta" {
 }
 
 # Create webhook
-resource "vault_webhook" "user_events" {
+resource "fantasticauth_webhook" "user_events" {
   name   = "User Events Webhook"
-  url    = "https://api.example.com/webhooks/vault"
+  url    = "https://api.example.com/webhooks/fantasticauth"
   events = ["user.created", "user.updated", "user.deleted"]
 
   secret = var.webhook_secret
@@ -125,7 +125,7 @@ variable "webhook_secret" {
 }
 
 # Create custom role
-resource "vault_role" "custom_admin" {
+resource "fantasticauth_role" "custom_admin" {
   name        = "custom_admin"
   description = "Custom administrator role"
 
@@ -138,38 +138,38 @@ resource "vault_role" "custom_admin" {
 }
 
 # Data sources
-data "vault_user" "existing" {
+data "fantasticauth_user" "existing" {
   email = "admin@example.com"
 }
 
-data "vault_organization" "engineering_data" {
+data "fantasticauth_organization" "engineering_data" {
   slug = "engineering"
 }
 
-data "vault_tenant" "current" {}
+data "fantasticauth_tenant" "current" {}
 
 # Outputs
 output "user_id" {
-  value = vault_user.example.id
+  value = fantasticauth_user.example.id
 }
 
 output "organization_id" {
-  value = vault_organization.engineering.id
+  value = fantasticauth_organization.engineering.id
 }
 
 output "oauth_client_id" {
-  value = vault_oauth_client.web_app.client_id
+  value = fantasticauth_oauth_client.web_app.client_id
 }
 
 output "oauth_client_secret" {
-  value     = vault_oauth_client.web_app.client_secret
+  value     = fantasticauth_oauth_client.web_app.client_secret
   sensitive = true
 }
 
 output "existing_user_id" {
-  value = data.vault_user.existing.id
+  value = data.fantasticauth_user.existing.id
 }
 
 output "current_tenant_name" {
-  value = data.vault_tenant.current.name
+  value = data.fantasticauth_tenant.current.name
 }
