@@ -3106,7 +3106,7 @@ async fn webauthn_authenticate_finish(
         refresh_token_hash: session.refresh_token_hash.clone(),
         token_family: session.token_family.clone(),
         ip_address: Some(addr.ip()),
-        user_agent: context.as_ref().and_then(|c| c.user_agent.clone()),
+        user_agent: context.as_ref().and_then(|c| c.user_agent.as_ref().map(|s| s.to_string())),
         device_fingerprint: None,
         device_info: serde_json::json!({
             "auth_method": "webauthn",
@@ -3953,7 +3953,7 @@ async fn web3_verify(
         refresh_token_hash: session.refresh_token_hash.clone(),
         token_family: session.token_family.clone(),
         ip_address: Some(ip),
-        user_agent: context.as_ref().and_then(|c| c.user_agent.clone()),
+        user_agent: context.as_ref().and_then(|c| c.user_agent.as_ref().map(|s| s.to_string())),
         device_fingerprint: None,
         device_info: serde_json::json!({
             "auth_method": "web3",
@@ -4807,7 +4807,7 @@ async fn biometric_authenticate(
         refresh_token_hash: session.refresh_token_hash.clone(),
         token_family: session.token_family.clone(),
         ip_address: Some(addr.ip()),
-        user_agent: context.as_ref().and_then(|c| c.user_agent.clone()),
+        user_agent: context.as_ref().and_then(|c| c.user_agent.as_ref().map(|s| s.to_string())),
         device_fingerprint: None,
         device_info: serde_json::json!({
             "auth_method": "biometric",

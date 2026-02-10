@@ -87,8 +87,8 @@ impl SecurityNotificationService {
             _ => return,
         };
 
-        let ip = context.as_ref().and_then(|c| c.ip_address.clone());
-        let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
+        let ip: Option<String> = context.as_ref().and_then(|c| c.ip_address.as_ref().map(|s| s.to_string()));
+        let user_agent: Option<String> = context.as_ref().and_then(|c| c.user_agent.as_ref().map(|s| s.to_string()));
 
         for channel in &settings.user.channels {
             match channel {
@@ -150,8 +150,8 @@ impl SecurityNotificationService {
             None
         };
 
-        let ip = context.as_ref().and_then(|c| c.ip_address.clone());
-        let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
+        let ip: Option<String> = context.as_ref().and_then(|c| c.ip_address.as_ref().map(|s| s.to_string()));
+        let user_agent: Option<String> = context.as_ref().and_then(|c| c.user_agent.as_ref().map(|s| s.to_string()));
 
         for admin in admin_users {
             for channel in &settings.admin.channels {

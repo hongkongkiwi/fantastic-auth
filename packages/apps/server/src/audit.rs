@@ -441,33 +441,36 @@ impl From<&str> for AuditAction {
 
 
 /// Context information extracted from an HTTP request
+/// 
+/// Uses `Arc<str>` instead of `String` to reduce allocations when cloning,
+/// as this context is often passed around and cloned multiple times.
 #[derive(Debug, Clone, Default)]
 pub struct RequestContext {
-    pub ip_address: Option<String>,
-    pub user_agent: Option<String>,
-    pub tenant_id: Option<String>,
+    pub ip_address: Option<Arc<str>>,
+    pub user_agent: Option<Arc<str>>,
+    pub tenant_id: Option<Arc<str>>,
 }
 
 impl RequestContext {
     /// Extract context from request headers and connection info
     pub fn from_request(headers: &HeaderMap, addr: Option<&ConnectInfo<SocketAddr>>) -> Self {
-        let ip_address = addr.map(|a| a.0.ip().to_string()).or_else(|| {
+        let ip_address = addr.map(|a| a.0.ip().to_string().into()).or_else(|| {
             headers
                 .get("x-forwarded-for")
                 .or_else(|| headers.get("x-real-ip"))
                 .and_then(|h| h.to_str().ok())
-                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+                .map(|s| s.split(',').next().unwrap_or(s).trim().into())
         });
 
         let user_agent = headers
             .get("user-agent")
             .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
+            .map(|s| Arc::from(s));
 
         let tenant_id = headers
             .get("x-tenant-id")
             .and_then(|h| h.to_str().ok())
-            .map(|s| s.to_string());
+            .map(|s| Arc::from(s));
 
         Self {
             ip_address,
@@ -479,6 +482,21 @@ impl RequestContext {
     /// Extract just IP and user agent from headers (for when ConnectInfo isn't available)
     pub fn from_headers(headers: &HeaderMap) -> Self {
         Self::from_request(headers, None)
+    }
+}
+
+/// Helper to convert Arc<str> to String for database operations
+impl RequestContext {
+    fn ip_as_string(&self) -> Option<String> {
+        self.ip_address.as_ref().map(|s| s.to_string())
+    }
+
+    fn user_agent_as_string(&self) -> Option<String> {
+        self.user_agent.as_ref().map(|s| s.to_string())
+    }
+
+    fn tenant_id_as_string(&self) -> Option<String> {
+        self.tenant_id.as_ref().map(|s| s.to_string())
     }
 }
 
@@ -523,12 +541,18 @@ impl AuditLogger {
     ///
     /// This is a fire-and-forget operation - failures are logged but don't
     /// block the request. Use `log_sync` if you need to wait for completion.
+    /// 
+    /// # Performance
+    /// 
+    /// This method uses `Arc<str>` internally to minimize allocations when
+    /// cloning strings. The `tenant_id` and `resource_id` are converted to
+    /// `Arc<str>` to allow cheap cloning when spawning async tasks.
     pub fn log(
         &self,
-        tenant_id: impl Into<String>,
+        tenant_id: impl AsRef<str>,
         action: AuditAction,
         resource_type: ResourceType,
-        resource_id: impl Into<String>,
+        resource_id: impl AsRef<str>,
         user_id: Option<String>,
         session_id: Option<String>,
         context: Option<RequestContext>,
@@ -537,10 +561,12 @@ impl AuditLogger {
         metadata: Option<serde_json::Value>,
     ) {
         let db = self.db.clone();
-        let tenant_id = tenant_id.into();
-        let resource_id = resource_id.into();
-        let action_str = action.as_str().to_string();
-        let resource_type_str = resource_type.as_str().to_string();
+        let tenant_id: Arc<str> = Arc::from(tenant_id.as_ref());
+        let resource_id: Arc<str> = Arc::from(resource_id.as_ref());
+        let action_str: Arc<str> = Arc::from(action.as_str());
+        let resource_type_str: Arc<str> = Arc::from(resource_type.as_str());
+        let user_id: Option<Arc<str>> = user_id.map(|s| Arc::from(s));
+        let session_id: Option<Arc<str>> = session_id.map(|s| Arc::from(s));
         let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
         let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
         let security_notifier = self.security_notifier.clone();
@@ -588,12 +614,16 @@ impl AuditLogger {
     ///
     /// Use this when you need to ensure the audit log is written before
     /// continuing (e.g., for critical security events).
+    /// 
+    /// # Performance
+    /// 
+    /// Uses `Arc<str>` internally to minimize allocations when cloning strings.
     pub async fn log_sync(
         &self,
-        tenant_id: impl Into<String>,
+        tenant_id: impl AsRef<str>,
         action: AuditAction,
         resource_type: ResourceType,
-        resource_id: impl Into<String>,
+        resource_id: impl AsRef<str>,
         user_id: Option<String>,
         session_id: Option<String>,
         context: Option<RequestContext>,
@@ -601,10 +631,12 @@ impl AuditLogger {
         error_message: Option<String>,
         metadata: Option<serde_json::Value>,
     ) {
-        let tenant_id = tenant_id.into();
-        let resource_id = resource_id.into();
-        let action_str = action.as_str().to_string();
-        let resource_type_str = resource_type.as_str().to_string();
+        let tenant_id: Arc<str> = Arc::from(tenant_id.as_ref());
+        let resource_id: Arc<str> = Arc::from(resource_id.as_ref());
+        let action_str: Arc<str> = Arc::from(action.as_str());
+        let resource_type_str: Arc<str> = Arc::from(resource_type.as_str());
+        let user_id: Option<Arc<str>> = user_id.map(|s| Arc::from(s));
+        let session_id: Option<Arc<str>> = session_id.map(|s| Arc::from(s));
         let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
         let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
 
@@ -645,12 +677,16 @@ impl AuditLogger {
     ///
     /// This method should be used when logging actions performed during an impersonation session.
     /// It includes the impersonator_id in the audit log for compliance tracking.
+    /// 
+    /// # Performance
+    /// 
+    /// Uses `Arc<str>` internally to minimize allocations when cloning strings.
     pub fn log_with_impersonation(
         &self,
-        tenant_id: impl Into<String>,
+        tenant_id: impl AsRef<str>,
         action: AuditAction,
         resource_type: ResourceType,
-        resource_id: impl Into<String>,
+        resource_id: impl AsRef<str>,
         user_id: Option<String>,
         session_id: Option<String>,
         context: Option<RequestContext>,
@@ -660,13 +696,15 @@ impl AuditLogger {
         impersonator_id: Option<String>,
     ) {
         let db = self.db.clone();
-        let tenant_id = tenant_id.into();
-        let resource_id = resource_id.into();
-        let action_str = action.as_str().to_string();
-        let resource_type_str = resource_type.as_str().to_string();
+        let tenant_id: Arc<str> = Arc::from(tenant_id.as_ref());
+        let resource_id: Arc<str> = Arc::from(resource_id.as_ref());
+        let action_str: Arc<str> = Arc::from(action.as_str());
+        let resource_type_str: Arc<str> = Arc::from(resource_type.as_str());
+        let user_id: Option<Arc<str>> = user_id.map(|s| Arc::from(s));
+        let session_id: Option<Arc<str>> = session_id.map(|s| Arc::from(s));
+        let impersonator_id: Option<Arc<str>> = impersonator_id.map(|s| Arc::from(s));
         let ip_address = context.as_ref().and_then(|c| c.ip_address.clone());
         let user_agent = context.as_ref().and_then(|c| c.user_agent.clone());
-        let impersonator_id = impersonator_id.clone();
         let security_notifier = self.security_notifier.clone();
         let notify_action = action;
         let notify_user_id = user_id.clone();
@@ -773,29 +811,33 @@ impl AuditLogger {
     }
 
     /// Write audit log entry to database
+    /// 
+    /// Uses Arc<str> for cheap cloning. Strings are converted to owned Strings
+    /// only when needed for the database query.
     async fn write_to_db(
         db: &Database,
-        tenant_id: &str,
-        action: String,
-        resource_type: String,
-        resource_id: String,
-        user_id: Option<String>,
-        session_id: Option<String>,
-        ip_address: Option<String>,
-        user_agent: Option<String>,
+        tenant_id: &Arc<str>,
+        action: Arc<str>,
+        resource_type: Arc<str>,
+        resource_id: Arc<str>,
+        user_id: Option<Arc<str>>,
+        session_id: Option<Arc<str>>,
+        ip_address: Option<Arc<str>>,
+        user_agent: Option<Arc<str>>,
         success: bool,
         error: Option<String>,
         metadata: Option<serde_json::Value>,
-        impersonator_id: Option<String>,
+        impersonator_id: Option<Arc<str>>,
     ) -> anyhow::Result<()> {
         // Set tenant context for RLS
         let mut conn = db.pool().acquire().await?;
         sqlx::query("SELECT set_config('app.current_tenant_id', $1, true)")
-            .bind(tenant_id)
+            .bind(tenant_id.as_ref())
             .execute(&mut *conn)
             .await?;
 
         // Insert audit log with impersonator_id
+        // Convert Arc<str> to String only for the database bind
         sqlx::query(
             r#"INSERT INTO audit_logs 
                (id, tenant_id, user_id, session_id, action, resource_type, resource_id,
@@ -803,18 +845,18 @@ impl AuditLogger {
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())"#,
         )
         .bind(Uuid::new_v4().to_string())
-        .bind(tenant_id)
-        .bind(user_id)
-        .bind(session_id)
-        .bind(action)
-        .bind(resource_type)
-        .bind(resource_id)
-        .bind(ip_address)
-        .bind(user_agent)
+        .bind(tenant_id.as_ref())
+        .bind(user_id.as_ref().map(|s| s.as_ref()))
+        .bind(session_id.as_ref().map(|s| s.as_ref()))
+        .bind(action.as_ref())
+        .bind(resource_type.as_ref())
+        .bind(resource_id.as_ref())
+        .bind(ip_address.as_ref().map(|s| s.as_ref()))
+        .bind(user_agent.as_ref().map(|s| s.as_ref()))
         .bind(success)
         .bind(error)
         .bind(metadata)
-        .bind(impersonator_id)
+        .bind(impersonator_id.as_ref().map(|s| s.as_ref()))
         .execute(&mut *conn)
         .await?;
 
