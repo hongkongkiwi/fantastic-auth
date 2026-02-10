@@ -1,15 +1,22 @@
 //! Webhook Background Worker
 //!
 //! Processes pending webhook deliveries with retry logic and exponential backoff.
+//! Includes concurrency limiting to prevent overwhelming the database or downstream services.
 
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::Semaphore;
 use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 
 use crate::db::Database;
-use crate::webhooks::{WebhookQueueStats, WebhookService};
+use crate::webhooks::WebhookService;
 use vault_core::db::{with_request_context, RequestContext};
+
+/// Default maximum concurrent tenant processing
+const DEFAULT_MAX_CONCURRENT_TENANTS: usize = 10;
+/// Default maximum concurrent webhook deliveries per tenant
+const DEFAULT_MAX_CONCURRENT_DELIVERIES: usize = 5;
 
 /// Background worker for webhook delivery
 pub struct WebhookWorker {
@@ -17,17 +24,21 @@ pub struct WebhookWorker {
     webhook_service: WebhookService,
     poll_interval: Duration,
     batch_size: i64,
+    /// Semaphore to limit concurrent tenant processing
+    tenant_semaphore: Arc<Semaphore>,
+    /// Semaphore to limit concurrent deliveries per tenant
+    delivery_semaphore: Arc<Semaphore>,
 }
 
 impl WebhookWorker {
     /// Create a new webhook worker
     pub fn new(db: Database, webhook_service: WebhookService) -> Self {
-        Self {
-            db: db.clone(),
+        Self::with_concurrency(
+            db,
             webhook_service,
-            poll_interval: Duration::from_secs(30),
-            batch_size: 100,
-        }
+            DEFAULT_MAX_CONCURRENT_TENANTS,
+            DEFAULT_MAX_CONCURRENT_DELIVERIES,
+        )
     }
 
     /// Create with custom configuration
@@ -42,6 +53,31 @@ impl WebhookWorker {
             webhook_service,
             poll_interval,
             batch_size,
+            tenant_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_TENANTS)),
+            delivery_semaphore: Arc::new(Semaphore::new(DEFAULT_MAX_CONCURRENT_DELIVERIES)),
+        }
+    }
+    
+    /// Create with custom concurrency limits
+    pub fn with_concurrency(
+        db: Database,
+        webhook_service: WebhookService,
+        max_concurrent_tenants: usize,
+        max_concurrent_deliveries: usize,
+    ) -> Self {
+        info!(
+            max_tenants = max_concurrent_tenants,
+            max_deliveries = max_concurrent_deliveries,
+            "Creating webhook worker with concurrency limits"
+        );
+        
+        Self {
+            db: db.clone(),
+            webhook_service,
+            poll_interval: Duration::from_secs(30),
+            batch_size: 100,
+            tenant_semaphore: Arc::new(Semaphore::new(max_concurrent_tenants)),
+            delivery_semaphore: Arc::new(Semaphore::new(max_concurrent_deliveries)),
         }
     }
 
@@ -71,19 +107,27 @@ impl WebhookWorker {
         }
     }
 
-    /// Process a single batch of pending deliveries
+    /// Process a single batch of pending deliveries with concurrency limits
     async fn process_batch(&self) -> anyhow::Result<usize> {
         let tenant_ids = self.list_tenant_ids().await?;
         let mut total = 0usize;
+        
+        // Limit concurrent tenant processing
+        let semaphore = self.tenant_semaphore.clone();
+        let delivery_sem = self.delivery_semaphore.clone();
 
         for tenant_id in tenant_ids {
+            // Acquire permit for tenant processing
+            let permit = semaphore.clone().acquire_owned().await?;
+            let delivery_permit = delivery_sem.clone();
+            
             let ctx = RequestContext {
                 tenant_id: Some(tenant_id.clone()),
                 user_id: None,
                 role: Some("service".to_string()),
             };
 
-            let processed = with_request_context(ctx, async {
+            let processed = with_request_context(ctx, async move {
                 let deliveries = self
                     .webhook_service
                     .get_pending_deliveries(&tenant_id, self.batch_size)
@@ -91,27 +135,46 @@ impl WebhookWorker {
                     .map_err(|e| anyhow::anyhow!("Failed to get pending deliveries: {}", e))?;
 
                 let count = deliveries.len();
-
+                
+                // Process deliveries with concurrency limit
+                let mut handles = Vec::with_capacity(deliveries.len());
+                
                 for delivery in deliveries {
-                    match self
-                        .webhook_service
-                        .deliver_webhook(&tenant_id, &delivery.id)
-                        .await
-                    {
-                        Ok(_) => {
-                            info!(
-                                delivery_id = %delivery.id,
-                                event_type = %delivery.event_type,
-                                "Webhook delivered successfully"
-                            );
+                    let delivery_sem = delivery_permit.clone();
+                    let tenant_id = tenant_id.clone();
+                    let webhook_service = self.webhook_service.clone();
+                    
+                    let handle = tokio::spawn(async move {
+                        // Acquire permit for delivery
+                        let _permit = delivery_sem.acquire().await?;
+                        
+                        match webhook_service.deliver_webhook(&tenant_id, &delivery.id).await {
+                            Ok(_) => {
+                                info!(
+                                    delivery_id = %delivery.id,
+                                    event_type = %delivery.event_type,
+                                    "Webhook delivered successfully"
+                                );
+                                Ok(())
+                            }
+                            Err(e) => {
+                                warn!(
+                                    delivery_id = %delivery.id,
+                                    error = %e,
+                                    "Webhook delivery failed"
+                                );
+                                Err(e)
+                            }
                         }
-                        Err(e) => {
-                            warn!(
-                                delivery_id = %delivery.id,
-                                error = %e,
-                                "Webhook delivery failed"
-                            );
-                        }
+                    });
+                    
+                    handles.push(handle);
+                }
+                
+                // Wait for all deliveries to complete
+                for handle in handles {
+                    if let Err(e) = handle.await {
+                        warn!(error = %e, "Webhook delivery task panicked");
                     }
                 }
 
@@ -120,6 +183,9 @@ impl WebhookWorker {
             .await?;
 
             total += processed;
+            
+            // Permit is dropped here, allowing another tenant to be processed
+            drop(permit);
         }
 
         Ok(total)

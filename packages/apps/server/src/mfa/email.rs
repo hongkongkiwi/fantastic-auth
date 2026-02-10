@@ -154,10 +154,11 @@ impl EmailMfaHandler {
         Ok(valid)
     }
 
-    /// Generate random OTP code
+    /// Generate random OTP code using cryptographically secure RNG
     fn generate_code(length: usize) -> String {
         use rand::Rng;
-        let mut rng = rand::thread_rng();
+        // SECURITY: Use OsRng for cryptographically secure random number generation
+        let mut rng = rand::rngs::OsRng;
         (0..length)
             .map(|_| rng.gen_range(0..10).to_string())
             .collect()

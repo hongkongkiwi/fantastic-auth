@@ -5,7 +5,6 @@
 //! and blocks requests from restricted countries or VPN/proxy sources.
 
 use axum::{
-    body::Body,
     extract::{ConnectInfo, Request, State},
     http::{header::HeaderMap, StatusCode},
     middleware::Next,
@@ -14,7 +13,7 @@ use axum::{
 use std::net::{IpAddr, SocketAddr};
 
 use crate::audit::{AuditAction, AuditLogger, RequestContext, ResourceType};
-use crate::security::geo::{GeoAccessResult, GeoRestrictionService};
+use crate::security::geo::GeoAccessResult;
 use crate::state::{AppState, CurrentUser, TenantContext};
 
 /// Extension key for storing geo lookup result in request extensions

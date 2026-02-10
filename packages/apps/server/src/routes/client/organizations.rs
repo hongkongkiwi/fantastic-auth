@@ -4,10 +4,11 @@
 
 use axum::{
     extract::{Path, State},
-    routing::{delete, get, patch, post},
+    routing::{get, patch, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
@@ -34,26 +35,49 @@ pub fn routes() -> Router<AppState> {
         .route("/:id/leave", post(leave_organization))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct CreateOrgRequest {
+    #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
     name: String,
+    #[validate(length(min = 1, max = 50, message = "Slug must be between 1 and 50 characters"))]
+    #[validate(custom(function = "validate_slug", message = "Slug can only contain lowercase letters, numbers, and hyphens"))]
     slug: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct UpdateOrgRequest {
+    #[validate(length(min = 1, max = 100, message = "Name must be between 1 and 100 characters"))]
     name: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct InviteMemberRequest {
+    #[validate(email(message = "Invalid email format"))]
     email: String,
+    #[validate(length(min = 1, message = "Role is required"))]
     role: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct UpdateMemberRequest {
+    #[validate(length(min = 1, message = "Role is required"))]
     role: String,
+}
+
+/// Custom validation function for organization slugs
+fn validate_slug(slug: &str) -> Result<(), validator::ValidationError> {
+    // Slug can only contain lowercase letters, numbers, and hyphens
+    // Use once_cell to compile regex only once
+    static SLUG_REGEX: once_cell::sync::Lazy<regex::Regex> = once_cell::sync::Lazy::new(|| {
+        regex::Regex::new(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+            .expect("Failed to compile slug regex - this should never happen with a hardcoded pattern")
+    });
+    
+    if SLUG_REGEX.is_match(slug) {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("invalid_slug"))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -158,6 +182,10 @@ async fn create_organization(
     Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreateOrgRequest>,
 ) -> Result<Json<OrganizationResponse>, ApiError> {
+    // Validate input
+    req.validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid input: {}", e)))?;
+
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -217,6 +245,10 @@ async fn update_organization(
     Path(id): Path<String>,
     Json(req): Json<UpdateOrgRequest>,
 ) -> Result<Json<OrganizationResponse>, ApiError> {
+    // Validate input
+    req.validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid input: {}", e)))?;
+
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -318,6 +350,9 @@ async fn load_member(
 }
 
 /// List organization members
+/// 
+/// PERFORMANCE: Uses efficient JOIN query to fetch members and user details
+/// in a single database query, preventing N+1 query issues.
 async fn list_members(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -331,32 +366,26 @@ async fn list_members(
     // Require membership
     let _member = load_member(&state, &current_user.tenant_id, &id, &current_user.user_id).await?;
 
-    let members = state
+    // Use efficient JOIN query instead of N+1 individual lookups
+    let members_with_users = state
         .db
         .organizations()
-        .list_members(&current_user.tenant_id, &id)
+        .list_members_with_users(&current_user.tenant_id, &id)
         .await
         .map_err(|_| ApiError::internal())?;
 
-    let mut responses = Vec::new();
-    for member in members {
-        if let Ok(Some(user)) = state
-            .db
-            .users()
-            .find_by_id(&current_user.tenant_id, &member.user_id)
-            .await
-        {
-            responses.push(OrganizationMemberResponse {
-                id: member.id,
-                user_id: member.user_id,
-                email: user.email,
-                name: user.profile.name,
-                role: member.role.as_str().to_string(),
-                status: member.status.as_str().to_string(),
-                joined_at: member.joined_at.map(|d| d.to_rfc3339()),
-            });
-        }
-    }
+    let responses = members_with_users
+        .into_iter()
+        .map(|member| OrganizationMemberResponse {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            name: member.user_name,
+            role: member.role,
+            status: member.status,
+            joined_at: Some(member.created_at.to_rfc3339()),
+        })
+        .collect();
 
     Ok(Json(responses))
 }
@@ -368,6 +397,10 @@ async fn invite_member(
     Path(id): Path<String>,
     Json(req): Json<InviteMemberRequest>,
 ) -> Result<Json<InvitationResponse>, ApiError> {
+    // Validate input
+    req.validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid input: {}", e)))?;
+
     state
         .set_tenant_context(&current_user.tenant_id)
         .await
@@ -425,6 +458,10 @@ async fn update_member(
     Path((id, user_id)): Path<(String, String)>,
     Json(req): Json<UpdateMemberRequest>,
 ) -> Result<Json<OrganizationMemberResponse>, ApiError> {
+    // Validate input
+    req.validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid input: {}", e)))?;
+
     state
         .set_tenant_context(&current_user.tenant_id)
         .await

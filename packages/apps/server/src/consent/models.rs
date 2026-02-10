@@ -3,7 +3,7 @@
 //! Database models for consent management.
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use super::{ConsentType, DataExportStatus, DeletionStatus};
 

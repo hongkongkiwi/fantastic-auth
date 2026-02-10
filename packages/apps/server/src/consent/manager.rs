@@ -2,8 +2,6 @@
 //!
 //! High-level consent management operations.
 
-use chrono::Utc;
-use std::sync::Arc;
 
 use super::{
     ConsentConfig, ConsentContext, ConsentRecord, ConsentRepository, ConsentRequirement,

@@ -2,11 +2,78 @@
 //!
 //! Handles DNS TXT record lookups, HTML meta tag verification, and file verification.
 //! Uses trust-dns-resolver for DNS lookups with caching and retry logic.
+//!
+//! SECURITY: All HTTP-based verifications (HTML meta, file) check for SSRF by
+//! validating that the domain doesn't resolve to private/reserved IP addresses.
 
 use crate::domains::models::VerificationMethod;
+use std::net::IpAddr;
 use std::time::Duration;
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
+
+/// Check if an IP address is private or reserved
+/// 
+/// SECURITY: Used to prevent SSRF attacks by blocking requests to internal addresses
+fn is_private_or_reserved_ip(ip: &IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(ip) => {
+            let octets = ip.octets();
+            ip.is_private()           // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+                || ip.is_loopback()       // 127.0.0.0/8
+                || ip.is_link_local()     // 169.254.0.0/16
+                || ip.is_multicast()      // 224.0.0.0/4
+                || ip.is_broadcast()      // 255.255.255.255
+                || octets[0] == 0         // 0.0.0.0/8
+                || octets[0] == 100 && (octets[1] & 0b1100_0000) == 0b0100_0000 // 100.64.0.0/10 (CGNAT)
+                // Documentation ranges: 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24
+                || (octets[0] == 192 && octets[1] == 0 && octets[2] == 2)
+                || (octets[0] == 198 && octets[1] == 51 && octets[2] == 100)
+                || (octets[0] == 203 && octets[1] == 0 && octets[2] == 113)
+        }
+        IpAddr::V6(ip) => {
+            let segments = ip.segments();
+            ip.is_loopback()          // ::1
+                || ip.is_unspecified()    // ::
+                || ip.is_multicast()      // ff00::/8
+                || ip.is_unique_local()   // fc00::/7
+                // Documentation range: 2001:db8::/32
+                || (segments[0] == 0x2001 && segments[1] == 0xdb8)
+        }
+    }
+}
+
+/// Validate that a domain doesn't resolve to private/reserved IPs
+/// 
+/// SECURITY: Returns Err if the domain resolves to any private/reserved IP
+async fn validate_domain_not_private(
+    resolver: &trust_dns_resolver::TokioAsyncResolver,
+    domain: &str,
+) -> anyhow::Result<()> {
+    // First, check if domain is an IP address literal
+    if let Ok(ip) = domain.parse::<IpAddr>() {
+        if is_private_or_reserved_ip(&ip) {
+            anyhow::bail!("Domain resolves to private/reserved IP address: {}", ip);
+        }
+        return Ok(());
+    }
+    
+    // Look up the domain
+    match resolver.lookup_ip(domain).await {
+        Ok(ips) => {
+            for ip in ips.iter() {
+                if is_private_or_reserved_ip(&ip) {
+                    anyhow::bail!("Domain resolves to private/reserved IP address: {}", ip);
+                }
+            }
+            Ok(())
+        }
+        Err(e) => {
+            // Fail closed: if we cannot safely resolve the domain, do not perform HTTP fetch.
+            anyhow::bail!("DNS lookup failed for {}: {}", domain, e);
+        }
+    }
+}
 
 /// DNS TXT record verifier
 #[derive(Clone)]
@@ -139,11 +206,25 @@ impl DnsVerifier {
     ///
     /// Fetches the website at `https://<domain>` and looks for
     /// `<meta name="vault-verification" content="<token>" />`
+    ///
+    /// SECURITY: Validates that the domain doesn't resolve to private/reserved IPs
+    /// to prevent SSRF attacks.
     pub async fn verify_html_meta(
         &self,
         domain: &str,
         expected_token: &str,
     ) -> anyhow::Result<VerificationResult> {
+        // SECURITY: Check for SSRF before making HTTP request
+        if let Err(e) = validate_domain_not_private(&self.resolver, domain).await {
+            warn!("SSRF protection triggered for domain {}: {}", domain, e);
+            return Ok(VerificationResult {
+                success: false,
+                method: VerificationMethod::HtmlMeta,
+                message: "Domain verification not allowed for this address".to_string(),
+                records_found: None,
+            });
+        }
+        
         let url = format!("https://{}", domain);
         info!(
             "Checking HTML meta tag for {}: expecting '{}'",
@@ -227,11 +308,25 @@ impl DnsVerifier {
     ///
     /// Fetches the file at `https://<domain>/.well-known/vault-verify-<token>`
     /// and checks if it contains the expected token
+    ///
+    /// SECURITY: Validates that the domain doesn't resolve to private/reserved IPs
+    /// to prevent SSRF attacks.
     pub async fn verify_file(
         &self,
         domain: &str,
         token: &str,
     ) -> anyhow::Result<VerificationResult> {
+        // SECURITY: Check for SSRF before making HTTP request
+        if let Err(e) = validate_domain_not_private(&self.resolver, domain).await {
+            warn!("SSRF protection triggered for domain {}: {}", domain, e);
+            return Ok(VerificationResult {
+                success: false,
+                method: VerificationMethod::File,
+                message: "Domain verification not allowed for this address".to_string(),
+                records_found: None,
+            });
+        }
+        
         let file_path = format!("/.well-known/vault-verify-{}", &token[..16]);
         let url = format!("https://{}{}", domain, file_path);
         info!("Checking file verification for {}", url);

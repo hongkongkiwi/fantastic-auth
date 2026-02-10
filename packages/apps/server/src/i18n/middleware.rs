@@ -2,11 +2,10 @@
 
 use axum::{
     extract::{Request, State},
-    http::header::{HeaderValue, ACCEPT_LANGUAGE},
+    http::header::HeaderValue,
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use std::sync::Arc;
 
 use crate::i18n::{detect_language, Language};
 use crate::state::AppState;
@@ -114,6 +113,7 @@ pub fn localized_error_response(
 mod tests {
     use super::*;
     use axum::body::Body;
+    use axum::http::header::ACCEPT_LANGUAGE;
     use axum::http::Request;
 
     #[test]

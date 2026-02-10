@@ -6,19 +6,16 @@
 //! - Risk assessment history
 //! - Feedback submission for model improvement
 
-use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::Json,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use vault_core::ai::{
-    Action, ActionType, AiSecurityConfig, Anomaly, RiskDecision, RiskFactor, RiskLevel,
-    RiskRecommendation, RiskScore, UserRiskProfile,
+    Action, RiskDecision, RiskScore,
 };
 
 use crate::routes::ApiError;

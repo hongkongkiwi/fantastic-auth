@@ -23,9 +23,9 @@ use axum::{
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use uuid::Uuid;
 use validator::Validate;
+use vault_core::crypto::VaultPasswordHasher;
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::routes::ApiError;
@@ -260,21 +260,37 @@ async fn list_api_keys(
 
     let keys: Vec<ApiKeyResponse> = rows
         .into_iter()
-        .map(|row| ApiKeyResponse {
-            id: row.id,
-            name: row.name,
-            description: row.description,
-            prefix: row.prefix,
-            scope: serde_json::from_value(row.scope).unwrap_or(ApiKeyScope::ReadOnly),
-            created_at: row.created_at.to_rfc3339(),
-            created_by: row.created_by,
-            expires_at: row.expires_at.map(|dt| dt.to_rfc3339()),
-            last_used_at: row.last_used_at.map(|dt| dt.to_rfc3339()),
-            is_active: row.is_active,
-            allowed_ips: row
-                .allowed_ips
+        .map(|row| {
+            let ApiKeyRow {
+                id,
+                name,
+                description,
+                prefix,
+                key_hash: _key_hash,
+                scope,
+                created_at,
+                created_by,
+                expires_at,
+                last_used_at,
+                is_active,
+                allowed_ips,
+                rate_limit_per_minute,
+            } = row;
+            ApiKeyResponse {
+                id,
+                name,
+                description,
+                prefix,
+                scope: serde_json::from_value(scope).unwrap_or(ApiKeyScope::ReadOnly),
+                created_at: created_at.to_rfc3339(),
+                created_by,
+                expires_at: expires_at.map(|dt| dt.to_rfc3339()),
+                last_used_at: last_used_at.map(|dt| dt.to_rfc3339()),
+                is_active,
+                allowed_ips: allowed_ips
                 .and_then(|v| serde_json::from_value(v).ok()),
-            rate_limit_per_minute: row.rate_limit_per_minute.map(|v| v as u32),
+                rate_limit_per_minute: rate_limit_per_minute.map(|v| v as u32),
+            }
         })
         .collect();
 
@@ -303,8 +319,9 @@ async fn create_api_key(
     let id = Uuid::new_v4();
     let prefix = format!("vault_{}", &Uuid::new_v4().to_string()[..12]);
     let key = format!("{}_{}", prefix, Uuid::new_v4().to_string().replace('-', ""));
-    let hash = Sha256::digest(key.as_bytes());
-    let key_hash = format!("{:x}", hash);
+    // SECURITY: Use Argon2id for API key hashing instead of SHA256
+    let key_hash = VaultPasswordHasher::hash(&key)
+        .map_err(|_| ApiError::internal())?;
     let created_at = Utc::now();
     let expires_at = req.expires_in_days.map(|days| created_at + Duration::days(days));
 
@@ -604,8 +621,9 @@ async fn rotate_api_key(
     let new_id = Uuid::new_v4();
     let prefix = format!("vault_{}", &Uuid::new_v4().to_string()[..12]);
     let key = format!("{}_{}", prefix, Uuid::new_v4().to_string().replace('-', ""));
-    let hash = Sha256::digest(key.as_bytes());
-    let key_hash = format!("{:x}", hash);
+    // SECURITY: Use Argon2id for API key hashing instead of SHA256
+    let key_hash = VaultPasswordHasher::hash(&key)
+        .map_err(|_| ApiError::internal())?;
     let created_at = Utc::now();
 
     sqlx::query(

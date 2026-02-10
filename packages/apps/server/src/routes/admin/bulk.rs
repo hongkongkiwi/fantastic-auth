@@ -22,15 +22,12 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use tokio::io::AsyncWriteExt;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::bulk::{
-    BulkExportJob, BulkImportJob, BulkJobRow, ExportOptions, FileFormat, ImportOptions,
-    JobProgress, JobStatus, JobType, StorageConfig,
+    BulkExportJob, BulkImportJob, BulkJobRow, ExportOptions, FileFormat, ImportOptions, JobStatus, StorageConfig,
 };
 use crate::middleware::security::validate_file_path;
 use crate::routes::ApiError;
@@ -59,19 +56,6 @@ pub fn routes() -> Router<AppState> {
 }
 
 // ============ Request/Response Types ============
-
-/// Import request body (for JSON API)
-#[derive(Debug, Deserialize)]
-struct ImportRequest {
-    /// Base64 encoded file content (alternative to multipart)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    file_content: Option<String>,
-    /// File format
-    format: FileFormat,
-    /// Import options
-    #[serde(default)]
-    options: ImportOptions,
-}
 
 /// Start import response
 #[derive(Debug, Serialize)]
@@ -540,21 +524,44 @@ async fn download_error_report(
     // Get error report path
     let error_path_str = row.error_report_path.ok_or_else(|| ApiError::NotFound)?;
 
-    // SECURITY: Validate file path before reading
+    // SECURITY: Validate and sanitize file path to prevent path traversal
     let error_path = std::path::PathBuf::from(&error_path_str);
-    if let Some(filename) = error_path.file_name().and_then(|n| n.to_str()) {
-        if !validate_file_path(filename) {
-            tracing::warn!(
-                job_id = %job_id,
-                path = %error_path_str,
-                "SECURITY: Invalid error report path"
-            );
-            return Err(ApiError::BadRequest("Invalid file path".to_string()));
-        }
+    
+    // Extract and validate filename only
+    let filename = error_path.file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| ApiError::BadRequest("Invalid file path".to_string()))?;
+    
+    if !validate_file_path(filename) {
+        tracing::warn!(
+            job_id = %job_id,
+            path = %error_path_str,
+            "SECURITY: Invalid error report path"
+        );
+        return Err(ApiError::BadRequest("Invalid file path".to_string()));
+    }
+    
+    // SECURITY: Construct safe path within allowed directory only
+    let base_dir = std::path::PathBuf::from("./data/bulk-imports");
+    let safe_path = base_dir.join(filename);
+    
+    // Canonicalize and verify path is within base directory
+    let canonical_path = tokio::fs::canonicalize(&safe_path).await
+        .map_err(|_| ApiError::NotFound)?;
+    let canonical_base = tokio::fs::canonicalize(&base_dir).await
+        .map_err(|_| ApiError::internal())?;
+    
+    if !canonical_path.starts_with(&canonical_base) {
+        tracing::error!(
+            job_id = %job_id,
+            path = %error_path_str,
+            "SECURITY: Path traversal attempt detected"
+        );
+        return Err(ApiError::BadRequest("Invalid file path".to_string()));
     }
 
-    // Read error report
-    let content = tokio::fs::read_to_string(&error_path)
+    // Read error report from safe path
+    let content = tokio::fs::read_to_string(&canonical_path)
         .await
         .map_err(|_| ApiError::NotFound)?;
 
@@ -921,8 +928,6 @@ async fn delete_job(
         .map_err(|_| ApiError::internal())?;
 
     // Clean up files
-    let storage = StorageConfig::from_env();
-
     if let Some(ref file_path) = row.file_path {
         let _ = tokio::fs::remove_file(file_path).await;
     }

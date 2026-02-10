@@ -3,10 +3,9 @@
 use csv::StringRecord;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Read;
 
 use crate::migration::models::{
-    CreateUserFromMigration, ExternalUser, MigrationError, MigrationOptions, ValidationResult,
+    CreateUserFromMigration, MigrationError, MigrationOptions, ValidationResult,
 };
 use vault_core::models::user::UserProfile;
 

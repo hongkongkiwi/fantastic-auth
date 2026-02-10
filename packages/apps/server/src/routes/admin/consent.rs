@@ -18,10 +18,10 @@ use std::collections::HashMap;
 
 use crate::{
     consent::{
-        ConsentError, ConsentService, ConsentType, ConsentVersion, CreateConsentVersionRequest,
+        ConsentError, ConsentService, ConsentType, CreateConsentVersionRequest,
         DataExportStatus, DeletionStatus, UpdateConsentVersionRequest,
         service::{
-            ConsentRequirementResponse, ConsentVersionResponse, ListConsentVersionsResponse,
+            ConsentVersionResponse, ListConsentVersionsResponse,
         },
     },
     routes::ApiError,
@@ -352,7 +352,7 @@ async fn get_all_statistics(
 /// List pending data export requests
 async fn list_pending_exports(
     State(state): State<AppState>,
-    Extension(user): Extension<CurrentUser>,
+    Extension(_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<DataExportListItem>>, ApiError> {
     let repository = crate::consent::ConsentRepository::new(state.db.pool().clone());
 
@@ -382,7 +382,7 @@ async fn list_pending_exports(
 /// List pending deletion requests
 async fn list_pending_deletions(
     State(state): State<AppState>,
-    Extension(user): Extension<CurrentUser>,
+    Extension(_user): Extension<CurrentUser>,
 ) -> Result<Json<Vec<DeletionRequestListItem>>, ApiError> {
     let repository = crate::consent::ConsentRepository::new(state.db.pool().clone());
 
@@ -454,4 +454,3 @@ async fn create_consent_service(state: &AppState) -> Result<ConsentService, ApiE
 
 // Extension trait for audit logging
 // Import consent module
-use crate::consent;

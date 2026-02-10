@@ -8,7 +8,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, post},
+    routing::{delete, get},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -19,7 +19,7 @@ use sqlx::{FromRow, Row};
 use crate::routes::ApiError;
 use crate::scim::auth::{
     create_scim_token, delete_scim_token, list_scim_tokens, revoke_scim_token,
-    CreateScimTokenRequest, ScimToken, ScimTokenWithValue,
+    CreateScimTokenRequest, ScimTokenWithValue,
 };
 use crate::state::{AppState, CurrentUser};
 

@@ -19,7 +19,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::sync::Arc;
 
 use crate::auth::{SensitiveOperation, StepUpChallenge, StepUpChallengeResponse, StepUpPolicy};
 use crate::state::{AppState, CurrentUser};

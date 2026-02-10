@@ -7,14 +7,14 @@
 
 use chrono::{Duration, Utc};
 use serde_json::json;
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use super::{
-    ConsentConfig, ConsentContext, ConsentError, ConsentManager, ConsentRepository,
-    ConsentResult, ConsentType, ConsentVersion, CookieCategory, CookieConsentConfig,
-    CreateConsentVersionRequest, DataExportRequest, DataExportStatus, DeletionRequest,
+    ConsentContext, ConsentError, ConsentManager, ConsentRepository,
+    ConsentResult, ConsentType, CookieConsentConfig,
+    CreateConsentVersionRequest, DataExportStatus,
     DeletionStatus, ExportMetadata, PendingConsent, SubmitConsentRequest, UpdateConsentVersionRequest,
-    UserConsentStatus, UserDataExport, check_consent,
+    UserConsentStatus, UserDataExport,
 };
 
 /// Consent service for business logic

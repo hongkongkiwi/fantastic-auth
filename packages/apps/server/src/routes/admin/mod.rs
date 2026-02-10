@@ -111,7 +111,6 @@ pub mod sessions;
 pub mod security;
 pub mod security_policies;
 pub mod settings;
-pub mod settings_v2;
 pub mod sso;
 pub mod system;
 pub mod tenant_admins;
@@ -165,7 +164,6 @@ pub fn routes() -> Router<AppState> {
         .merge(push_mfa::routes())
         // Configuration & Settings
         .merge(settings::routes())
-        .merge(settings_v2::routes())
         .merge(branding::routes())
         .merge(email_templates::routes())
         // Domain Management

@@ -4,11 +4,10 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, post, put},
+    routing::{get, put},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::routes::ApiError;
 use crate::security::{
@@ -293,7 +292,7 @@ async fn get_user_risk_summary(
 // Database helper functions
 
 async fn get_risk_config_from_db(
-    state: &AppState,
+    _state: &AppState,
     _config: &std::sync::Arc<crate::config::Config>,
 ) -> Result<RiskEngineConfig, ApiError> {
     // For now, return default config

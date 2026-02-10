@@ -8,8 +8,8 @@
 //! - GET /saml/metadata - SP metadata endpoint
 
 use axum::{
-    extract::{Form, Query, State},
-    http::{HeaderMap, StatusCode},
+    extract::{Form, OriginalUri, Query, State},
+    http::HeaderMap,
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
     Router,
@@ -17,8 +17,7 @@ use axum::{
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use base64::Engine;
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use serde::Deserialize;
 
 use crate::routes::ApiError;
 use crate::state::AppState;
@@ -26,7 +25,7 @@ use crate::state::AppState;
 use super::{
     crypto::X509Certificate,
     metadata::generate_sp_metadata,
-    IdentityProviderConfig, NameIdFormat, SamlBinding, SamlError, SamlService, ServiceProviderConfig,
+    IdentityProviderConfig, NameIdFormat, SamlBinding, SamlService, ServiceProviderConfig,
 };
 
 /// Query parameters for SAML login
@@ -137,6 +136,7 @@ async fn saml_login(
 /// This handles both SP-initiated and IdP-initiated SSO.
 async fn saml_acs(
     State(state): State<AppState>,
+    OriginalUri(uri): OriginalUri,
     Form(form): Form<SamlResponseForm>,
 ) -> Result<impl IntoResponse, ApiError> {
     let tenant_id = if let Some(ref relay_state) = form.relay_state {
@@ -154,6 +154,22 @@ async fn saml_acs(
     
     // Load SAML configuration
     let saml_config = load_saml_config(&state, &tenant_id).await?;
+    
+    // SECURITY: Validate that the request was sent to the correct ACS endpoint
+    // This prevents SAML response replay attacks to different endpoints
+    let expected_acs = &saml_config.acs_url;
+    let actual_acs = format!("{}{}",
+        state.config.base_url,
+        uri.path()
+    );
+    if actual_acs != *expected_acs {
+        tracing::error!(
+            expected = %expected_acs,
+            actual = %actual_acs,
+            "SAML ACS endpoint mismatch - possible replay attack"
+        );
+        return Err(ApiError::Unauthorized);
+    }
     
     // Create SAML service
     let service = create_saml_service(&state, &saml_config).await?;

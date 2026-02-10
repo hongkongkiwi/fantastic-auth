@@ -8,7 +8,7 @@ use crate::migration::models::{
     CreateUserFromMigration, ExternalMfaMethod, ExternalOAuthConnection, ExternalUser,
     MigrationError, MigrationOptions, ValidationResult,
 };
-use vault_core::models::user::{CreateUserRequest, UserProfile};
+use vault_core::models::user::UserProfile;
 
 /// Auth0 configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

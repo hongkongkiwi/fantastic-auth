@@ -6,7 +6,7 @@
 use axum::{
     extract::{ConnectInfo, Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,6 @@ use std::net::SocketAddr;
 use validator::Validate;
 
 use crate::audit::{AuditLogger, RequestContext};
-use crate::impersonation::{CreateImpersonationRequest, ImpersonationService};
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser, SessionLimitStatus};
 use vault_core::models::user::{User, UserStatus};
@@ -412,26 +411,14 @@ async fn delete_user(
         .await
         .map_err(|_| ApiError::internal())?;
 
-    // Check if user exists
-    let user_exists = state
-        .db
-        .users()
-        .find_by_id(&current_user.tenant_id, &user_id)
-        .await
-        .map_err(|_| ApiError::internal())?
-        .is_some();
-
-    if !user_exists {
-        return Err(ApiError::NotFound);
-    }
-
-    // Get user info before deletion
+    // Get user info before deletion (single query instead of checking then fetching)
     let user = state
         .db
         .users()
         .find_by_id(&current_user.tenant_id, &user_id)
         .await
-        .map_err(|_| ApiError::internal())?;
+        .map_err(|_| ApiError::internal())?
+        .ok_or(ApiError::NotFound)?;
 
     // Soft delete user
     state
@@ -446,15 +433,13 @@ async fn delete_user(
     audit.log_user_deleted(&current_user.tenant_id, &current_user.user_id, &user_id);
 
     // Trigger webhook event
-    if let Some(user) = user {
-        crate::webhooks::events::trigger_user_deleted(
-            &state,
-            &current_user.tenant_id,
-            &user_id,
-            &user.email,
-        )
-        .await;
-    }
+    crate::webhooks::events::trigger_user_deleted(
+        &state,
+        &current_user.tenant_id,
+        &user_id,
+        &user.email,
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -632,7 +617,7 @@ async fn impersonate_user(
         .map_err(|_| ApiError::internal())?;
 
     let audit = AuditLogger::new(state.db.clone());
-    let context = Some(RequestContext::from_request(
+    let _context = Some(RequestContext::from_request(
         &headers,
         Some(&ConnectInfo(addr)),
     ));

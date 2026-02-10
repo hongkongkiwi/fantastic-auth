@@ -248,15 +248,6 @@ struct SmsVerifySetupRequest {
     code: String,
 }
 
-#[derive(Debug, Serialize)]
-struct SmsStatusResponse {
-    enabled: bool,
-    #[serde(rename = "phoneNumber")]
-    phone_number: Option<String>,
-    #[serde(rename = "phoneVerified")]
-    phone_verified: bool,
-}
-
 #[derive(Debug, Deserialize)]
 struct SmsSendRequest {
     #[serde(rename = "phoneNumber")]
@@ -1043,7 +1034,7 @@ async fn send_sms_code(
             });
 
             match sms_method {
-                Some(method) => {
+                Some(_method) => {
                     // Get phone number from method metadata
                     state
                         .db
@@ -1207,16 +1198,24 @@ async fn setup_whatsapp(
     let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
     
     // Check if WhatsApp is configured
-    let channel = if sms_service.is_whatsapp_configured() {
-        vault_core::sms::OtpChannel::WhatsApp
-    } else {
-        // Fallback to SMS if WhatsApp not configured
-        if state.config.whatsapp.fallback_to_sms {
-            vault_core::sms::OtpChannel::Sms
-        } else {
+    let requested_channel = req.preferred_channel.as_deref().unwrap_or("whatsapp");
+    let channel = match requested_channel {
+        "sms" => vault_core::sms::OtpChannel::Sms,
+        "whatsapp" => {
+            if sms_service.is_whatsapp_configured() {
+                vault_core::sms::OtpChannel::WhatsApp
+            } else if state.config.whatsapp.fallback_to_sms {
+                vault_core::sms::OtpChannel::Sms
+            } else {
+                return Err(ApiError::BadRequest(
+                    "WhatsApp is not configured for this server".to_string(),
+                ));
+            }
+        }
+        _ => {
             return Err(ApiError::BadRequest(
-                "WhatsApp is not configured for this server".to_string(),
-            ));
+                "Invalid preferredChannel. Use 'whatsapp' or 'sms'".to_string(),
+            ))
         }
     };
 
@@ -1397,10 +1396,16 @@ async fn send_whatsapp_code(
     let sms_service = get_sms_service(&state, &current_user.tenant_id).await?;
     
     // Determine channel (WhatsApp preferred, fallback to SMS)
-    let channel = if sms_service.is_whatsapp_configured() {
-        vault_core::sms::OtpChannel::WhatsApp
-    } else {
-        vault_core::sms::OtpChannel::Sms
+    let requested_channel = req.channel.as_deref().unwrap_or("whatsapp");
+    let channel = match requested_channel {
+        "sms" => vault_core::sms::OtpChannel::Sms,
+        "whatsapp" if sms_service.is_whatsapp_configured() => vault_core::sms::OtpChannel::WhatsApp,
+        "whatsapp" => vault_core::sms::OtpChannel::Sms,
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Invalid channel. Use 'whatsapp' or 'sms'".to_string(),
+            ))
+        }
     };
 
     // Send code

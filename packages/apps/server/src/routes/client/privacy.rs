@@ -16,16 +16,6 @@ use uuid::Uuid;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
-// DEPRECATED: Use crate::middleware::auth::is_admin() instead
-// This function is kept for backward compatibility but should be removed
-// once all routes are migrated to use the shared utility.
-#[allow(dead_code)]
-fn is_admin(user: &CurrentUser) -> bool {
-    user.claims.roles.as_ref()
-        .map(|roles| roles.iter().any(|r| r == "admin"))
-        .unwrap_or(false)
-}
-
 /// Data export request
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DataExportRequest {
@@ -304,7 +294,9 @@ async fn delete_my_account(
     .await;
 
     if let Err(e) = deletion_result {
-        let _ = tx.rollback().await;
+        if let Err(rollback_err) = tx.rollback().await {
+            tracing::error!("Transaction rollback failed after deletion error: {}", rollback_err);
+        }
         return Err(ApiError::internal_error(format!("Failed to record deletion request: {}", e)));
     }
 
@@ -321,7 +313,9 @@ async fn delete_my_account(
     .await;
 
     if let Err(e) = session_result {
-        let _ = tx.rollback().await;
+        if let Err(rollback_err) = tx.rollback().await {
+            tracing::error!("Transaction rollback failed after session revoke error: {}", rollback_err);
+        }
         return Err(ApiError::internal_error(format!("Failed to revoke sessions: {}", e)));
     }
 

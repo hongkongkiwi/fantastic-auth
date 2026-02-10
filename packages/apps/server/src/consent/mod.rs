@@ -10,8 +10,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
-use std::sync::Arc;
 
 pub mod manager;
 pub mod models;

@@ -16,7 +16,7 @@
 use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, patch, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -324,6 +324,78 @@ async fn delete_webhook(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// Validate URL to prevent SSRF attacks
+fn validate_webhook_url(url: &str) -> Result<(), ApiError> {
+    use std::net::IpAddr;
+    
+    // Parse the URL
+    let parsed = url.parse::<reqwest::Url>()
+        .map_err(|_| ApiError::BadRequest("Invalid URL format".to_string()))?;
+    
+    // Only allow HTTP and HTTPS
+    match parsed.scheme() {
+        "http" | "https" => {},
+        _ => return Err(ApiError::BadRequest("Only HTTP/HTTPS URLs are allowed".to_string())),
+    }
+    
+    // Check host
+    let host = parsed.host_str()
+        .ok_or_else(|| ApiError::BadRequest("URL must have a host".to_string()))?;
+    
+    // Check for localhost
+    if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+        return Err(ApiError::BadRequest("Localhost URLs are not allowed".to_string()));
+    }
+    
+    // Check if host is an IP address
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        // Block private and reserved IP ranges
+        let is_blocked = match ip {
+            IpAddr::V4(ip) => {
+                ip.is_private() 
+                || ip.is_loopback() 
+                || ip.is_link_local()
+                || ip.is_multicast()
+                || ip.is_broadcast()
+                || ip.octets()[0] == 0
+                || (ip.octets()[0] == 100 && (ip.octets()[1] & 0b1100_0000) == 0b0100_0000) // Carrier-grade NAT
+                || (ip.octets()[0] == 169 && ip.octets()[1] == 254) // Link-local
+                || (ip.octets()[0] == 192 && ip.octets()[1] == 0 && ip.octets()[2] == 0) // IETF Protocol Assignments
+                || (ip.octets()[0] == 192 && ip.octets()[1] == 0 && ip.octets()[2] == 2) // TEST-NET-1
+                || (ip.octets()[0] == 198 && ip.octets()[1] == 18) // Benchmarking
+                || (ip.octets()[0] == 198 && ip.octets()[1] == 51 && ip.octets()[2] == 100) // TEST-NET-2
+                || (ip.octets()[0] == 203 && ip.octets()[1] == 0 && ip.octets()[2] == 113) // TEST-NET-3
+            },
+            IpAddr::V6(ip) => {
+                ip.is_loopback() 
+                || ip.is_unspecified() 
+                || ip.is_multicast()
+                || ip.is_unique_local()
+                || (ip.segments()[0] & 0xffc0) == 0xfe80 // Link-local (fe80::/10)
+                || (ip.segments()[0] & 0xfe00) == 0xfc00 // Unique local
+            },
+        };
+        
+        if is_blocked {
+            return Err(ApiError::BadRequest("Private IP addresses are not allowed".to_string()));
+        }
+    }
+    
+    // Block common internal hostnames
+    let lower_host = host.to_lowercase();
+    if lower_host.contains("metadata.google.internal")
+        || lower_host.contains("169.254.169.254") // AWS/Azure/GCP metadata
+        || lower_host.contains("metadata") 
+        || lower_host.starts_with("10.")
+        || lower_host.starts_with("192.168.")
+        || lower_host.starts_with("172.")
+    {
+        return Err(ApiError::BadRequest("Internal addresses are not allowed".to_string()));
+    }
+    
+    Ok(())
+}
+
 /// Test a webhook endpoint by sending a test event
 async fn test_webhook(
     State(state): State<AppState>,
@@ -342,6 +414,9 @@ async fn test_webhook(
         .get_endpoint(&current_user.tenant_id, &id)
         .await
         .map_err(|_| ApiError::NotFound)?;
+    
+    // SECURITY: Validate URL to prevent SSRF attacks
+    validate_webhook_url(&endpoint.url)?;
 
     // Build test event
     let event_type = req.event_type.unwrap_or_else(|| "webhook.test".to_string());
@@ -370,8 +445,10 @@ async fn test_webhook(
     // create a one-off delivery for testing
     if deliveries.is_empty() {
         // For test, we'll do a direct HTTP delivery
+        // SECURITY: Disable redirects to prevent SSRF attacks via redirect chains
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|_| ApiError::internal())?;
 

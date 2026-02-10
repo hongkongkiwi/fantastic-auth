@@ -30,7 +30,7 @@ pub use scoring::{RiskScore, RiskScoringEngine, ScoringWeights};
 
 use crate::db::Database;
 use crate::security::{
-    DeviceFingerprinter, FingerprintComponents, GeoIpLookup, GeoIpLookupResult,
+    DeviceFingerprinter, GeoIpLookup, GeoIpLookupResult,
 };
 
 /// Risk assessment result for a login attempt

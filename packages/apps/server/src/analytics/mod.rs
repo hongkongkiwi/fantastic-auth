@@ -10,10 +10,9 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, warn, instrument};
+use tracing::{debug, warn, instrument};
 use uuid::Uuid;
 
 // Sub-modules
@@ -23,8 +22,12 @@ pub mod repository;
 
 // Re-export commonly used items
 pub use metrics::*;
-pub use models::*;
 pub use repository::AnalyticsRepository;
+
+/// Maximum buffer size before dropping events (prevents unbounded growth)
+const MAX_BUFFER_SIZE: usize = 10000;
+/// Default buffer flush threshold
+const DEFAULT_BUFFER_THRESHOLD: usize = 100;
 
 /// Analytics service for tracking and querying metrics
 #[derive(Clone)]
@@ -34,6 +37,10 @@ pub struct AnalyticsService {
     event_buffer: Arc<RwLock<Vec<AnalyticsEvent>>>,
     /// Buffer flush threshold
     buffer_threshold: usize,
+    /// Maximum buffer size (drops events if exceeded)
+    max_buffer_size: usize,
+    /// Dropped events counter (for monitoring)
+    dropped_events: Arc<RwLock<u64>>,
 }
 
 impl AnalyticsService {
@@ -41,18 +48,31 @@ impl AnalyticsService {
     pub fn new(pool: PgPool) -> Self {
         Self {
             repository: AnalyticsRepository::new(pool),
-            event_buffer: Arc::new(RwLock::new(Vec::with_capacity(1000))),
-            buffer_threshold: 100,
+            event_buffer: Arc::new(RwLock::new(Vec::with_capacity(DEFAULT_BUFFER_THRESHOLD))),
+            buffer_threshold: DEFAULT_BUFFER_THRESHOLD,
+            max_buffer_size: MAX_BUFFER_SIZE,
+            dropped_events: Arc::new(RwLock::new(0)),
         }
     }
 
     /// Create with custom buffer threshold
     pub fn with_buffer_threshold(pool: PgPool, threshold: usize) -> Self {
+        let max_size = threshold * 10; // Max is 10x threshold
         Self {
             repository: AnalyticsRepository::new(pool),
             event_buffer: Arc::new(RwLock::new(Vec::with_capacity(threshold))),
             buffer_threshold: threshold,
+            max_buffer_size: max_size.min(MAX_BUFFER_SIZE),
+            dropped_events: Arc::new(RwLock::new(0)),
         }
+    }
+    
+    /// Get the number of dropped events (and reset counter)
+    pub async fn get_and_reset_dropped_events(&self) -> u64 {
+        let mut dropped = self.dropped_events.write().await;
+        let count = *dropped;
+        *dropped = 0;
+        count
     }
 
     /// Get repository reference
@@ -61,9 +81,22 @@ impl AnalyticsService {
     }
 
     /// Track a single analytics event
+    /// 
+    /// If the buffer is at maximum capacity, the event is dropped to prevent
+    /// unbounded memory growth. Use `get_and_reset_dropped_events()` to monitor.
     #[instrument(skip(self, event))]
     pub async fn track_event(&self, event: AnalyticsEvent) -> anyhow::Result<()> {
         let mut buffer = self.event_buffer.write().await;
+        
+        // Check if buffer is at maximum capacity
+        if buffer.len() >= self.max_buffer_size {
+            drop(buffer);
+            let mut dropped = self.dropped_events.write().await;
+            *dropped += 1;
+            warn!("Analytics buffer full, dropping event");
+            return Ok(());
+        }
+        
         buffer.push(event);
 
         // Flush if threshold reached
@@ -77,10 +110,32 @@ impl AnalyticsService {
     }
 
     /// Track multiple events at once
+    /// 
+    /// If the buffer would exceed maximum capacity, excess events are dropped.
     #[instrument(skip(self, events))]
     pub async fn track_events(&self, events: Vec<AnalyticsEvent>) -> anyhow::Result<()> {
         let mut buffer = self.event_buffer.write().await;
-        buffer.extend(events);
+        let available_space = self.max_buffer_size.saturating_sub(buffer.len());
+        
+        if available_space == 0 {
+            drop(buffer);
+            let mut dropped = self.dropped_events.write().await;
+            *dropped += events.len() as u64;
+            warn!(count = events.len(), "Analytics buffer full, dropping events");
+            return Ok(());
+        }
+        
+        // Only add events that fit
+        let events_to_add: Vec<_> = events.into_iter().take(available_space).collect();
+        let dropped_count = available_space.saturating_sub(events_to_add.len());
+        
+        if dropped_count > 0 {
+            let mut dropped = self.dropped_events.write().await;
+            *dropped += dropped_count as u64;
+            warn!(count = dropped_count, "Analytics buffer near capacity, dropping some events");
+        }
+        
+        buffer.extend(events_to_add);
 
         // Flush if threshold reached
         if buffer.len() >= self.buffer_threshold {

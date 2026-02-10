@@ -8,8 +8,7 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use once_cell::sync::Lazy;
-use std::sync::Mutex;
+use sqlx::Row;
 
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
@@ -64,6 +63,12 @@ struct PlatformUserDetailResponse {
     failed_login_attempts: i64,
 }
 
+#[derive(Debug, Serialize)]
+struct PaginatedUsersResponse {
+    data: Vec<PlatformUserResponse>,
+    pagination: serde_json::Value,
+}
+
 #[derive(Debug, Serialize, Clone)]
 struct UserTenantMembership {
     #[serde(rename = "tenantId")]
@@ -77,148 +82,209 @@ struct UserTenantMembership {
     joined_at: String,
 }
 
-#[derive(Debug, Serialize)]
-struct PaginatedUsersResponse {
-    data: Vec<PlatformUserResponse>,
-    pagination: serde_json::Value,
-}
-
-#[derive(Debug, Clone)]
-struct UserRecord {
-    id: String,
-    email: String,
-    name: Option<String>,
-    status: String,
-    created_at: String,
-    memberships: Vec<UserTenantMembership>,
-}
-
-static USERS: Lazy<Mutex<Vec<UserRecord>>> = Lazy::new(|| {
-    Mutex::new(vec![
-        UserRecord {
-            id: "user-1".to_string(),
-            email: "alex@acme.com".to_string(),
-            name: Some("Alex Grant".to_string()),
-            status: "active".to_string(),
-            created_at: "2024-01-10T09:00:00Z".to_string(),
-            memberships: vec![UserTenantMembership {
-                tenant_id: "tenant-1".to_string(),
-                tenant_name: "Acme Inc".to_string(),
-                tenant_slug: "acme".to_string(),
-                role: "admin".to_string(),
-                joined_at: "2024-01-12T09:00:00Z".to_string(),
-            }],
-        },
-        UserRecord {
-            id: "user-2".to_string(),
-            email: "jamie@northwind.com".to_string(),
-            name: Some("Jamie Liu".to_string()),
-            status: "active".to_string(),
-            created_at: "2024-02-02T09:00:00Z".to_string(),
-            memberships: vec![
-                UserTenantMembership {
-                    tenant_id: "tenant-2".to_string(),
-                    tenant_name: "Northwind".to_string(),
-                    tenant_slug: "northwind".to_string(),
-                    role: "member".to_string(),
-                    joined_at: "2024-02-05T09:00:00Z".to_string(),
-                },
-                UserTenantMembership {
-                    tenant_id: "tenant-3".to_string(),
-                    tenant_name: "Umbrella".to_string(),
-                    tenant_slug: "umbrella".to_string(),
-                    role: "viewer".to_string(),
-                    joined_at: "2024-03-01T09:00:00Z".to_string(),
-                },
-            ],
-        },
-    ])
-});
-
 /// Search users across platform
 async fn search_platform_users(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Query(query): Query<SearchUsersQuery>,
 ) -> Result<Json<PaginatedUsersResponse>, ApiError> {
-    let users = USERS.lock().map_err(|_| ApiError::internal())?;
-    let email_filter = query.email.unwrap_or_default().to_lowercase();
-    let tenant_filter = query.tenant_id;
-
-    let mut filtered: Vec<PlatformUserResponse> = users
-        .iter()
-        .filter(|user| {
-            let email_match = if email_filter.is_empty() {
-                true
-            } else {
-                user.email.to_lowercase().contains(&email_filter)
-            };
-            let tenant_match = if let Some(ref tenant_id) = tenant_filter {
-                user.memberships.iter().any(|m| m.tenant_id == *tenant_id)
-            } else {
-                true
-            };
-            email_match && tenant_match
-        })
-        .map(|user| PlatformUserResponse {
-            id: user.id.clone(),
-            email: user.email.clone(),
-            name: user.name.clone(),
-            status: user.status.clone(),
-            created_at: user.created_at.clone(),
-            tenant_count: user.memberships.len() as i64,
-        })
-        .collect();
-
     const MAX_PER_PAGE: i64 = 100;
     let per_page = query.per_page.unwrap_or(20).min(MAX_PER_PAGE);
-    let page = query.page.unwrap_or(1);
-    let total = filtered.len() as i64;
-    let start = ((page - 1) * per_page) as usize;
-    let end = (start + per_page as usize).min(filtered.len());
-    if start < filtered.len() {
-        filtered = filtered[start..end].to_vec();
-    } else {
-        filtered.clear();
+    let page = query.page.unwrap_or(1).max(1);
+    let offset = (page - 1) * per_page;
+    
+    // Validate tenant_id format if provided
+    if let Some(ref tenant_id) = query.tenant_id {
+        if uuid::Uuid::parse_str(tenant_id).is_err() {
+            return Err(ApiError::BadRequest("Invalid tenant ID format".to_string()));
+        }
     }
-
+    
+    // Validate email format if provided
+    if let Some(ref email) = query.email {
+        if email.len() > 255 || !email.contains('@') {
+            return Err(ApiError::BadRequest("Invalid email format".to_string()));
+        }
+    }
+    
+    // SECURITY: Use sqlx::QueryBuilder for safe dynamic query construction
+    // This avoids SQL injection by using proper parameter binding
+    let mut count_builder = sqlx::QueryBuilder::new(
+        "SELECT COUNT(*) FROM users u WHERE u.deleted_at IS NULL"
+    );
+    
+    if query.email.is_some() {
+        count_builder.push(" AND LOWER(u.email) = LOWER(");
+        count_builder.push_bind(query.email.as_ref().unwrap());
+        count_builder.push(")");
+    }
+    
+    if query.tenant_id.is_some() {
+        count_builder.push(" AND EXISTS (SELECT 1 FROM tenant_users tu WHERE tu.user_id = u.id AND tu.tenant_id = ");
+        count_builder.push_bind(query.tenant_id.as_ref().unwrap());
+        count_builder.push(")");
+    }
+    
+    let total: i64 = count_builder.build_query_scalar()
+        .fetch_one(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to count users: {}", e);
+            ApiError::internal()
+        })?;
+    
+    // Build data query with QueryBuilder
+    let mut query_builder = sqlx::QueryBuilder::new(
+        r#"
+        SELECT 
+            u.id,
+            u.email,
+            u.profile->>'name' as name,
+            u.status::text as status,
+            u.created_at,
+            (SELECT COUNT(*) FROM tenant_users tu WHERE tu.user_id = u.id) as tenant_count
+        FROM users u
+        WHERE u.deleted_at IS NULL
+        "#
+    );
+    
+    if query.email.is_some() {
+        query_builder.push(" AND LOWER(u.email) = LOWER(");
+        query_builder.push_bind(query.email.as_ref().unwrap());
+        query_builder.push(")");
+    }
+    
+    if query.tenant_id.is_some() {
+        query_builder.push(" AND EXISTS (SELECT 1 FROM tenant_users tu WHERE tu.user_id = u.id AND tu.tenant_id = ");
+        query_builder.push_bind(query.tenant_id.as_ref().unwrap());
+        query_builder.push(")");
+    }
+    
+    query_builder.push(" ORDER BY u.created_at DESC");
+    query_builder.push(" LIMIT ");
+    query_builder.push_bind(per_page);
+    query_builder.push(" OFFSET ");
+    query_builder.push_bind(offset);
+    
+    let rows = query_builder.build()
+        .fetch_all(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to search users: {}", e);
+            ApiError::internal()
+        })?;
+    
+    let users: Vec<PlatformUserResponse> = rows
+        .into_iter()
+        .map(|row| PlatformUserResponse {
+            id: row.get("id"),
+            email: row.get("email"),
+            name: row.get("name"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+            tenant_count: row.get("tenant_count"),
+        })
+        .collect();
+    
     Ok(Json(PaginatedUsersResponse {
-        data: filtered,
+        data: users,
         pagination: serde_json::json!({
             "page": page,
-            "perPage": per_page,
+            "per_page": per_page,
             "total": total,
-            "totalPages": (total as f64 / per_page as f64).ceil() as i64
+            "total_pages": (total as f64 / per_page as f64).ceil() as i64
         }),
     }))
 }
 
 /// Get platform user details
 async fn get_platform_user(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(user_id): Path<String>,
 ) -> Result<Json<PlatformUserDetailResponse>, ApiError> {
-    let users = USERS.lock().map_err(|_| ApiError::internal())?;
-    let user = users.iter().find(|u| u.id == user_id);
-    match user {
-        Some(user) => Ok(Json(get_platform_user_detail(user))),
-        None => Err(ApiError::NotFound),
+    // Validate UUID format
+    if uuid::Uuid::parse_str(&user_id).is_err() {
+        return Err(ApiError::BadRequest("Invalid user ID format".to_string()));
     }
-}
-
-fn get_platform_user_detail(user: &UserRecord) -> PlatformUserDetailResponse {
-    PlatformUserDetailResponse {
-        id: user.id.clone(),
-        email: user.email.clone(),
-        name: user.name.clone(),
-        email_verified: true,
-        status: user.status.clone(),
-        created_at: user.created_at.clone(),
-        updated_at: user.created_at.clone(),
-        last_login_at: Some("2024-02-08T09:00:00Z".to_string()),
-        tenants: user.memberships.clone(),
-        mfa_enabled: true,
-        failed_login_attempts: 0,
-    }
+    
+    // Fetch user details
+    let user_row = sqlx::query(
+        r#"
+        SELECT 
+            u.id,
+            u.email,
+            u.profile->>'name' as name,
+            u.email_verified,
+            u.status::text as status,
+            u.created_at,
+            u.updated_at,
+            u.last_login_at,
+            u.mfa_enabled,
+            u.failed_login_attempts
+        FROM users u
+        WHERE u.id = $1 AND u.deleted_at IS NULL
+        "#
+    )
+    .bind(&user_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get user: {}", e);
+        ApiError::internal()
+    })?;
+    
+    let user = match user_row {
+        Some(row) => row,
+        None => return Err(ApiError::NotFound),
+    };
+    
+    // Fetch tenant memberships
+    let memberships = sqlx::query(
+        r#"
+        SELECT 
+            t.id as tenant_id,
+            t.name as tenant_name,
+            t.slug as tenant_slug,
+            tu.role::text as role,
+            tu.created_at as joined_at
+        FROM tenant_users tu
+        JOIN tenants t ON tu.tenant_id = t.id
+        WHERE tu.user_id = $1
+        ORDER BY tu.created_at DESC
+        "#
+    )
+    .bind(&user_id)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get user memberships: {}", e);
+        ApiError::internal()
+    })?;
+    
+    let tenants: Vec<UserTenantMembership> = memberships
+        .into_iter()
+        .map(|row| UserTenantMembership {
+            tenant_id: row.get("tenant_id"),
+            tenant_name: row.get("tenant_name"),
+            tenant_slug: row.get("tenant_slug"),
+            role: row.get("role"),
+            joined_at: row.get::<chrono::DateTime<chrono::Utc>, _>("joined_at").to_rfc3339(),
+        })
+        .collect();
+    
+    Ok(Json(PlatformUserDetailResponse {
+        id: user.get("id"),
+        email: user.get("email"),
+        name: user.get("name"),
+        email_verified: user.get("email_verified"),
+        status: user.get("status"),
+        created_at: user.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        updated_at: user.get::<chrono::DateTime<chrono::Utc>, _>("updated_at").to_rfc3339(),
+        last_login_at: user.get::<Option<chrono::DateTime<chrono::Utc>>, _>("last_login_at")
+            .map(|dt| dt.to_rfc3339()),
+        tenants,
+        mfa_enabled: user.get("mfa_enabled"),
+        failed_login_attempts: user.get("failed_login_attempts"),
+    }))
 }

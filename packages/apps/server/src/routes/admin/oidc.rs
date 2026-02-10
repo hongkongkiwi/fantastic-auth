@@ -18,7 +18,7 @@
 
 use axum::{
     extract::{Path, State},
-    routing::{delete, get, patch, post},
+    routing::{get, post},
     Extension, Json, Router,
 };
 use chrono::Utc;
@@ -27,10 +27,6 @@ use sqlx::Row;
 
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
-use crate::oidc::{
-    ClientRegistrationRequest, ClientRegistrationResponse, ClientType,
-    GrantType, TokenEndpointAuthMethod,
-};
 
 /// Create admin OIDC routes
 pub fn routes() -> Router<AppState> {

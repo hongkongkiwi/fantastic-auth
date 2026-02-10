@@ -9,10 +9,10 @@ use sqlx::Row;
 use std::net::IpAddr;
 use uuid::Uuid;
 
-use vault_core::crypto::{Claims, HybridJwt, HybridSigningKey, TokenType, VaultPasswordHasher};
+use vault_core::crypto::{Claims, HybridJwt, TokenType, VaultPasswordHasher};
 use vault_core::error::{Result, VaultError};
 use vault_core::db::sessions::Session as DbSession;
-use vault_core::models::user::{User, UserProfile, UserStatus};
+use vault_core::models::user::{User, UserStatus};
 
 use crate::state::AppState;
 

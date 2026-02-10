@@ -5,7 +5,7 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -1009,24 +1009,27 @@ async fn list_sync_logs(
     let per_page = query.per_page.unwrap_or(20).min(100);
     let offset = (page - 1) * per_page;
 
-    let mut sql = String::from(
+    // SECURITY: Use QueryBuilder to prevent SQL injection
+    let mut query_builder = sqlx::QueryBuilder::new(
         "SELECT id::text, connection_id::text, sync_type, status, started_at, completed_at,
          users_found, users_created, users_updated, users_failed, groups_found,
          duration_ms, error_message, triggered_by
          FROM ldap_sync_logs 
-         WHERE connection_id = $1",
+         WHERE connection_id = "
     );
+    query_builder.push_bind(&connection_uuid);
 
     if let Some(status) = &query.status {
-        sql.push_str(&format!(" AND status = '{}'", status));
+        query_builder.push(" AND status = ");
+        query_builder.push_bind(status);
     }
 
-    sql.push_str(" ORDER BY started_at DESC LIMIT $2 OFFSET $3");
+    query_builder.push(" ORDER BY started_at DESC LIMIT ");
+    query_builder.push_bind(per_page);
+    query_builder.push(" OFFSET ");
+    query_builder.push_bind(offset);
 
-    let rows: Vec<SyncLogRow> = sqlx::query_as::<_, SyncLogRow>(&sql)
-        .bind(&connection_uuid)
-        .bind(per_page)
-        .bind(offset)
+    let rows: Vec<SyncLogRow> = query_builder.build_query_as::<SyncLogRow>()
         .fetch_all(state.db.pool())
         .await
         .map_err(|e| {

@@ -4,7 +4,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch},
     Extension, Json, Router,
 };
 use chrono::Utc;
@@ -196,10 +196,13 @@ async fn list_all_organizations(
         .await
         .map_err(|_| ApiError::internal())?;
 
-    let page = query.page.unwrap_or(1).max(1);
+    // SECURITY: Clamp page to prevent integer overflow and excessive resource usage
+    const MAX_PAGE: i64 = 10_000;
+    let page = query.page.unwrap_or(1).max(1).min(MAX_PAGE);
     let per_page = query.per_page.unwrap_or(20).clamp(1, 100);
 
-    let offset = (page - 1) * per_page;
+    // Use checked multiplication to prevent integer overflow
+    let offset = (page - 1).checked_mul(per_page).unwrap_or(i64::MAX);
 
     let total: i64 = if let Some(status) = query.status.as_deref() {
         sqlx::query_scalar(
@@ -391,6 +394,9 @@ async fn delete_organization(
 }
 
 /// List organization members
+/// 
+/// PERFORMANCE: Uses efficient JOIN query to fetch members and user details
+/// in a single database query, preventing N+1 query issues.
 async fn list_org_members(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -401,32 +407,26 @@ async fn list_org_members(
         .await
         .map_err(|_| ApiError::internal())?;
 
-    let members = state
+    // Use efficient JOIN query instead of N+1 individual lookups
+    let members_with_users = state
         .db
         .organizations()
-        .list_members(&current_user.tenant_id, &org_id)
+        .list_members_with_users(&current_user.tenant_id, &org_id)
         .await
         .map_err(|_| ApiError::internal())?;
 
-    let mut responses = Vec::new();
-    for member in members {
-        if let Ok(Some(user)) = state
-            .db
-            .users()
-            .find_by_id(&current_user.tenant_id, &member.user_id)
-            .await
-        {
-            responses.push(AdminOrganizationMemberResponse {
-                id: member.id,
-                user_id: member.user_id,
-                email: user.email,
-                name: user.profile.name,
-                role: member.role.as_str().to_string(),
-                status: member.status.as_str().to_string(),
-                joined_at: None,
-            });
-        }
-    }
+    let responses = members_with_users
+        .into_iter()
+        .map(|member| AdminOrganizationMemberResponse {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            name: member.user_name,
+            role: member.role,
+            status: member.status,
+            joined_at: Some(member.created_at.to_rfc3339()),
+        })
+        .collect();
 
     Ok(Json(responses))
 }

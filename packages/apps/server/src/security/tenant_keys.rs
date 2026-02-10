@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use base64::Engine;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -704,7 +703,7 @@ impl TenantKeyService {
             .arg(value)
             .arg("EX")
             .arg(ttl_secs as usize)
-            .query_async(&mut conn)
+            .query_async::<_, ()>(&mut conn)
             .await?;
         Ok(())
     }

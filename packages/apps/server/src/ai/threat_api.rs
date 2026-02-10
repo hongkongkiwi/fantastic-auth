@@ -6,7 +6,6 @@
 //! - Resolving threats
 //! - Anomaly reporting
 
-use std::sync::Arc;
 
 use axum::{
     extract::{Path, Query, State},
@@ -15,8 +14,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 
-use vault_core::ai::{Attack, AttackType, Anomaly, TimeWindow};
-use vault_core::ai::threat_detection::AttackSeverity;
+use vault_core::ai::{Attack, Anomaly, TimeWindow};
 
 use crate::routes::ApiError;
 use crate::state::AppState;

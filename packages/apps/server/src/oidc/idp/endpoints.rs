@@ -19,13 +19,12 @@ use axum::{
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::Utc;
-use serde::Deserialize;
 use sha2::Digest;
 
 use crate::middleware::auth::auth_middleware;
 use crate::oidc::idp::{
-    AuthorizationError, AuthorizationRequest, DiscoveryDocument, IntrospectRequest,
-    IntrospectResponse, Jwk, JwksResponse, OAuthErrorResponse, OidcIdentityProvider,
+    AuthorizationRequest, DiscoveryDocument, IntrospectRequest,
+    IntrospectResponse, Jwk, JwksResponse, OidcIdentityProvider,
     RevokeRequest, TokenRequest, TokenResponse, UserInfo,
 };
 use crate::routes::ApiError;
@@ -50,7 +49,7 @@ pub fn routes() -> Router<AppState> {
         .merge(auth_routes.layer(middleware::from_fn(oidc_auth_middleware)))
 }
 
-async fn oidc_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+async fn oidc_auth_middleware(request: Request, next: middleware::Next) -> Response {
     let state = match request.extensions().get::<AppState>().cloned() {
         Some(state) => state,
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -186,6 +185,17 @@ async fn authorize(
         .await
         .map_err(|_| ApiError::internal())?;
 
+    // SECURITY: Store OAuth state parameter in Redis for CSRF protection
+    // This prevents attackers from tricking users into completing authorization
+    // with the attacker's account by forging authorization responses.
+    // The state is associated with the authorization code for validation at token endpoint.
+    if let Some(ref state_param) = query.state {
+        if let Err(e) = state.store_oauth_state(&code, state_param).await {
+            tracing::warn!("Failed to store OAuth state in Redis: {}", e);
+            // Continue anyway - the state will just be echoed back without server-side validation
+        }
+    }
+
     // Build redirect URL with code
     let mut redirect_url = format!(
         "{}?code={}",
@@ -301,6 +311,16 @@ async fn handle_authorization_code_grant(
         if redirect_uri != &code_record.redirect_uri {
             return Err(ApiError::BadRequest("redirect_uri mismatch".to_string()));
         }
+    }
+
+    // SECURITY: Validate OAuth state parameter
+    // This prevents CSRF attacks by ensuring the state matches what was stored
+    // during the authorization request. The state is tied to the authorization code
+    // and validated at the token endpoint.
+    let (state_valid, should_enforce) = state.verify_oauth_state(&code, req.state.as_deref()).await;
+    if should_enforce && !state_valid {
+        tracing::warn!("OAuth state validation failed - possible CSRF attack");
+        return Err(ApiError::BadRequest("Invalid or expired state parameter".to_string()));
     }
 
     // Validate PKCE if code challenge was provided
@@ -696,6 +716,10 @@ fn extract_client_credentials(
 }
 
 /// Verify PKCE code verifier
+/// 
+/// SECURITY: Only S256 method is supported. The "plain" method is explicitly
+/// rejected as it is cryptographically broken and allows code interception attacks.
+/// Per OAuth 2.1 specification, S256 is the only required method.
 fn verify_pkce(verifier: &str, challenge: &str, method: &str) -> bool {
     match method.to_uppercase().as_str() {
         "S256" => {
@@ -703,7 +727,11 @@ fn verify_pkce(verifier: &str, challenge: &str, method: &str) -> bool {
             let computed = URL_SAFE_NO_PAD.encode(digest);
             computed == challenge
         }
-        "PLAIN" => verifier == challenge,
+        // SECURITY: Explicitly reject "plain" method - it's cryptographically broken
+        "PLAIN" => {
+            tracing::warn!("PKCE 'plain' method rejected - not supported for security reasons");
+            false
+        }
         _ => false,
     }
 }
@@ -763,11 +791,15 @@ mod tests {
     }
 
     #[test]
-    fn test_pkce_verification_plain() {
+    fn test_pkce_verification_plain_rejected() {
+        // SECURITY: The "plain" PKCE method is intentionally rejected as it is
+        // cryptographically broken. Only S256 should be supported.
         let verifier = "plain_challenge";
         
-        assert!(verify_pkce(verifier, verifier, "plain"));
+        // Plain method should ALWAYS return false (rejected for security)
+        assert!(!verify_pkce(verifier, verifier, "plain"));
         assert!(!verify_pkce(verifier, "different", "plain"));
+        assert!(!verify_pkce(verifier, verifier, "PLAIN"));
     }
 
     #[test]

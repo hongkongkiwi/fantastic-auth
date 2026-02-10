@@ -9,11 +9,10 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::mfa::push::{
     device::{DeviceInfo, RegisterDeviceRequest, RenameDeviceRequest},

@@ -34,7 +34,7 @@ pub fn routes() -> Router<AppState> {
         .merge(auth_routes.layer(middleware::from_fn(oidc_auth_middleware)))
 }
 
-async fn oidc_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+async fn oidc_auth_middleware(request: Request, next: middleware::Next) -> Response {
     let state = match request.extensions().get::<AppState>().cloned() {
         Some(state) => state,
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -243,6 +243,7 @@ async fn device_authorize(
     Form(req): Form<DeviceAuthorizeRequest>,
 ) -> Result<Json<DeviceAuthorizeResponse>, ApiError> {
     let tenant_id = extract_tenant_id(&headers);
+    let _requested_scope = req.scope.clone();
 
     // Ensure client exists
     let client = state
@@ -823,13 +824,16 @@ async fn revoke(
 ) -> Result<StatusCode, ApiError> {
     let tenant_id = extract_tenant_id(&headers);
 
-    let mut revoked = state
-        .auth_service
-        .db()
-        .oidc()
-        .revoke_token_by_refresh(&tenant_id, &req.token)
-        .await
-        .map_err(|_| ApiError::internal())?;
+    let mut revoked = match req.token_type_hint.as_deref() {
+        Some("refresh_token") => state
+            .auth_service
+            .db()
+            .oidc()
+            .revoke_token_by_refresh(&tenant_id, &req.token)
+            .await
+            .map_err(|_| ApiError::internal())?,
+        _ => false,
+    };
 
     if !revoked {
         if let Ok(claims) = HybridJwt::decode(&req.token, state.auth_service.verifying_key()) {
@@ -908,6 +912,10 @@ fn extract_client_credentials(headers: &HeaderMap, req: &TokenRequest) -> Result
     Ok((client_id, None))
 }
 
+/// Verify PKCE code verifier
+/// 
+/// SECURITY: Only S256 method is supported. The "plain" method is explicitly
+/// rejected as it is cryptographically broken and allows code interception attacks.
 fn verify_pkce(verifier: &str, challenge: Option<&str>, method: Option<&str>) -> bool {
     match (challenge, method) {
         (Some(challenge), Some(method)) if method.eq_ignore_ascii_case("S256") => {
@@ -915,7 +923,11 @@ fn verify_pkce(verifier: &str, challenge: Option<&str>, method: Option<&str>) ->
             let computed = URL_SAFE_NO_PAD.encode(digest);
             computed == challenge
         }
-        (Some(challenge), Some(method)) if method.eq_ignore_ascii_case("plain") => verifier == challenge,
+        // SECURITY: Explicitly reject "plain" method - it's cryptographically broken
+        (Some(_), Some(method)) if method.eq_ignore_ascii_case("plain") => {
+            tracing::warn!("PKCE 'plain' method rejected - not supported for security reasons");
+            false
+        }
         (Some(_), None) => false,
         _ => false,
     }

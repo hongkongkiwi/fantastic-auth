@@ -76,8 +76,6 @@ struct UpdateSettingsRequest {
 
 #[derive(Debug, Deserialize)]
 struct FcmCredentialsRequest {
-    #[serde(rename = "projectId")]
-    project_id: String,
     #[serde(rename = "serviceAccountJson")]
     service_account_json: String,
 }
@@ -696,12 +694,6 @@ async fn admin_remove_device(
     Extension(current_user): Extension<CurrentUser>,
     Path(device_id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let service = PushMfaService::new(
-        state.db.clone(),
-        state.redis.clone(),
-        crate::mfa::push::PushMfaConfig::default(),
-    );
-
     // Get device first to log user_id
     let device = sqlx::query("SELECT user_id FROM push_devices WHERE tenant_id = $1 AND id = $2")
         .bind(&current_user.tenant_id)

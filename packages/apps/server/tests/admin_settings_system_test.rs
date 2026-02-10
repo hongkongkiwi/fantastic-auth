@@ -1,4 +1,4 @@
-//! Real integration coverage for admin settings (legacy + v2) and system routes.
+//! Real integration coverage for admin settings and system routes.
 
 mod common;
 
@@ -7,7 +7,7 @@ use common::{assert_status, response_json, test_db_available, TestContext};
 use serde_json::json;
 
 #[tokio::test]
-async fn test_admin_legacy_settings_get_patch_and_mfa() {
+async fn test_admin_settings_root_and_legacy_mfa_endpoint_behavior() {
     if !test_db_available().await {
         eprintln!("Skipping test: database not available");
         return;
@@ -24,36 +24,33 @@ async fn test_admin_legacy_settings_get_patch_and_mfa() {
         .get_with_auth("/api/v1/admin/settings", &token)
         .await;
     assert_status(&get_settings, StatusCode::OK);
-    let before = response_json(get_settings).await;
-    assert!(before["id"].is_string());
-    assert!(before["settings"].is_object());
+    let settings_before = response_json(get_settings).await;
+    assert!(settings_before["settings"].is_object());
 
     let patch_settings = ctx
         .server
         .patch_with_auth(
             "/api/v1/admin/settings",
             json!({
-                "name": "Updated Tenant Name",
                 "settings": {
-                    "custom": {
-                        "featureFlag": true
-                    }
-                }
+                    "auth": settings_before["settings"]["auth"],
+                    "security": settings_before["settings"]["security"],
+                    "org": settings_before["settings"]["org"],
+                    "branding": settings_before["settings"]["branding"],
+                    "email": settings_before["settings"]["email"],
+                    "sms": settings_before["settings"]["sms"],
+                    "oauth": settings_before["settings"]["oauth"],
+                    "localization": settings_before["settings"]["localization"],
+                    "webhook": settings_before["settings"]["webhook"],
+                    "privacy": settings_before["settings"]["privacy"],
+                    "advanced": settings_before["settings"]["advanced"]
+                },
+                "reason": "root-settings-update-test"
             }),
             &token,
         )
         .await;
     assert_status(&patch_settings, StatusCode::OK);
-    let patched = response_json(patch_settings).await;
-    assert_eq!(patched["name"], "Updated Tenant Name");
-
-    let get_after = ctx
-        .server
-        .get_with_auth("/api/v1/admin/settings", &token)
-        .await;
-    assert_status(&get_after, StatusCode::OK);
-    let after = response_json(get_after).await;
-    assert_eq!(after["name"], "Updated Tenant Name");
 
     let patch_mfa = ctx
         .server
@@ -66,14 +63,11 @@ async fn test_admin_legacy_settings_get_patch_and_mfa() {
             &token,
         )
         .await;
-    assert_status(&patch_mfa, StatusCode::OK);
-    let mfa = response_json(patch_mfa).await;
-    assert_eq!(mfa["required"], true);
-    assert_eq!(mfa["allowedMethods"], json!(["totp", "webauthn"]));
+    assert_status(&patch_mfa, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-async fn test_admin_settings_v2_auth_update_history_and_public() {
+async fn test_admin_settings_auth_update_history_and_public() {
     if !test_db_available().await {
         eprintln!("Skipping test: database not available");
         return;
@@ -95,7 +89,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
 
     let get_auth = ctx
         .server
-        .get_with_auth("/api/v1/admin/settings/v2/auth", &token)
+        .get_with_auth("/api/v1/admin/settings/auth", &token)
         .await;
     assert_status(&get_auth, StatusCode::OK);
     let auth_before = response_json(get_auth).await;
@@ -108,7 +102,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
     let patch_auth = ctx
         .server
         .patch_with_auth(
-            "/api/v1/admin/settings/v2/auth?reason=integration-test",
+            "/api/v1/admin/settings/auth?reason=integration-test",
             auth_settings,
             &token,
         )
@@ -119,7 +113,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
 
     let get_auth_after = ctx
         .server
-        .get_with_auth("/api/v1/admin/settings/v2/auth", &token)
+        .get_with_auth("/api/v1/admin/settings/auth", &token)
         .await;
     assert_status(&get_auth_after, StatusCode::OK);
     let auth_after = response_json(get_auth_after).await;
@@ -127,7 +121,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
 
     let history = ctx
         .server
-        .get_with_auth("/api/v1/admin/settings/v2/history?category=auth", &token)
+        .get_with_auth("/api/v1/admin/settings/history?category=auth", &token)
         .await;
     assert_status(&history, StatusCode::OK);
     let history_body = response_json(history).await;
@@ -136,7 +130,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
 
     let public = ctx
         .server
-        .get_with_auth(&format!("/api/v1/admin/settings/v2/public/{}", tenant_id), &token)
+        .get_with_auth(&format!("/api/v1/admin/settings/public/{}", tenant_id), &token)
         .await;
     assert_status(&public, StatusCode::OK);
     let public_body = response_json(public).await;
@@ -147,7 +141,7 @@ async fn test_admin_settings_v2_auth_update_history_and_public() {
 }
 
 #[tokio::test]
-async fn test_admin_settings_v2_get_all_and_update_all() {
+async fn test_admin_settings_get_all_and_update_all() {
     if !test_db_available().await {
         eprintln!("Skipping test: database not available");
         return;
@@ -161,7 +155,7 @@ async fn test_admin_settings_v2_get_all_and_update_all() {
 
     let get_all = ctx
         .server
-        .get_with_auth("/api/v1/admin/settings/v2", &token)
+        .get_with_auth("/api/v1/admin/settings", &token)
         .await;
     assert_status(&get_all, StatusCode::OK);
     let all_before = response_json(get_all).await;
@@ -176,7 +170,7 @@ async fn test_admin_settings_v2_get_all_and_update_all() {
     let patch_all = ctx
         .server
         .patch_with_auth(
-            "/api/v1/admin/settings/v2",
+            "/api/v1/admin/settings",
             json!({
                 "settings": settings,
                 "reason": "update-all-test"

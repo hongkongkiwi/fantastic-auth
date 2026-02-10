@@ -6,8 +6,6 @@
 
 use crate::security::password_policy::PasswordHistoryChecker;
 use sqlx::PgPool;
-use std::sync::Arc;
-use std::time::Duration;
 
 /// Password history repository
 #[derive(Clone)]

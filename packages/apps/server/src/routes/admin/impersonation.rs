@@ -171,7 +171,7 @@ async fn start_impersonation(
         .map_err(|_| ApiError::internal())?;
 
     let audit = AuditLogger::new(state.db.clone());
-    let context = Some(RequestContext::from_request(
+    let _context = Some(RequestContext::from_request(
         &headers,
         Some(&ConnectInfo(addr)),
     ));

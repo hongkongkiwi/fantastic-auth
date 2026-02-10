@@ -60,7 +60,7 @@ pub use service_account::{
 };
 
 use chrono::{DateTime, Utc};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::Rng;
 
 /// M2M Authentication Service
 ///
@@ -248,7 +248,7 @@ impl M2mAuthService {
     ) -> Result<ServiceAccount, M2mError> {
         // Build dynamic update query
         let mut updates = Vec::new();
-        let mut params: Vec<Box<dyn sqlx::Encode<'static, sqlx::Postgres> + Send>> = Vec::new();
+        let params: Vec<Box<dyn sqlx::Encode<'static, sqlx::Postgres> + Send>> = Vec::new();
         let mut param_idx = 1;
 
         if request.name.is_some() {

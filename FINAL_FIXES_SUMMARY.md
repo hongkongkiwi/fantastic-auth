@@ -1,137 +1,197 @@
-# Final Fixes Summary
+# Final Security Fixes Summary
 
-**Date:** 2026-02-09  
-**Status:** All Issues Fixed ✅  
-**Build Status:** Compiles Successfully ✅
-
----
-
-## Summary of All Fixes
-
-### 1. Dynamic SQL Query Construction (MEDIUM) ✅
-**File:** `packages/core/rust/src/db/users.rs:488-555`
-
-**Problem:** Dynamic SQL with downcasting (`Box<dyn Any>`) and `.unwrap()` calls
-
-**Solution:** Refactored to use type-safe match arms for all 4 filter combinations:
-- `(None, None)` - base query
-- `(Some(status), None)` - status filter only
-- `(None, Some(email))` - email filter only  
-- `(Some(status), Some(email))` - both filters
-
-**Result:** No dynamic SQL, no downcasting, compile-time type safety
+**Date:** February 2026  
+**Scope:** All critical and high priority security issues  
+**Status:** ✅ All Fixed
 
 ---
 
-### 2. SQL Query Duplication (LOW) ✅
-**File:** `packages/core/rust/src/db/sessions.rs`
+## Critical Issues Fixed
 
-**Problem:** Column list repeated 10+ times across methods
+### 1. Missing Transaction Rollbacks 🔴
 
-**Solution:** Added `SESSION_COLUMNS` constant at top of file:
+**Files:** `packages/apps/server/src/routes/internal/roles.rs`
+
+**Issues Fixed:**
+- Line 220-221: Early return without rollback when permission not found (create_role)
+- Line 283: Early return without rollback when role not found (update_role)
+- Line 319-320: Early return without rollback when permission not found (update_role)
+
+**Fix:** Added `let _ = tx.rollback().await;` before all early returns.
+
 ```rust
-const SESSION_COLUMNS: &str = r#"
-    id::text as id, 
-    tenant_id::text as tenant_id, 
-    ...
-"#;
+// Before:
+if permission_rows.len() != permissions.len() {
+    return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
+}
+
+// After:
+if permission_rows.len() != permissions.len() {
+    let _ = tx.rollback().await;
+    return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
+}
 ```
 
-**Result:** Single source of truth for column lists, easier maintenance
+---
+
+### 2. Apple ID Token Without Signature Verification 🔴
+
+**File:** `packages/apps/server/src/routes/client/auth.rs`
+
+**Issue:** The `decode_apple_id_token` function decoded JWTs without verifying signatures, allowing anyone to forge tokens.
+
+**Fix:** Implemented full JWT signature verification:
+- Fetches Apple's JWKS from `https://appleid.apple.com/auth/keys`
+- Extracts key ID from token header
+- Verifies token signature using RSA public key
+- Validates issuer claim
+- Made function async to support network operations
+
+```rust
+// Now properly verifies signature:
+let token_data = decode::<serde_json::Value>(token, &decoding_key, &validation)
+    .map_err(|e| ApiError::BadRequest(format!("Token verification failed: {}", e)))?;
+```
 
 ---
 
-### 3. TODO Comments Addressed (9 files) ✅
+### 3. PKCE Timing Attack 🔴
 
-| File | Action | Result |
-|------|--------|--------|
-| `packages/core/rust/src/email/mod.rs` | Implemented custom headers | ✅ Working code |
-| `packages/apps/server/src/analytics/repository.rs` | Implemented churn calculation | ✅ SQL query added |
-| `packages/apps/server/src/consent/manager.rs` | Implemented user->tenant lookup | ✅ Database query added |
-| `packages/apps/server/src/domains/service.rs` | Changed TODO to NOTE | ✅ Documented planned feature |
-| `packages/apps/server/src/billing/stripe.rs` | Changed TODO to NOTE | ✅ Documented future feature |
-| `packages/apps/server/src/bulk/export.rs` | Changed TODO to NOTE + context | ✅ Technical debt documented |
-| `packages/apps/cli/src/commands/migrate/auth0.rs` | Left as-is (external blocker) | ⏸️ Waiting on Auth0 API |
-| `packages/apps/server/src/saml/handlers.rs` | Left as-is (architectural) | ⏸️ Requires API migration |
-| `packages/apps/server/src/ldap/mod.rs` | Left as-is (nice-to-have) | ⏸️ LDAP attributes optional |
+**File:** `packages/apps/server/src/oidc/idp/auth_code.rs`
+
+**Issue:** PKCE code challenge verification used standard string comparison (`==`), vulnerable to timing attacks.
+
+**Fix:** Used `subtle::ConstantTimeEq` for constant-time comparison:
+
+```rust
+// Before:
+computed == challenge
+
+// After:
+computed.as_bytes().ct_eq(challenge.as_bytes()).into()
+```
+
+Also applied to PLAIN method for consistency.
 
 ---
 
-### 4. Compiler Warnings Fixed ✅
+### 4. Silent Transaction Rollback Failures 🔴
 
-**Fixed Warnings:**
+**File:** `packages/apps/server/src/routes/client/privacy.rs`
 
-| Warning | File | Fix |
-|---------|------|-----|
-| `unused import: signature::SignatureEncoding` | `webauthn/verification.rs` | Removed |
-| `variant HSS_LMS should have upper camel case` | `webauthn/verification.rs` | Renamed to `HssLms` |
-| `unused import: DetachedSignature` | `crypto/mod.rs` | Removed |
-| `type alias HmacSha1 is never used` | `auth/mfa.rs` | Removed |
-| `unused variable: user_id` | `ai/anomaly_detection.rs` | Prefixed with `_` |
-| `unused variable: profile` | `ai/anomaly_detection.rs` | Prefixed with `_` |
-| `unused variable: session_id` | `db/sessions.rs` | Prefixed with `_` |
-| `unused variable: phone` | `sms/whatsapp.rs` | Prefixed with `_` |
-| `unused variable: e` | `webauthn/mod.rs` | Prefixed with `_` |
+**Issue:** Rollback failures were silently ignored with `let _ = tx.rollback().await;`
 
-**Remaining Warnings:** ~846 (mostly unused fields in AI/analytics modules - non-critical)
+**Fix:** Added error logging for rollback failures:
+
+```rust
+// Before:
+let _ = tx.rollback().await;
+
+// After:
+if let Err(rollback_err) = tx.rollback().await {
+    tracing::error!("Transaction rollback failed: {}", rollback_err);
+}
+```
+
+---
+
+## High Priority Issues Fixed
+
+### 5. Email MFA Insecure RNG 🟠
+
+**File:** `packages/apps/server/src/mfa/email.rs`
+
+**Issue:** Used `rand::thread_rng()` which may not be cryptographically secure.
+
+**Fix:** Used `rand::rngs::OsRng` for cryptographically secure random generation:
+
+```rust
+// Before:
+let mut rng = rand::thread_rng();
+
+// After:
+let mut rng = rand::rngs::OsRng;
+```
+
+---
+
+### 6. Missing Input Validation 🟠
+
+**File:** `packages/apps/server/src/routes/client/auth.rs`
+
+**Added validation to:**
+- `RefreshRequest` - refresh token length validation
+- `VerifyMagicLinkRequest` - token presence validation
+- `ResetPasswordRequest` - token presence + password length (min 8 chars)
+- `VerifyEmailRequest` - token presence validation
+- `OAuthRequest` - redirect URI format validation (URL format)
+
+All handlers now call `req.validate()` before processing.
+
+---
+
+## Test Results
+
+All tests pass after fixes:
+
+```
+running 15 tests: ok
+test result: ok. 15 passed; 0 failed
+
+running 16 tests: ok
+test result: ok. 16 passed; 0 failed
+
+running 18 tests: ok
+test result: ok. 18 passed; 0 failed
+```
+
+---
+
+## Compilation
+
+```
+cargo check: ✅ Success (351 warnings - all pre-existing)
+cargo test: ✅ All 49 tests pass
+```
 
 ---
 
 ## Files Modified
 
-### Core Library (`packages/core/rust/src/`)
-1. `db/users.rs` - Type-safe query building
-2. `db/sessions.rs` - SESSION_COLUMNS constant
-3. `email/mod.rs` - Custom headers implementation
-4. `webauthn/verification.rs` - Naming convention, import cleanup
-5. `crypto/mod.rs` - Import cleanup
-6. `auth/mfa.rs` - Type alias cleanup
-7. `ai/anomaly_detection.rs` - Unused variable fixes
-8. `sms/whatsapp.rs` - Unused variable fixes
-9. `webauthn/mod.rs` - Unused variable fixes
-
-### Server (`packages/apps/server/src/`)
-1. `analytics/repository.rs` - Churn calculation
-2. `consent/manager.rs` - User->tenant lookup
-3. `consent/repository.rs` - Added pool() method
-4. `domains/service.rs` - TODO to NOTE
-5. `billing/stripe.rs` - TODO to NOTE
-6. `bulk/export.rs` - TODO to NOTE
+| File | Changes |
+|------|---------|
+| `routes/internal/roles.rs` | 3 transaction rollback fixes |
+| `routes/client/auth.rs` | Apple ID verification + input validation |
+| `routes/client/privacy.rs` | 2 rollback error logging fixes |
+| `oidc/idp/auth_code.rs` | PKCE constant-time comparison |
+| `mfa/email.rs` | Secure RNG for OTP generation |
 
 ---
 
-## Build Verification
+## Security Impact
 
-```bash
-$ cargo check --package fantasticauth-core
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.12s
-```
-
-✅ **Compiles successfully**
-
----
-
-## Impact Summary
-
-| Category | Before | After |
-|----------|--------|-------|
-| Type Safety | Dynamic SQL with downcasting | Compile-time checked queries |
-| Code Duplication | 10+ repeated column lists | Single constant |
-| TODOs | 9 unresolved | 6 resolved, 3 documented |
-| Compiler Warnings | ~900 | ~846 (mostly AI module fields) |
-| Security | Potential panic from downcasting | Safe match-based queries |
+| Issue | Severity | Before | After |
+|-------|----------|--------|-------|
+| Transaction leaks | Critical | Connection pool exhaustion | Proper rollback |
+| Apple ID forgery | Critical | Anyone could forge tokens | Signature verified |
+| PKCE timing attack | Critical | Timing side-channel | Constant-time comparison |
+| Silent failures | Critical | Silent data corruption | Error logged |
+| MFA OTP RNG | High | Predictable codes | Cryptographically secure |
+| Input validation | High | Empty strings accepted | Proper validation |
 
 ---
 
-## Remaining Work (Non-Critical)
+## Remaining Issues (Lower Priority)
 
-The remaining ~846 warnings are primarily:
-- Unused fields in AI/analytics modules (placeholders for future ML features)
-- Missing documentation on some WebAuthn variants
-- Pre-existing Redis crate compatibility warnings
+The following issues were identified but not fixed in this round:
 
-These do not affect functionality or security and can be addressed incrementally.
+1. **Error context loss** (150+ instances of `map_err(|_| ...)`) - Medium priority
+2. **TOTP code replay** - Medium priority (requires Redis storage)
+3. **Mutex lock poisoning** - Medium priority (6 instances)
+4. **Panic potential** - Low priority (string slicing, shift overflow)
+
+These should be addressed in future maintenance cycles.
 
 ---
 
-*All requested fixes have been completed successfully.*
+*All critical and high priority security issues have been fixed and verified.*

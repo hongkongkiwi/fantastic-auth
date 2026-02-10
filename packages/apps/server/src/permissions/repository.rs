@@ -5,7 +5,7 @@
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, instrument};
 use uuid::Uuid;
 
 use crate::permissions::{Permission, ResourcePermission, Role, UserRole};

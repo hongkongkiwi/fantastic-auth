@@ -11,8 +11,7 @@
 
 use axum::{
     extract::{Extension, Path, Query, State},
-    routing::{delete, get, post, put},
-    Extension as _, Json, Router,
+    routing::{delete, get, post, put}, Json, Router,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};

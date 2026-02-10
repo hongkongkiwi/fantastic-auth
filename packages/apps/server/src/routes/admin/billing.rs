@@ -4,9 +4,8 @@
 //! These routes are only available when Stripe billing is enabled.
 
 use axum::{
-    extract::{Extension, Path, Query, State},
-    http::StatusCode,
-    routing::{delete, get, post, put},
+    extract::{Extension, State},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::Deserialize;

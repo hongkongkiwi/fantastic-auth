@@ -18,7 +18,7 @@
 use axum::{
     extract::{Extension, Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ use crate::{
     audit::{AuditAction, AuditLogger, ResourceType},
     m2m::{
         ApiKeyWithSecret, CreateApiKeyRequest, CreateServiceAccountRequest,
-        ServiceAccountCredentials, ServiceAccountSummary, ServiceAccount, UpdateServiceAccountRequest, UpdateApiKeyRequest,
+        ServiceAccountCredentials, ServiceAccountSummary, ServiceAccount, UpdateServiceAccountRequest,
     },
     routes::ApiError,
     state::{AppState, CurrentUser},
@@ -80,11 +80,6 @@ struct RotatedSecretResponse {
 struct RevokedKeysResponse {
     #[serde(rename = "revokedCount")]
     revoked_count: u64,
-}
-
-#[derive(Debug, Serialize)]
-struct MessageResponse {
-    message: String,
 }
 
 // ============ Handlers ============

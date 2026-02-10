@@ -10,7 +10,7 @@ use super::custom::{
 };
 use sqlx::PgPool;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 /// Custom domain service
 #[derive(Clone)]

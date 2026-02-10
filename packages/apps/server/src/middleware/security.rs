@@ -8,16 +8,15 @@
 //! - Request sanitization
 
 use axum::{
-    body::Body,
     extract::Request,
-    http::{header, HeaderValue, Method, StatusCode, Uri},
+    http::{header, HeaderValue, Method, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::time::Duration;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 // SECURITY: Compile regex once using once_cell to avoid recompilation overhead
 // and prevent potential DoS from repeated regex compilation
@@ -75,6 +74,20 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
     headers.insert(
         "X-Content-Type-Options",
         HeaderValue::from_static("nosniff"),
+    );
+
+    // Cache control - prevent caching of sensitive data
+    headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store, no-cache, must-revalidate, proxy-revalidate"),
+    );
+    headers.insert(
+        header::PRAGMA,
+        HeaderValue::from_static("no-cache"),
+    );
+    headers.insert(
+        header::EXPIRES,
+        HeaderValue::from_static("0"),
     );
 
     // XSS Protection

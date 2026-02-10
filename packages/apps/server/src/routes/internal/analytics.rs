@@ -22,9 +22,9 @@ pub fn routes() -> Router<AppState> {
 #[derive(Debug, Deserialize)]
 struct AnalyticsQuery {
     #[serde(rename = "startDate")]
-    start_date: Option<String>,
+    _start_date: Option<String>,
     #[serde(rename = "endDate")]
-    end_date: Option<String>,
+    _end_date: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

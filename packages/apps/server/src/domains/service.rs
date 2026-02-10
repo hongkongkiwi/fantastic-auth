@@ -12,7 +12,7 @@ use crate::domains::verification::{DnsVerifier, VerificationResult};
 use crate::webhooks::events as webhook_events;
 use sqlx::PgPool;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// Domain service for managing organization domains
 #[derive(Clone)]

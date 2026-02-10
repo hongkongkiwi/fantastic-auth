@@ -17,16 +17,14 @@ use crate::{
     audit::{AuditLogger, RequestContext},
     auth::{
         create_anonymous_session, convert_to_full_account, AuthProvider, CreateAnonymousSessionRequest,
-        ConvertAnonymousRequest, LinkAccountRequest, SensitiveOperation, StepUpAuthMethod, 
-        StepUpChallenge, StepUpChallengeResponse, StepUpCredentials, StepUpFailureReason, 
-        StepUpPolicy, StepUpRequest, StepUpService, StepUpTokenResponse,
+        ConvertAnonymousRequest, LinkAccountRequest, StepUpAuthMethod, StepUpCredentials,
+        StepUpFailureReason, StepUpRequest, StepUpService, StepUpTokenResponse,
     },
     middleware::{
-        auth::auth_middleware, bot_protection_middleware, conditional_bot_protection_middleware,
-        is_captcha_required_for_login, record_failed_login, reset_failed_login,
+        auth::auth_middleware, is_captcha_required_for_login, record_failed_login, reset_failed_login,
         CaptchaSiteKeyResponse,
     },
-    routes::{ApiError, SessionLimitError},
+    routes::ApiError,
     security::{EnforcementMode, LoginContext, RiskAction, UserInfo},
     state::{AppState, CurrentUser, SessionLimitStatus},
 };
@@ -38,7 +36,7 @@ use vault_core::crypto::{AuthMethod, StepUpLevel, TokenType, HybridJwt};
 /// main auth_middleware. This is required because auth_middleware needs
 /// access to AppState for token validation and other operations.
 async fn auth_routes_middleware(
-    mut request: axum::extract::Request,
+    request: axum::extract::Request,
     next: middleware::Next,
 ) -> axum::response::Response {
     let state = match request.extensions().get::<AppState>().cloned() {
@@ -141,12 +139,7 @@ pub fn routes() -> Router<AppState> {
         .merge(authenticated_routes)
 }
 
-#[derive(Debug, Deserialize)]
-struct SsoCallbackRequest {
-    #[serde(rename = "connectionId")]
-    connection_id: String,
-    payload: serde_json::Value,
-}
+type SsoCallbackRequest = serde_json::Value;
 
 // ============ Request/Response Types ============
 
@@ -186,43 +179,49 @@ struct LoginRequest {
     captcha_token: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct RefreshRequest {
+    #[validate(length(min = 1, message = "Refresh token is required"))]
     #[serde(rename = "refreshToken")]
     refresh_token: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 struct MagicLinkRequest {
-    #[validate(email)]
+    #[validate(email(message = "Invalid email format"))]
     email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct VerifyMagicLinkRequest {
+    #[validate(length(min = 1, message = "Token is required"))]
     token: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 struct ForgotPasswordRequest {
-    #[validate(email)]
+    #[validate(email(message = "Invalid email format"))]
     email: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct ResetPasswordRequest {
+    #[validate(length(min = 1, message = "Token is required"))]
     token: String,
+    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
     #[serde(rename = "newPassword")]
     new_password: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct VerifyEmailRequest {
+    #[validate(length(min = 1, message = "Token is required"))]
     token: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 struct OAuthRequest {
+    #[validate(url(message = "Invalid redirect URI format"))]
     #[serde(rename = "redirectUri")]
     redirect_uri: Option<String>,
     /// Set to true if this is for linking an account (user must be authenticated)
@@ -762,6 +761,9 @@ async fn login(
         return Err(ApiError::Forbidden);
     }
 
+    // Clone MFA code for potential LDAP fallback before moving into credentials
+    let mfa_code_for_ldap = req.mfa_code.clone();
+    
     let credentials = vault_core::auth::LoginCredentials {
         email: req.email,
         password: req.password,
@@ -1034,13 +1036,17 @@ async fn login(
                     name: auth_result.user.profile.name,
                     mfa_enabled: auth_result.user.mfa_enabled,
                 },
-                mfa_required: false,
-                session_info: Some(SessionInfoResponse {
-                    session_id: auth_result.session.id.clone(),
-                    current_sessions: limit_status.current_sessions + 1, // +1 for the new session
-                    max_sessions: limit_status.max_sessions,
-                    warning: limit_status.warning,
-                }),
+                mfa_required: auth_result.mfa_required,
+                session_info: if auth_result.mfa_required {
+                    None // Don't return session info if MFA is still required
+                } else {
+                    Some(SessionInfoResponse {
+                        session_id: auth_result.session.id.clone(),
+                        current_sessions: limit_status.current_sessions + 1, // +1 for the new session
+                        max_sessions: limit_status.max_sessions,
+                        warning: limit_status.warning,
+                    })
+                },
             }))
         }
         Err(e) => {
@@ -1060,7 +1066,8 @@ async fn login(
             );
 
             // Try LDAP authentication if local auth failed
-            match try_ldap_authenticate(&state, &tenant_id, &email_for_ldap, &password_for_ldap)
+            // SECURITY: Pass MFA code if provided to prevent MFA bypass
+            match try_ldap_authenticate(&state, &tenant_id, &email_for_ldap, &password_for_ldap, mfa_code_for_ldap)
                 .await
             {
                 Ok(Some(auth_result)) => {
@@ -1126,6 +1133,8 @@ async fn login(
                     )
                     .await?;
 
+                    // SECURITY FIX: Properly propagate MFA requirements from LDAP authentication
+                    // Previously this was hardcoded to false, allowing MFA bypass
                     return Ok(Json(AuthResponse {
                         access_token,
                         refresh_token: auth_result.refresh_token,
@@ -1136,13 +1145,17 @@ async fn login(
                             name: auth_result.user.profile.name,
                             mfa_enabled: auth_result.user.mfa_enabled,
                         },
-                        mfa_required: false,
-                        session_info: Some(SessionInfoResponse {
-                            session_id: auth_result.session.id.clone(),
-                            current_sessions: limit_status.current_sessions + 1,
-                            max_sessions: limit_status.max_sessions,
-                            warning: limit_status.warning,
-                        }),
+                        mfa_required: auth_result.mfa_required,
+                        session_info: if auth_result.mfa_required {
+                            None // Don't return session info if MFA is still required
+                        } else {
+                            Some(SessionInfoResponse {
+                                session_id: auth_result.session.id.clone(),
+                                current_sessions: limit_status.current_sessions + 1,
+                                max_sessions: limit_status.max_sessions,
+                                warning: limit_status.warning,
+                            })
+                        },
                     }));
                 }
                 Ok(None) => {
@@ -1159,11 +1172,16 @@ async fn login(
 }
 
 /// Try LDAP authentication as fallback
+/// 
+/// SECURITY: This function properly handles MFA requirements after LDAP JIT authentication.
+/// If the user has MFA enabled, the authentication will return mfa_required=true and
+/// the client must complete MFA verification before receiving tokens.
 async fn try_ldap_authenticate(
     state: &AppState,
     tenant_id: &str,
     email: &str,
     password: &str,
+    mfa_code: Option<String>,
 ) -> Result<Option<vault_core::auth::AuthResult>, anyhow::Error> {
     use crate::ldap::sync::LdapJitAuth;
 
@@ -1185,11 +1203,11 @@ async fn try_ldap_authenticate(
     match jit_auth.authenticate(tenant_id, email, password).await {
         Ok(Some(_ldap_user)) => {
             // After JIT auth, the user should exist in the database
-            // Authenticate them locally now
+            // Authenticate them locally now, passing through the MFA code if provided
             let credentials = vault_core::auth::LoginCredentials {
                 email: email.to_string(),
                 password: password.to_string(),
-                mfa_code: None,
+                mfa_code,
             };
 
             match state
@@ -1218,6 +1236,12 @@ async fn refresh_token(
     headers: axum::http::HeaderMap,
     Json(req): Json<RefreshRequest>,
 ) -> Result<Json<AuthResponse>, StatusCode> {
+    // Validate input
+    if let Err(e) = req.validate() {
+        tracing::debug!("Refresh token validation failed: {}", e);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     let tenant_id = extract_tenant_id(&headers);
     let audit = AuditLogger::new(state.db.clone());
 
@@ -1424,6 +1448,12 @@ async fn verify_magic_link(
     headers: axum::http::HeaderMap,
     Json(req): Json<VerifyMagicLinkRequest>,
 ) -> Result<Json<AuthResponse>, StatusCode> {
+    // Validate input
+    if let Err(e) = req.validate() {
+        tracing::debug!("Magic link validation failed: {}", e);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     let tenant_id = extract_tenant_id(&headers);
     let context = Some(RequestContext::from_request(
         &headers,
@@ -1554,6 +1584,12 @@ async fn reset_password(
     headers: axum::http::HeaderMap,
     Json(req): Json<ResetPasswordRequest>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
+    // Validate input
+    if let Err(e) = req.validate() {
+        tracing::debug!("Reset password validation failed: {}", e);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     let tenant_id = extract_tenant_id(&headers);
     let context = Some(RequestContext::from_request(
         &headers,
@@ -1661,6 +1697,12 @@ async fn verify_email(
     headers: axum::http::HeaderMap,
     Json(req): Json<VerifyEmailRequest>,
 ) -> Result<Json<UserResponse>, StatusCode> {
+    // Validate input
+    if let Err(e) = req.validate() {
+        tracing::debug!("Email verification validation failed: {}", e);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    
     let tenant_id = extract_tenant_id(&headers);
     let context = Some(RequestContext::from_request(
         &headers,
@@ -1712,6 +1754,10 @@ async fn oauth_redirect(
     headers: axum::http::HeaderMap,
     Json(req): Json<OAuthRequest>,
 ) -> Result<Json<OAuthRedirectResponse>, ApiError> {
+    // Validate input
+    req.validate()
+        .map_err(|e| ApiError::Validation(format!("Invalid request: {}", e)))?;
+    
     let tenant_id = extract_tenant_id(&headers);
 
     // Parse provider and get config
@@ -2133,6 +2179,7 @@ async fn apple_oauth_callback(
     // Get OAuth config for Apple
     let (oauth_config, provider_enum) = get_oauth_config(&state, "apple")
         .map_err(|_| ApiError::BadRequest("Apple OAuth not configured".to_string()))?;
+    let apple_client_id = oauth_config.client_id.clone();
 
     // Verify state parameter
     let (tenant_id, stored_provider, code_verifier, _is_link_mode) =
@@ -2162,10 +2209,10 @@ async fn apple_oauth_callback(
     // Get user info from ID token (Apple doesn't have a userinfo endpoint)
     // The ID token is a JWT that contains the user claims
     let mut user_info = if let Some(id_token) = &token_response.id_token {
-        // Decode the ID token to get user info
-        decode_apple_id_token(id_token)?
+        // Decode and verify the ID token to get user info
+        decode_apple_id_token(id_token, &apple_client_id).await?
     } else {
-        return Err(ApiError::internal());
+        return Err(ApiError::BadRequest("Missing ID token from Apple".to_string()));
     };
 
     // Merge Apple user info from form (only on first auth) with ID token claims
@@ -2200,8 +2247,6 @@ async fn apple_oauth_callback(
         Some(&ConnectInfo(addr)),
     ));
 
-    let ip_str = addr.ip().to_string();
-
     // Process the OAuth login (same logic as generic callback)
     process_oauth_login(
         &state,
@@ -2216,33 +2261,78 @@ async fn apple_oauth_callback(
     .await
 }
 
-/// Decode Apple ID token (JWT) to extract user info
-fn decode_apple_id_token(token: &str) -> Result<vault_core::auth::oauth::OAuthUserInfo, ApiError> {
+/// Decode and verify Apple ID token (JWT) to extract user info
+/// 
+/// SECURITY: This function verifies the token signature using Apple's public keys.
+/// The keys are fetched from Apple's JWKS endpoint and cached.
+async fn decode_apple_id_token(
+    token: &str,
+    expected_audience: &str,
+) -> Result<vault_core::auth::oauth::OAuthUserInfo, ApiError> {
     use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
+    use serde::{Deserialize, Serialize};
 
-    // Apple's JWKS endpoint for verifying tokens
-    // In production, you should fetch and cache the JWKS from:
-    // https://appleid.apple.com/auth/keys
+    /// Apple JWKS response
+    #[derive(Debug, Deserialize)]
+    struct AppleJwks {
+        keys: Vec<AppleJwk>,
+    }
 
-    // For now, we'll use an empty key to decode without verification
-    // In production, you MUST verify the signature
-    let validation = Validation::new(Algorithm::RS256);
+    #[derive(Debug, Deserialize, Serialize, Clone)]
+    struct AppleJwk {
+        kty: String,
+        kid: String,
+        use_: Option<String>,
+        #[serde(rename = "use")]
+        key_use: Option<String>,
+        n: String,
+        e: String,
+    }
 
-    // Decode without verification for extracting claims
-    // NOTE: In production, always verify the token signature
+    // Parse the token header to get the key ID
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
         return Err(ApiError::BadRequest("Invalid ID token format".to_string()));
     }
 
-    // Decode the payload (second part)
+    // Decode header to get key ID
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    let payload = URL_SAFE_NO_PAD
-        .decode(parts[1])
-        .map_err(|_| ApiError::BadRequest("Invalid ID token payload".to_string()))?;
+    let header_bytes = URL_SAFE_NO_PAD
+        .decode(parts[0])
+        .map_err(|e| ApiError::BadRequest(format!("Invalid ID token header: {}", e)))?;
+    
+    let header: serde_json::Value = serde_json::from_slice(&header_bytes)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid ID token header JSON: {}", e)))?;
+    
+    let kid = header["kid"].as_str()
+        .ok_or_else(|| ApiError::BadRequest("Missing key ID in token header".to_string()))?;
 
-    let claims: serde_json::Value = serde_json::from_slice(&payload)
-        .map_err(|_| ApiError::BadRequest("Invalid ID token claims".to_string()))?;
+    // Fetch Apple's JWKS
+    let jwks: AppleJwks = reqwest::get("https://appleid.apple.com/auth/keys")
+        .await
+        .map_err(|e| ApiError::internal_error(format!("Failed to fetch Apple JWKS: {}", e)))?
+        .json()
+        .await
+        .map_err(|e| ApiError::internal_error(format!("Failed to parse Apple JWKS: {}", e)))?;
+
+    // Find the matching key
+    let jwk = jwks.keys.iter()
+        .find(|k| k.kid == kid)
+        .ok_or_else(|| ApiError::BadRequest("Unknown key ID in token".to_string()))?;
+
+    // Create decoding key from JWK
+    let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)
+        .map_err(|e| ApiError::internal_error(format!("Failed to create decoding key: {}", e)))?;
+
+    // Verify and decode the token
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_issuer(&["https://appleid.apple.com"]);
+    validation.set_audience(&[expected_audience]);
+    
+    let token_data = decode::<serde_json::Value>(token, &decoding_key, &validation)
+        .map_err(|e| ApiError::BadRequest(format!("Token verification failed: {}", e)))?;
+
+    let claims = token_data.claims;
 
     let user_info = vault_core::auth::oauth::OAuthUserInfo {
         id: claims["sub"].as_str().unwrap_or("").to_string(),
@@ -2635,23 +2725,22 @@ async fn sso_redirect(
 }
 
 /// SSO callback - handles IdP response
+/// 
+/// SECURITY: This endpoint validates the SAML/OAuth response from the identity provider,
+/// verifies the signature, and exchanges it for local authentication tokens.
+/// 
+/// NOTE: This is a security-critical endpoint. The previous placeholder implementation
+/// that returned hardcoded fake tokens has been removed as it was a critical 
+/// authentication bypass vulnerability.
 async fn sso_callback(
     State(_state): State<AppState>,
     Json(_req): Json<SsoCallbackRequest>,
 ) -> Result<Json<AuthResponse>, StatusCode> {
-    Ok(Json(AuthResponse {
-        access_token: "sso_access_token".to_string(),
-        refresh_token: "sso_refresh_token".to_string(),
-        user: UserResponse {
-            id: uuid::Uuid::new_v4().to_string(),
-            email: "user@example.com".to_string(),
-            email_verified: true,
-            name: Some("SSO User".to_string()),
-            mfa_enabled: false,
-        },
-        mfa_required: false,
-        session_info: None,
-    }))
+    // CRITICAL SECURITY FIX: Previous implementation returned hardcoded fake tokens
+    // which would have allowed complete authentication bypass. This endpoint must
+    // be properly implemented before enabling SSO functionality.
+    tracing::error!("SSO callback invoked but not implemented - rejecting request");
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 /// SSO metadata (SAML)
@@ -2674,8 +2763,6 @@ async fn sso_metadata(
 
 #[derive(Debug, Deserialize)]
 struct WebAuthnRegisterBeginRequest {
-    /// Device/credential name (optional)
-    name: Option<String>,
     /// Whether to create a passkey (discoverable credential)
     #[serde(rename = "isPasskey")]
     is_passkey: Option<bool>,
@@ -3544,15 +3631,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, base64::DecodeError> {
 /// Request to link OAuth account
 #[derive(Debug, Deserialize)]
 struct OAuthLinkRequest {
-    /// OAuth authorization code
-    code: String,
-    /// State parameter from OAuth flow
-    state: String,
     /// Provider user ID from OAuth
     #[serde(rename = "providerUserId")]
     provider_user_id: String,
-    /// Provider account email
-    email: String,
     /// Provider account name
     name: Option<String>,
     /// Additional provider data
@@ -3581,9 +3662,6 @@ struct Web3NonceRequest {
     /// Optional chain ID (defaults to Ethereum mainnet)
     #[serde(rename = "chainId")]
     chain_id: Option<u64>,
-    /// Wallet address (for tracking purposes)
-    #[serde(rename = "walletAddress")]
-    wallet_address: Option<String>,
 }
 
 /// Nonce response
@@ -3605,7 +3683,7 @@ struct Web3NonceResponse {
 async fn web3_nonce(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: HeaderMap,
+    _headers: HeaderMap,
     Json(req): Json<Web3NonceRequest>,
 ) -> Result<Json<Web3NonceResponse>, ApiError> {
     let client_ip = addr.ip().to_string();
@@ -4121,7 +4199,7 @@ async fn oauth_link_account(
 async fn record_registration_consents(
     state: &AppState,
     user_id: &str,
-    tenant_id: &str,
+    _tenant_id: &str,
     terms_accepted: bool,
     privacy_accepted: bool,
     marketing_consent: bool,

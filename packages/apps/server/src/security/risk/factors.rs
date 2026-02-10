@@ -9,7 +9,6 @@
 //! - Credential risk (breached password)
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::sync::Arc;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};

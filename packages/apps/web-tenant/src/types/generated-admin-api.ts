@@ -725,7 +725,7 @@ export interface paths {
         patch: operations["updateMfaSettings"];
         trace?: never;
     };
-    "/settings/v2/security": {
+    "/settings/security": {
         parameters: {
             query?: never;
             header?: never;
@@ -743,7 +743,7 @@ export interface paths {
         patch: operations["updateSecuritySettings"];
         trace?: never;
     };
-    "/settings/v2/privacy": {
+    "/settings/privacy": {
         parameters: {
             query?: never;
             header?: never;
@@ -761,7 +761,7 @@ export interface paths {
         patch: operations["updatePrivacySettings"];
         trace?: never;
     };
-    "/settings/v2/branding": {
+    "/settings/branding": {
         parameters: {
             query?: never;
             header?: never;
@@ -779,7 +779,7 @@ export interface paths {
         patch: operations["updateBrandingSettingsV2"];
         trace?: never;
     };
-    "/settings/v2/email": {
+    "/settings/email": {
         parameters: {
             query?: never;
             header?: never;

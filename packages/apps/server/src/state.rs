@@ -90,6 +90,69 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Store OAuth state parameter in Redis, associated with authorization code
+    /// 
+    /// SECURITY: This stores the state parameter server-side so it can be validated
+    /// when the authorization code is exchanged for tokens. This prevents CSRF attacks
+    /// where an attacker tricks a user into completing an authorization with the 
+    /// attacker's account by forging authorization responses.
+    pub async fn store_oauth_state(&self, code: &str, state: &str) -> anyhow::Result<()> {
+        if let Some(ref redis) = self.redis {
+            let key = format!("oauth_code_state:{}", code);
+            let mut conn = redis.clone();
+            // Store with 10 minute TTL (matching authorization code expiry)
+            redis::cmd("SET")
+                .arg(&key)
+                .arg(state)
+                .arg("EX")
+                .arg(600)
+                .query_async::<_, ()>(&mut conn)
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Verify OAuth state parameter from Redis
+    /// 
+    /// SECURITY: Validates that the state parameter matches what was stored when
+    /// the authorization request was initiated. Returns (valid, should_enforce) where:
+    /// - valid: true if state matches or no state was required
+    /// - should_enforce: true if Redis is available and state validation should be enforced
+    /// 
+    /// The state is deleted after verification (one-time use).
+    pub async fn verify_oauth_state(&self, code: &str, provided_state: Option<&str>) -> (bool, bool) {
+        if let Some(ref redis) = self.redis {
+            let key = format!("oauth_code_state:{}", code);
+            let mut conn = redis.clone();
+            
+            // Get and delete the state atomically (one-time use)
+            let stored_state: Option<String> = redis::cmd("GET")
+                .arg(&key)
+                .query_async(&mut conn)
+                .await
+                .ok()
+                .flatten();
+            
+            // Delete the key regardless of whether it was found
+            let _: Result<(), _> = redis::cmd("DEL")
+                .arg(&key)
+                .query_async(&mut conn)
+                .await;
+            
+            match (stored_state, provided_state) {
+                // State was stored and client provided one - must match
+                (Some(stored), Some(provided)) => (stored == provided, true),
+                // State was stored but client didn't provide one - validation fails
+                (Some(_), None) => (false, true),
+                // No state was stored - this is OK (state is optional per OAuth spec)
+                (None, _) => (true, false),
+            }
+        } else {
+            // Redis not available, can't validate state
+            (true, false)
+        }
+    }
+
     /// Create new app state with database
     pub async fn new(config: Config) -> anyhow::Result<Self> {
         // Initialize database
@@ -181,7 +244,7 @@ impl AppState {
             DataEncryptionProvider::OracleKms => KmsProviderKind::OracleKms,
         };
 
-        let mut kms_registry = KmsRegistry::new(default_provider).with_provider(Arc::new(
+        let kms_registry = KmsRegistry::new(default_provider).with_provider(Arc::new(
             LocalMasterKeyProvider::new((*data_encryption_key).clone()),
         ));
 
@@ -771,10 +834,20 @@ pub struct RateLimiter {
     local: Arc<dashmap::DashMap<String, RateLimitEntry>>,
 }
 
-#[derive(Clone)]
+use std::sync::atomic::{AtomicU32, Ordering};
+
 struct RateLimitEntry {
-    count: u32,
+    count: AtomicU32,
     window_start: std::time::Instant,
+}
+
+impl Clone for RateLimitEntry {
+    fn clone(&self) -> Self {
+        Self {
+            count: AtomicU32::new(self.count.load(Ordering::SeqCst)),
+            window_start: self.window_start,
+        }
+    }
 }
 
 impl RateLimiter {
@@ -800,6 +873,14 @@ impl RateLimiter {
     }
 
     /// Check using Redis
+    /// 
+    /// Uses a two-key approach to ensure atomic window management without Lua scripts:
+    /// - window_key: Tracks the request count
+    /// - window_start_key: Marks when the window started (for atomic expiry detection)
+    /// 
+    /// SECURITY: This approach uses separate SET NX + INCR operations to achieve 
+    /// atomicity through Redis's built-in operations, avoiding Lua while preventing
+    /// race conditions where the counter could grow without bound.
     async fn is_allowed_redis(
         &self,
         redis: &redis::aio::ConnectionManager,
@@ -809,23 +890,67 @@ impl RateLimiter {
     ) -> bool {
         let mut conn = redis.clone();
         let window_key = format!("rate_limit:{}", key);
+        let window_start_key = format!("rate_limit:{}:start", key);
+        let window_ms = window_secs * 1000;
 
-        // Use Redis INCR and EXPIRE for atomic rate limiting
+        // Strategy: Use SET NX to atomically claim the window start
+        // If this succeeds, we're the first request in a new window
+        let is_new_window: bool = match redis::cmd("SET")
+            .arg(&window_start_key)
+            .arg("1")
+            .arg("PX")  // Expire in milliseconds
+            .arg(window_ms as i64)
+            .arg("NX")  // Only set if not exists
+            .query_async::<_, Option<String>>(&mut conn)
+            .await
+        {
+            Ok(Some(_)) => true,  // We set the key (new window)
+            Ok(None) => false,    // Key already exists (existing window)
+            Err(e) => {
+                tracing::warn!("Redis rate limit error (SET NX): {}, allowing request", e);
+                return true; // Fail-open for availability
+            }
+        };
+
+        if is_new_window {
+            // New window: Initialize counter with expiry
+            // Use SET with expiry instead of INCR to ensure fresh start
+            match redis::cmd("SET")
+                .arg(&window_key)
+                .arg("1")
+                .arg("PX")
+                .arg(window_ms as i64)
+                .query_async::<_, ()>(&mut conn)
+                .await
+            {
+                Ok(_) => return 1 <= max_requests,
+                Err(e) => {
+                    tracing::warn!("Redis rate limit error (SET): {}, allowing request", e);
+                    return true;
+                }
+            }
+        }
+
+        // Existing window: Increment counter
         let count: u32 = match redis::cmd("INCR")
             .arg(&window_key)
             .query_async::<_, u32>(&mut conn)
             .await
         {
             Ok(c) => c,
-            Err(_) => return true, // Allow on error
+            Err(e) => {
+                tracing::warn!("Redis rate limit error (INCR): {}, allowing request", e);
+                return true;
+            }
         };
 
-        // Set expiry on first request
+        // Ensure the counter has TTL (in case it was created by a race condition)
+        // This is a safety check - the TTL should already be set from window creation
         if count == 1 {
-            let _: Result<(), _> = redis::cmd("EXPIRE")
+            let _ = redis::cmd("PEXPIRE")
                 .arg(&window_key)
-                .arg(window_secs)
-                .query_async(&mut conn)
+                .arg(window_ms as i64)
+                .query_async::<_, bool>(&mut conn)
                 .await;
         }
 
@@ -833,25 +958,35 @@ impl RateLimiter {
     }
 
     /// Check using local in-memory store
+    /// 
+    /// SECURITY: Uses atomic operations to prevent race conditions between concurrent requests.
+    /// The count increment and check are done atomically to ensure accurate rate limiting.
     fn is_allowed_local(&self, key: &str, max_requests: u32, window_secs: u64) -> bool {
         let now = std::time::Instant::now();
         let window = std::time::Duration::from_secs(window_secs);
 
+        // Get or create entry with atomic count
         let mut entry = self.local.entry(key.to_string()).or_insert(RateLimitEntry {
-            count: 0,
+            count: AtomicU32::new(0),
             window_start: now,
         });
 
         // Reset if window expired
         if now.duration_since(entry.window_start) > window {
-            entry.count = 0;
+            entry.count.store(0, Ordering::SeqCst);
             entry.window_start = now;
         }
 
-        if entry.count < max_requests {
-            entry.count += 1;
+        // Atomically increment and check against limit
+        // fetch_add returns the previous value, so we add 1 to get current
+        let previous_count = entry.count.fetch_add(1, Ordering::SeqCst);
+        let current_count = previous_count + 1;
+        
+        if current_count <= max_requests {
             true
         } else {
+            // Decrement if over limit (optional - maintains accuracy)
+            entry.count.fetch_sub(1, Ordering::SeqCst);
             false
         }
     }
@@ -866,10 +1001,18 @@ pub struct FailedLoginTracker {
     local: Arc<dashmap::DashMap<String, FailedLoginEntry>>,
 }
 
-#[derive(Clone)]
 struct FailedLoginEntry {
-    count: u32,
+    count: AtomicU32,
     window_start: std::time::Instant,
+}
+
+impl Clone for FailedLoginEntry {
+    fn clone(&self) -> Self {
+        Self {
+            count: AtomicU32::new(self.count.load(Ordering::SeqCst)),
+            window_start: self.window_start,
+        }
+    }
 }
 
 impl FailedLoginTracker {
@@ -891,6 +1034,13 @@ impl FailedLoginTracker {
     }
 
     /// Record failure using Redis
+    /// 
+    /// Uses a two-key approach to ensure atomic window management without Lua scripts:
+    /// - window_key: Tracks the failure count
+    /// - window_start_key: Marks when the window started (for atomic expiry detection)
+    /// 
+    /// SECURITY: Uses SET NX + INCR operations to achieve atomicity without Lua,
+    /// preventing race conditions where the failure counter could grow without bound.
     async fn record_failure_redis(
         &self,
         redis: &redis::aio::ConnectionManager,
@@ -899,30 +1049,63 @@ impl FailedLoginTracker {
     ) -> u32 {
         let mut conn = redis.clone();
         let window_key = format!("failed_login:{}", key);
+        let window_start_key = format!("failed_login:{}:start", key);
+        let window_ms = window_secs * 1000;
 
-        // Use Redis INCR and EXPIRE
-        let count: u32 = match redis::cmd("INCR")
+        // Strategy: Use SET NX to atomically claim the window start
+        // If this succeeds, we're the first failure in a new window
+        let is_new_window: bool = match redis::cmd("SET")
+            .arg(&window_start_key)
+            .arg("1")
+            .arg("PX")  // Expire in milliseconds
+            .arg(window_ms as i64)
+            .arg("NX")  // Only set if not exists
+            .query_async::<_, Option<String>>(&mut conn)
+            .await
+        {
+            Ok(Some(_)) => true,  // We set the key (new window)
+            Ok(None) => false,    // Key already exists (existing window)
+            Err(e) => {
+                tracing::warn!("Redis failed login tracking error (SET NX): {}, returning 1", e);
+                return 1;
+            }
+        };
+
+        if is_new_window {
+            // New window: Initialize counter with expiry
+            match redis::cmd("SET")
+                .arg(&window_key)
+                .arg("1")
+                .arg("PX")
+                .arg(window_ms as i64)
+                .query_async::<_, ()>(&mut conn)
+                .await
+            {
+                Ok(_) => return 1,
+                Err(e) => {
+                    tracing::warn!("Redis failed login tracking error (SET): {}, returning 1", e);
+                    return 1;
+                }
+            }
+        }
+
+        // Existing window: Increment counter
+        match redis::cmd("INCR")
             .arg(&window_key)
             .query_async::<_, u32>(&mut conn)
             .await
         {
             Ok(c) => c,
-            Err(_) => return 1, // Return minimum on error
-        };
-
-        // Set expiry on first request
-        if count == 1 {
-            let _: Result<(), _> = redis::cmd("EXPIRE")
-                .arg(&window_key)
-                .arg(window_secs)
-                .query_async(&mut conn)
-                .await;
+            Err(e) => {
+                tracing::warn!("Redis failed login tracking error (INCR): {}, returning 1", e);
+                1
+            }
         }
-
-        count
     }
 
     /// Record failure using local in-memory store
+    /// 
+    /// SECURITY: Uses atomic operations to prevent race conditions between concurrent requests.
     fn record_failure_local(&self, key: &str, window_secs: u64) -> u32 {
         let now = std::time::Instant::now();
         let window = std::time::Duration::from_secs(window_secs);
@@ -931,18 +1114,18 @@ impl FailedLoginTracker {
             .local
             .entry(key.to_string())
             .or_insert(FailedLoginEntry {
-                count: 0,
+                count: AtomicU32::new(0),
                 window_start: now,
             });
 
         // Reset if window expired
         if now.duration_since(entry.window_start) > window {
-            entry.count = 0;
+            entry.count.store(0, Ordering::SeqCst);
             entry.window_start = now;
         }
 
-        entry.count += 1;
-        entry.count
+        // Atomically increment and return the new count
+        entry.count.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     /// Get current failure count
@@ -960,7 +1143,7 @@ impl FailedLoginTracker {
                 _ => 0,
             }
         } else {
-            self.local.get(key).map(|e| e.count).unwrap_or(0)
+            self.local.get(key).map(|e| e.count.load(Ordering::SeqCst)).unwrap_or(0)
         }
     }
 

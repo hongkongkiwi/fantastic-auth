@@ -5,7 +5,7 @@
 //! - Request/response logging
 //! - Performance metrics tracking
 
-use axum::{body::Body, extract::Request, middleware::Next, response::Response};
+use axum::{extract::Request, middleware::Next, response::Response};
 use std::time::Instant;
 use tracing::{info_span, Instrument};
 use tracing_subscriber::Layer;

@@ -5,7 +5,7 @@
 //! integration with identity providers like Okta, Azure AD, etc.
 
 use axum::{
-    extract::{Request, State},
+    extract::Request,
     http::{header, StatusCode},
     middleware::Next,
     response::Response,
@@ -14,7 +14,6 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::FromRow;
-use std::sync::Arc;
 
 use crate::state::AppState;
 use vault_core::db::set_connection_context;

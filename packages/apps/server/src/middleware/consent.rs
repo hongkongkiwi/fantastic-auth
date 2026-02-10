@@ -4,7 +4,6 @@
 //! Blocks operations if required consent is not granted.
 
 use axum::{
-    body::Body,
     extract::{Request, State},
     http::StatusCode,
     middleware::Next,
@@ -12,10 +11,9 @@ use axum::{
     Json,
 };
 use serde::Serialize;
-use std::sync::Arc;
 
 use crate::{
-    consent::{ConsentManager, ConsentRequirement, ConsentResult, ConsentType},
+    consent::{ConsentManager, ConsentRequirement, ConsentType},
     state::{AppState, CurrentUser},
 };
 

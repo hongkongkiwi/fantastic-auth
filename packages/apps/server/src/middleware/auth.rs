@@ -11,7 +11,7 @@ use vault_core::crypto::{Claims, HybridJwt, TokenType};
 
 use crate::audit::{AuditLogger, RequestContext};
 use crate::security::{
-    parse_device_info, BindingAction, BindingRequestContext, BindingResult, SessionBindingChecker,
+    BindingAction, BindingRequestContext, BindingResult, SessionBindingChecker,
     SessionBindingConfig, SessionBindingInfo,
 };
 use crate::state::{AppState, CurrentUser};

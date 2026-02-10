@@ -15,7 +15,7 @@ use sqlx::PgPool;
 use tracing::{debug, instrument, warn};
 use uuid::Uuid;
 
-use crate::permissions::{Permission, PermissionCheck, Role, UserRole};
+use crate::permissions::{Permission, PermissionCheck, Role};
 
 /// Cache entry with TTL
 #[derive(Clone)]
@@ -352,7 +352,7 @@ impl PermissionChecker {
             .arg(&key)
             .arg(self.cache_ttl)
             .arg(json)
-            .query_async(&mut conn)
+            .query_async::<_, ()>(&mut conn)
             .await?;
         
         Ok(())

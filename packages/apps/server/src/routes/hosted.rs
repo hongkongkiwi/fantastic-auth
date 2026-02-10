@@ -780,7 +780,7 @@ pub fn hosted_routes() -> Router<AppState> {
         .route("/auth/password-reset", post(hosted_request_password_reset))
 }
 
-async fn hosted_admin_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+async fn hosted_admin_auth_middleware(request: Request, next: middleware::Next) -> Response {
     let state = match request.extensions().get::<AppState>().cloned() {
         Some(state) => state,
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),

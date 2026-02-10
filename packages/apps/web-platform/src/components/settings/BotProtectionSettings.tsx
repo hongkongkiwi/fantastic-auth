@@ -101,7 +101,7 @@ export function BotProtectionSettings() {
   useEffect(() => {
     let cancelled = false
     async function loadConfig() {
-      const endpoints = ['/api/v1/admin/advanced', '/api/v1/admin/settings/advanced']
+      const endpoints = ['/api/v1/admin/settings/advanced']
       for (const endpoint of endpoints) {
         try {
           const response = await fetch(endpoint, { credentials: 'include' })
@@ -138,7 +138,7 @@ export function BotProtectionSettings() {
   const handleSave = async () => {
     setIsLoading(true)
     try {
-      const endpoints = ['/api/v1/admin/advanced', '/api/v1/admin/settings/advanced']
+      const endpoints = ['/api/v1/admin/settings/advanced']
       let saved = false
       for (const endpoint of endpoints) {
         try {

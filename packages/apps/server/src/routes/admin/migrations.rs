@@ -15,14 +15,12 @@
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::audit::{AuditAction, AuditLogger, RequestContext, ResourceType};
+use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::migration::{
     Auth0Config, CognitoConfig, CsvConfig, FirebaseConfig, MigrationOptions,
     MigrationService,
@@ -87,16 +85,6 @@ struct FirebaseMigrationRequest {
 struct CognitoMigrationRequest {
     #[serde(flatten)]
     config: CognitoConfig,
-    #[serde(default)]
-    options: Option<MigrationOptions>,
-    #[serde(default)]
-    dry_run: bool,
-}
-
-/// CSV import request
-#[derive(Debug, Deserialize)]
-struct CsvImportRequest {
-    config: CsvConfig,
     #[serde(default)]
     options: Option<MigrationOptions>,
     #[serde(default)]

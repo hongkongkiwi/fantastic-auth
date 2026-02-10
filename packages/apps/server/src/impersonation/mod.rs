@@ -35,7 +35,6 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row};
-use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::db::Database;

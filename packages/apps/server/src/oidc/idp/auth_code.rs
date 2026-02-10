@@ -152,12 +152,18 @@ impl AuthorizationCodeManager {
             "S256" => {
                 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
                 use sha2::Digest;
+                use subtle::ConstantTimeEq;
                 
                 let digest = sha2::Sha256::digest(verifier.as_bytes());
                 let computed = URL_SAFE_NO_PAD.encode(digest);
-                computed == challenge
+                // SECURITY: Use constant-time comparison to prevent timing attacks
+                computed.as_bytes().ct_eq(challenge.as_bytes()).into()
             }
-            "PLAIN" => verifier == challenge,
+            "PLAIN" => {
+                // SECURITY: Use constant-time comparison for plain method too
+                use subtle::ConstantTimeEq;
+                verifier.as_bytes().ct_eq(challenge.as_bytes()).into()
+            }
             _ => false,
         }
     }

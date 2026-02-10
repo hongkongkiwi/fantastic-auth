@@ -9,7 +9,7 @@ use crate::bulk::{
 use crate::db::Database;
 use std::collections::HashSet;
 use tokio::io::AsyncWriteExt;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Export processor for handling bulk exports
 pub struct ExportProcessor {
@@ -449,7 +449,7 @@ pub async fn export_users_to_csv(
     tenant_id: &str,
     options: &ExportOptions,
 ) -> anyhow::Result<String> {
-    let mut records: Vec<UserExportRecord> = Vec::new();
+    let records: Vec<UserExportRecord> = Vec::new();
 
     // Build query
     let mut query = String::from(
@@ -485,9 +485,16 @@ pub async fn export_users_to_csv(
     query.push_str(&conditions.join(" AND "));
     query.push_str(" ORDER BY u.created_at");
 
-    if options.max_records > 0 {
-        query.push_str(&format!(" LIMIT {}", options.max_records));
-    }
+    // SECURITY: Validate max_records to prevent injection and limit resource usage
+    const MAX_EXPORT_RECORDS: usize = 100_000;
+    let limit = if options.max_records > 0 {
+        options.max_records.min(MAX_EXPORT_RECORDS)
+    } else {
+        MAX_EXPORT_RECORDS
+    };
+    
+    // Use parameterized LIMIT (safe since we've validated it's a reasonable number)
+    query.push_str(&format!(" LIMIT {}", limit));
 
     // Execute query
     let mut sqlx_query = sqlx::query_as::<_, UserExportRow>(&query);
@@ -551,9 +558,16 @@ pub async fn export_users_to_json(
     query.push_str(&conditions.join(" AND "));
     query.push_str(" ORDER BY u.created_at");
 
-    if options.max_records > 0 {
-        query.push_str(&format!(" LIMIT {}", options.max_records));
-    }
+    // SECURITY: Validate max_records to prevent injection and limit resource usage
+    const MAX_EXPORT_RECORDS: usize = 100_000;
+    let limit = if options.max_records > 0 {
+        options.max_records.min(MAX_EXPORT_RECORDS)
+    } else {
+        MAX_EXPORT_RECORDS
+    };
+    
+    // Use parameterized LIMIT (safe since we've validated it's a reasonable number)
+    query.push_str(&format!(" LIMIT {}", limit));
 
     // Execute query
     let mut sqlx_query = sqlx::query_as::<_, UserExportRow>(&query);

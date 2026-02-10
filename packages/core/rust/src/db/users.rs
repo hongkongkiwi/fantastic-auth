@@ -179,6 +179,31 @@ impl UserRepository {
         Ok(row.map(Into::into))
     }
 
+    /// Get multiple users by IDs (batch lookup to prevent N+1 queries)
+    pub async fn find_by_ids(&self, tenant_id: &str, ids: &[String]) -> Result<Vec<User>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        
+        // Use ANY with array for efficient batch lookup
+        let rows = sqlx::query_as::<_, UserWithPasswordRow>(
+            "SELECT id::text as id, tenant_id::text as tenant_id, email, email_verified,
+                    status::text as status, password_hash,
+                    failed_login_attempts, locked_until, last_login_at, last_ip::text as last_ip,
+                    profile, mfa_enabled, mfa_methods, created_at, updated_at 
+             FROM users 
+             WHERE tenant_id = $1::uuid AND id = ANY($2::uuid[]) AND deleted_at IS NULL",
+        )
+        .bind(tenant_id)
+        .bind(ids)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     /// Get user by email
     pub async fn find_by_email(&self, tenant_id: &str, email: &str) -> Result<Option<User>> {
         let mut conn = self.tenant_conn(tenant_id).await?;

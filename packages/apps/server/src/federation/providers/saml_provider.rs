@@ -5,11 +5,11 @@
 use base64::Engine;
 use std::collections::HashMap;
 
-use crate::saml::{SamlRequest, SamlResponse, SamlService, ServiceProviderConfig, IdentityProviderConfig};
+use crate::saml::{SamlRequest, SamlService, ServiceProviderConfig, IdentityProviderConfig};
 use crate::saml::{NameIdFormat, SamlBinding};
 use crate::saml::crypto::X509Certificate;
 
-use super::{SamlProviderConfig, TokenResponse};
+use super::SamlProviderConfig;
 
 /// SAML Federation Provider implementation
 #[derive(Debug, Clone)]

@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::info;
 
 pub use siwe::{ChainType, SiweError, SiweMessage};
 use signature::{verify_signature, SignatureError};

@@ -50,6 +50,21 @@ struct OrganizationMemberRow {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Organization member with user details (for efficient JOIN queries)
+#[derive(Debug, FromRow)]
+pub struct OrganizationMemberWithUser {
+    pub id: String,
+    pub organization_id: String,
+    pub user_id: String,
+    pub role: String,
+    pub status: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    // User fields
+    pub email: String,
+    pub user_name: Option<String>,
+}
+
 impl From<OrganizationMemberRow> for OrganizationMember {
     fn from(row: OrganizationMemberRow) -> Self {
         OrganizationMember {
@@ -307,6 +322,36 @@ impl OrganizationRepository {
         .await?;
 
         Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    /// List members with user details (efficient JOIN query to prevent N+1)
+    pub async fn list_members_with_users(
+        &self,
+        tenant_id: &str,
+        org_id: &str,
+    ) -> Result<Vec<OrganizationMemberWithUser>> {
+        let mut conn = self.tenant_conn(tenant_id).await?;
+        let rows = sqlx::query_as::<_, OrganizationMemberWithUser>(
+            r#"SELECT 
+                om.id::text as id, 
+                om.organization_id::text as organization_id,
+                om.user_id::text as user_id, 
+                om.role::text as role, 
+                om.status::text as status,
+                om.created_at, 
+                om.updated_at,
+                u.email,
+                u.profile->>'name' as user_name
+             FROM organization_members om
+             JOIN users u ON u.id = om.user_id
+             WHERE om.organization_id = $1::uuid
+             ORDER BY om.created_at DESC"#,
+        )
+        .bind(org_id)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        Ok(rows)
     }
 
     /// List organizations for user

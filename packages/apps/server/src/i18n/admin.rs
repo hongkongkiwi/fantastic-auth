@@ -8,11 +8,9 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::i18n::{
-    db::{TranslationExport, TranslationRepository},
-    with_i18n, Language,
+    db::{TranslationExport, TranslationRepository}, Language,
 };
 use crate::state::AppState;
 

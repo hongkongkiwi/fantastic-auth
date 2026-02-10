@@ -3,14 +3,13 @@
 //! Provides CAPTCHA verification middleware for authentication endpoints.
 //! Supports multiple token sources and providers (Cloudflare Turnstile, hCaptcha).
 
-use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
 use axum::response::Response;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::net::SocketAddr;
 
 use crate::state::AppState;

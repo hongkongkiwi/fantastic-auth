@@ -9,7 +9,7 @@ use crate::state::CurrentUser;
 
 pub async fn admin_role_middleware(
     Extension(user): Extension<CurrentUser>,
-    mut request: axum::extract::Request,
+    request: axum::extract::Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let roles = user.claims.roles.clone().unwrap_or_default();

@@ -5,12 +5,11 @@
 
 use anyhow::{Context, Result};
 use reqwest::{Client, Method};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 
 use crate::billing::{
-    BillingError, BillingInterval, BillingPlan, CheckoutSession, Invoice, InvoiceStatus,
-    PaymentMethod, PlanTier, PortalSession, Subscription, SubscriptionStatus, WebhookResult,
+    BillingError, BillingInterval, BillingPlan, CheckoutSession, Invoice, InvoiceStatus, PlanTier, PortalSession, Subscription, SubscriptionStatus, WebhookResult,
 };
 
 const STRIPE_API_BASE: &str = "https://api.stripe.com/v1";

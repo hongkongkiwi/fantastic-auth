@@ -5,19 +5,21 @@
 //! - Time validation (NotBefore, NotOnOrAfter)
 //! - Audience restriction validation
 //! - Subject confirmation validation
-//! - Replay attack prevention
+//! - Replay attack prevention (with Redis or in-memory cache)
 
 use chrono::{DateTime, Duration, Utc};
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use super::{
-    crypto::{parse_xml_signature, SamlCrypto, XmlSignature},
+    crypto::{parse_xml_signature, SamlCrypto},
     ns, AuthnContext, AuthnStatement, SamlAssertion, SamlConditions, SamlError, SamlResponse,
     SamlResult, ServiceProviderConfig, StatusCode, SubjectConfirmation, SubjectConfirmationData,
 };
+use super::replay_cache::{create_replay_cache, ReplayCache};
 
 /// SAML validator
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SamlValidator {
     /// Clock skew allowance in seconds
     clock_skew_seconds: i64,
@@ -27,25 +29,56 @@ pub struct SamlValidator {
     valid_audiences: HashSet<String>,
     /// Valid destinations
     valid_destinations: HashSet<String>,
-    /// Replay cache
-    seen_ids: HashSet<String>,
+    /// Replay cache (Redis or bounded in-memory)
+    replay_cache: Arc<dyn ReplayCache>,
+}
+
+impl std::fmt::Debug for SamlValidator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SamlValidator")
+            .field("clock_skew_seconds", &self.clock_skew_seconds)
+            .field("has_idp_certificate", &self.idp_certificate.is_some())
+            .field("valid_audiences", &self.valid_audiences)
+            .field("valid_destinations", &self.valid_destinations)
+            .field("replay_cache", &"<dynamic>")
+            .finish()
+    }
 }
 
 impl SamlValidator {
     /// Create new validator with default clock skew (60 seconds)
+    /// Uses bounded in-memory replay cache
     pub fn new(clock_skew_seconds: i64) -> Self {
+        Self::with_replay_cache(clock_skew_seconds, None)
+    }
+    
+    /// Create validator with optional Redis connection
+    pub fn with_replay_cache(
+        clock_skew_seconds: i64,
+        redis: Option<redis::aio::ConnectionManager>,
+    ) -> Self {
         Self {
             clock_skew_seconds,
             idp_certificate: None,
             valid_audiences: HashSet::new(),
             valid_destinations: HashSet::new(),
-            seen_ids: HashSet::new(),
+            replay_cache: create_replay_cache(redis),
         }
     }
     
     /// Create validator with IdP configuration
     pub fn with_idp(idp: &super::IdentityProviderConfig) -> Self {
         let mut validator = Self::new(idp.clock_skew_seconds);
+        validator.idp_certificate = Some(idp.certificate.clone());
+        validator
+    }
+    
+    /// Create validator with IdP configuration and Redis
+    pub fn with_idp_and_redis(
+        idp: &super::IdentityProviderConfig,
+        redis: Option<redis::aio::ConnectionManager>,
+    ) -> Self {
+        let mut validator = Self::with_replay_cache(idp.clock_skew_seconds, redis);
         validator.idp_certificate = Some(idp.certificate.clone());
         validator
     }
@@ -61,13 +94,13 @@ impl SamlValidator {
     }
     
     /// Validate a SAML Response
-    pub fn validate_response(
+    pub async fn validate_response(
         &self,
         response: &SamlResponse,
         sp_config: &ServiceProviderConfig,
     ) -> SamlResult<()> {
         // Check for replay
-        self.check_replay(&response.id)?;
+        self.check_replay(&response.id).await?;
         
         // Validate status
         self.validate_status(response)?;
@@ -82,7 +115,7 @@ impl SamlValidator {
         
         // Validate each assertion
         for assertion in &response.assertions {
-            self.validate_assertion(assertion, sp_config, response.in_response_to.as_deref())?;
+            self.validate_assertion(assertion, sp_config, response.in_response_to.as_deref()).await?;
         }
         
         Ok(())
@@ -101,14 +134,14 @@ impl SamlValidator {
     }
     
     /// Validate a SAML Assertion
-    pub fn validate_assertion(
+    pub async fn validate_assertion(
         &self,
         assertion: &SamlAssertion,
         sp_config: &ServiceProviderConfig,
         in_response_to: Option<&str>,
     ) -> SamlResult<()> {
         // Check for replay
-        self.check_replay(&assertion.id)?;
+        self.check_replay(&assertion.id).await?;
         
         // Validate issue instant
         self.validate_issue_instant(assertion.issue_instant)?;
@@ -397,17 +430,21 @@ impl SamlValidator {
         Ok(())
     }
     
-    /// Check for replay attack
-    fn check_replay(&self, id: &str) -> SamlResult<()> {
-        // In a production implementation, this should check against a persistent store
-        // (e.g., Redis or database) to prevent replays across server restarts
-        
-        if self.seen_ids.contains(id) {
+    /// Check for replay attack using distributed or in-memory cache
+    /// 
+    /// This method checks if a SAML assertion ID has been seen before.
+    /// It uses either Redis (if configured) or a bounded in-memory LRU cache.
+    async fn check_replay(&self, id: &str) -> SamlResult<()> {
+        // Atomically check-and-add to avoid race conditions under concurrency.
+        if self.replay_cache.check_and_add(id).await? {
             return Err(SamlError::ReplayDetected);
         }
-        
-        // Note: In production, add to seen_ids and set TTL
         Ok(())
+    }
+    
+    /// Get replay cache statistics for monitoring
+    pub async fn replay_cache_stats(&self) -> super::replay_cache::CacheStats {
+        self.replay_cache.stats().await
     }
 }
 
@@ -500,45 +537,6 @@ pub fn validate_attribute(
     }
     
     Ok(())
-}
-
-/// Replay cache using Redis
-pub struct ReplayCache {
-    redis: redis::aio::ConnectionManager,
-    ttl_seconds: u64,
-}
-
-impl ReplayCache {
-    /// Create new replay cache
-    pub fn new(redis: redis::aio::ConnectionManager, ttl_seconds: u64) -> Self {
-        Self { redis, ttl_seconds }
-    }
-    
-    /// Check if ID has been seen before
-    pub async fn check(&mut self, id: &str) -> SamlResult<bool> {
-        let key = format!("saml:replay:{}", id);
-        
-        let exists: bool = redis::cmd("EXISTS")
-            .arg(&key)
-            .query_async(&mut self.redis)
-            .await
-            .map_err(|e| SamlError::InternalError(format!("Redis error: {}", e)))?;
-        
-        if exists {
-            return Ok(true);
-        }
-        
-        // Add to cache with TTL
-        let _: () = redis::cmd("SETEX")
-            .arg(&key)
-            .arg(self.ttl_seconds)
-            .arg("1")
-            .query_async(&mut self.redis)
-            .await
-            .map_err(|e| SamlError::InternalError(format!("Redis error: {}", e)))?;
-        
-        Ok(false)
-    }
 }
 
 #[cfg(test)]

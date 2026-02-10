@@ -22,6 +22,8 @@ use crate::{
 };
 
 /// Extract credential from Authorization header
+/// 
+/// SECURITY: Uses constant-time comparison to prevent timing attacks
 fn extract_credential(request: &Request) -> Option<&str> {
     let auth_header = request
         .headers()
@@ -29,12 +31,20 @@ fn extract_credential(request: &Request) -> Option<&str> {
         .to_str()
         .ok()?;
 
-    // Check for Bearer token
-    if auth_header.starts_with("Bearer ") {
-        Some(&auth_header[7..])
-    } else {
-        None
+    // SECURITY: Use constant-time comparison to prevent timing attacks
+    // that could reveal the expected prefix length
+    let bearer_prefix = b"Bearer ";
+    if auth_header.len() >= bearer_prefix.len() {
+        let header_bytes = auth_header.as_bytes();
+        let mut equal = true;
+        for i in 0..bearer_prefix.len() {
+            equal &= header_bytes[i] == bearer_prefix[i];
+        }
+        if equal {
+            return Some(&auth_header[bearer_prefix.len()..]);
+        }
     }
+    None
 }
 
 /// Extract tenant ID from request headers

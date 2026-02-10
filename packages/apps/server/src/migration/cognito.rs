@@ -1,11 +1,11 @@
 //! AWS Cognito migration implementation
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::migration::models::{
-    CreateUserFromMigration, ExternalMfaMethod, ExternalOAuthConnection, ExternalUser,
+    CreateUserFromMigration, ExternalMfaMethod, ExternalUser,
     MigrationError, MigrationOptions, ValidationResult,
 };
 use vault_core::models::user::UserProfile;

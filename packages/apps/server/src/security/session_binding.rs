@@ -10,7 +10,7 @@ use std::net::IpAddr;
 use thiserror::Error;
 
 use super::device_fingerprint::{
-    parse_device_info, DeviceFingerprinter, FingerprintComponents, ParsedDeviceInfo,
+    DeviceFingerprinter, ParsedDeviceInfo,
 };
 
 /// Session binding security levels

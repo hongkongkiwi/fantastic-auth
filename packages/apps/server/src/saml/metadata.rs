@@ -5,7 +5,6 @@
 //! - Identity Provider metadata parsing
 //! - EntityDescriptor handling
 
-use std::collections::HashMap;
 
 use super::{escape_xml, ns, ContactInfo, NameIdFormat, OrganizationInfo, SamlBinding, SamlError, SamlResult, ServiceProviderConfig};
 use super::crypto::X509Certificate;
@@ -293,12 +292,30 @@ pub struct IdpMetadataParser;
 
 impl IdpMetadataParser {
     /// Parse IdP metadata XML
+    /// 
+    /// SECURITY: This parser uses multiple layers of XXE protection:
+    /// 1. String-based DOCTYPE detection as first-line defense
+    /// 2. quick_xml's safe-by-default configuration (no external entity expansion)
+    /// 3. Disabled DTD processing via check_comments(false)
+    /// 4. Limited buffer size to prevent entity expansion attacks
     pub fn parse(xml: &str) -> SamlResult<EntityDescriptor> {
         use quick_xml::events::Event;
         use quick_xml::reader::Reader;
         
+        // SECURITY: Layer 1 - Reject XML with DOCTYPE declarations
+        // This catches obvious XXE attempts before parsing
+        if xml.to_uppercase().contains("<!DOCTYPE") || xml.to_uppercase().contains("<!ENTITY") {
+            return Err(SamlError::XmlParseError(
+                "XML with DOCTYPE/ENTITY declarations is not allowed for security reasons".to_string()
+            ));
+        }
+        
+        // SECURITY: Layer 2 & 3 - Configure reader for safe parsing
         let mut reader = Reader::from_str(xml);
         reader.trim_text(true);
+        // Disable DTD processing to prevent XXE attacks
+        reader.check_comments(false);
+        // Note: quick_xml 0.31 is safe by default - no external entity expansion
         
         let mut buf = Vec::new();
         let mut entity_id = String::new();

@@ -374,58 +374,45 @@ async fn update_saml_connection(
         .await
         .map_err(|_| ApiError::internal())?;
     
-    // Build dynamic update query
-    let mut updates = Vec::new();
+    // SECURITY: Use parameterized query with COALESCE to prevent SQL injection
+    // This safely handles optional updates without string concatenation
+    let attribute_mappings_json = req.attribute_mappings.map(|m| m.to_string());
     
-    if let Some(name) = req.name {
-        updates.push(format!("name = '{}'", name.replace('\'', "''")));
-    }
-    if let Some(idp_entity_id) = req.idp_entity_id {
-        updates.push(format!("idp_entity_id = '{}'", idp_entity_id.replace('\'', "''")));
-    }
-    if let Some(idp_sso_url) = req.idp_sso_url {
-        updates.push(format!("idp_sso_url = '{}'", idp_sso_url.replace('\'', "''")));
-    }
-    if let Some(idp_slo_url) = req.idp_slo_url {
-        updates.push(format!("idp_slo_url = '{}'", idp_slo_url.replace('\'', "''")));
-    }
-    if let Some(idp_certificate) = req.idp_certificate {
-        updates.push(format!("idp_certificate = '{}'", idp_certificate.replace('\'', "''")));
-    }
-    if let Some(name_id_format) = req.name_id_format {
-        updates.push(format!("name_id_format = '{}'", name_id_format.replace('\'', "''")));
-    }
-    if let Some(want_authn) = req.want_authn_requests_signed {
-        updates.push(format!("want_authn_requests_signed = {}", want_authn));
-    }
-    if let Some(want_assertions) = req.want_assertions_signed {
-        updates.push(format!("want_assertions_signed = {}", want_assertions));
-    }
-    if let Some(jit) = req.jit_provisioning_enabled {
-        updates.push(format!("jit_provisioning_enabled = {}", jit));
-    }
-    if let Some(mappings) = req.attribute_mappings {
-        updates.push(format!("attribute_mappings = '{}'", mappings.to_string().replace('\'', "''")));
-    }
-    if let Some(status) = req.status {
-        updates.push(format!("status = '{}'", status.replace('\'', "''")));
-    }
-    
-    if !updates.is_empty() {
-        updates.push("updated_at = NOW()".to_string());
-        
-        let query = format!(
-            "UPDATE saml_connections SET {} WHERE id = $1 AND tenant_id = $2",
-            updates.join(", ")
-        );
-        
-        sqlx::query(&query)
-            .bind(&connection_id)
-            .bind(&current_user.tenant_id)
-            .execute(&mut *conn)
-            .await
-            .map_err(|_| ApiError::internal())?;
-    }
+    sqlx::query(
+        r#"
+        UPDATE saml_connections 
+        SET 
+            name = COALESCE($1, name),
+            idp_entity_id = COALESCE($2, idp_entity_id),
+            idp_sso_url = COALESCE($3, idp_sso_url),
+            idp_slo_url = COALESCE($4, idp_slo_url),
+            idp_certificate = COALESCE($5, idp_certificate),
+            name_id_format = COALESCE($6, name_id_format),
+            want_authn_requests_signed = COALESCE($7, want_authn_requests_signed),
+            want_assertions_signed = COALESCE($8, want_assertions_signed),
+            jit_provisioning_enabled = COALESCE($9, jit_provisioning_enabled),
+            attribute_mappings = COALESCE($10, attribute_mappings),
+            status = COALESCE($11, status),
+            updated_at = NOW()
+        WHERE id = $12 AND tenant_id = $13
+        "#
+    )
+    .bind(req.name.as_ref())
+    .bind(req.idp_entity_id.as_ref())
+    .bind(req.idp_sso_url.as_ref())
+    .bind(req.idp_slo_url.as_ref())
+    .bind(req.idp_certificate.as_ref())
+    .bind(req.name_id_format.as_ref())
+    .bind(req.want_authn_requests_signed)
+    .bind(req.want_assertions_signed)
+    .bind(req.jit_provisioning_enabled)
+    .bind(attribute_mappings_json.as_ref())
+    .bind(req.status.as_ref())
+    .bind(&connection_id)
+    .bind(&current_user.tenant_id)
+    .execute(&mut *conn)
+    .await
+    .map_err(|_| ApiError::internal())?;
     
     // Fetch updated row
     let row = sqlx::query_as::<_, SamlConnectionRow>(

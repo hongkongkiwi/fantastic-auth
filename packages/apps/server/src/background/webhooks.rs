@@ -124,7 +124,7 @@ impl WebhookWorker {
     }
 
     /// Process a single delivery
-    async fn process_delivery(&self, mut delivery: WebhookDelivery) -> anyhow::Result<()> {
+    async fn process_delivery(&self, delivery: WebhookDelivery) -> anyhow::Result<()> {
         debug!(
             delivery_id = %delivery.id,
             endpoint_id = %delivery.endpoint_id,

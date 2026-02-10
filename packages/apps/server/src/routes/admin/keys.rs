@@ -103,7 +103,7 @@ async fn rotate_key(
     .await
     .map_err(|_| ApiError::internal())?;
 
-    let mut key_manager = KeyManager::new((*state.data_encryption_key).clone());
+    let key_manager = KeyManager::new((*state.data_encryption_key).clone());
     let key_pair = key_manager
         .generate_key_pair(&current_user.tenant_id, key_type, next_version as u32)
         .map_err(|_| ApiError::internal())?;

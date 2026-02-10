@@ -14,15 +14,11 @@
 //! - Token revocation (RFC 7009)
 //! - Full scope support (openid, profile, email, phone, address)
 
-use axum::Router;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 
-use crate::state::AppState;
 use vault_core::crypto::{Claims, HybridJwt, TokenType};
-use vault_core::db::oidc::OauthClient;
 
 pub mod auth_code;
 pub mod client_management;
@@ -448,6 +444,9 @@ pub struct TokenRequest {
     pub refresh_token: Option<String>,
     /// Scope (space-separated)
     pub scope: Option<String>,
+    /// State parameter for CSRF protection (for authorization_code grant)
+    /// This is optional but recommended for additional security
+    pub state: Option<String>,
 }
 
 /// Token Response

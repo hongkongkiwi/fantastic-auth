@@ -4,7 +4,6 @@
 //! If Stripe API key is not configured, billing features are disabled.
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 mod stripe;

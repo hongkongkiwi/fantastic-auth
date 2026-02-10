@@ -7,7 +7,6 @@
 //! - Step-up authentication triggers
 
 use std::net::IpAddr;
-use std::sync::Arc;
 
 use axum::{
     body::Body,

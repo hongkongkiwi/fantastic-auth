@@ -30,7 +30,7 @@ pub mod internal;
 pub mod oidc;
 
 use crate::state::AppState;
-use crate::i18n::{Language, t};
+use crate::i18n::Language;
 use crate::middleware::auth::auth_middleware;
 
 /// Session limit reached error details
@@ -66,12 +66,26 @@ impl ApiError {
     }
 
     /// Create a forbidden error
+    /// 
+    /// SECURITY: The message is logged but not returned to the client
+    /// to prevent information leakage while allowing server-side debugging.
     pub fn forbidden(msg: impl Into<String>) -> Self {
+        let msg = msg.into();
+        if !msg.is_empty() {
+            tracing::warn!(error_message = %msg, "Forbidden error occurred");
+        }
         Self::Forbidden
     }
 
     /// Create a not found error
+    /// 
+    /// SECURITY: The message is logged but not returned to the client
+    /// to prevent information leakage while allowing server-side debugging.
     pub fn not_found(msg: impl Into<String>) -> Self {
+        let msg = msg.into();
+        if !msg.is_empty() {
+            tracing::debug!(error_message = %msg, "Not found error occurred");
+        }
         Self::NotFound
     }
 
@@ -113,11 +127,6 @@ pub struct LocalizedApiError {
 impl LocalizedApiError {
     pub fn new(error: ApiError, lang: Language) -> Self {
         Self { error, lang }
-    }
-
-    /// Get localized error message
-    fn localize(&self, key: &str) -> String {
-        t(key, self.lang)
     }
 }
 
@@ -314,7 +323,7 @@ pub fn api_routes() -> Router<AppState> {
         .nest("/internal", internal::routes())
 }
 
-async fn admin_auth_middleware(mut request: Request, next: middleware::Next) -> Response {
+async fn admin_auth_middleware(request: Request, next: middleware::Next) -> Response {
     let state = match request.extensions().get::<AppState>().cloned() {
         Some(state) => state,
         None => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -339,7 +348,7 @@ pub fn scim_routes() -> Router<AppState> {
     use crate::scim::auth::{optional_scim_auth_middleware, scim_auth_middleware};
     use crate::scim::handlers::*;
     use axum::middleware;
-    use axum::routing::{delete, get, patch, post, put};
+    use axum::routing::get;
 
     // Discovery endpoints - optionally authenticated
     let discovery_routes = Router::new()

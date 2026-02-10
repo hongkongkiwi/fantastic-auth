@@ -4,7 +4,6 @@
 
 use axum::{
     extract::{ConnectInfo, Request, State},
-    http::StatusCode,
     middleware::Next,
     response::Response,
 };

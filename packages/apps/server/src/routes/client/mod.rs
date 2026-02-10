@@ -23,11 +23,15 @@ use crate::state::AppState;
 /// Create client API routes
 /// Mounted at `/api/v1`
 pub fn routes() -> Router<AppState> {
+    // Combine user and MFA routes before nesting to avoid duplicate nesting
+    let user_routes = Router::new()
+        .merge(users::routes())
+        .merge(mfa::routes());
+
     Router::new()
         .nest("/auth", auth::routes())
-        .nest("/users", users::routes())
+        .nest("/users", user_routes)
         .nest("/organizations", organizations::routes())
-        .nest("/users", mfa::routes())
         .nest("/mfa/push", push_mfa::routes())
         .nest("/oauth", m2m_auth::routes())
         .nest("/devices", devices::routes())

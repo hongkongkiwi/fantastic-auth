@@ -18,6 +18,7 @@ use uuid::Uuid;
 pub mod crypto;
 pub mod handlers;
 pub mod metadata;
+pub mod replay_cache;
 pub mod validation;
 
 use crypto::{SamlCrypto, X509Certificate};
@@ -641,7 +642,7 @@ impl SamlService {
             .map_err(|e| SamlError::InvalidResponse(format!("UTF-8 decode failed: {}", e)))?;
         
         let response = self.parse_response_xml(&xml)?;
-        self.validator.validate_response(&response, &self.service_provider)?;
+        self.validator.validate_response(&response, &self.service_provider).await?;
         
         Ok(response)
     }

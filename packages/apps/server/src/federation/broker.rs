@@ -11,13 +11,11 @@ use uuid::Uuid;
 
 use crate::db::Database;
 use crate::federation::{
-    CallbackParams, FederationAuthResult, FederationError, FederationInitiation, FederationResult, FederationService,
+    CallbackParams, FederationAuthResult, FederationService,
     FederatedProvider, ProviderType, FederationSession,
 };
-use crate::federation::claims::VaultClaims;
-use crate::federation::home_realm::HomeRealmDiscovery;
 use crate::federation::providers::{
-    LdapFederationProvider, OidcFederationProvider, SamlFederationProvider,
+    OidcFederationProvider, SamlFederationProvider,
 };
 
 /// Identity broker for coordinating authentication between multiple IdPs
@@ -323,7 +321,7 @@ impl IdentityBroker {
         provider: &FederatedProvider,
         request: &BrokerRequest,
     ) -> anyhow::Result<BrokerResult> {
-        use crate::federation::providers::OidcProviderConfig;
+        
 
         let ProviderConfig::Oidc(ref config) = provider.config else {
             return Err(anyhow::anyhow!("Invalid provider configuration"));
@@ -379,7 +377,7 @@ impl IdentityBroker {
         session: &FederationSession,
         params: &CallbackParams,
     ) -> anyhow::Result<FederationAuthResult> {
-        use crate::federation::providers::OidcProviderConfig;
+        
 
         let ProviderConfig::Oidc(ref config) = provider.config else {
             return Err(anyhow::anyhow!("Invalid provider configuration"));
@@ -433,7 +431,7 @@ impl IdentityBroker {
         provider: &FederatedProvider,
         request: &BrokerRequest,
     ) -> anyhow::Result<BrokerResult> {
-        use crate::federation::providers::SamlProviderConfig;
+        
 
         let ProviderConfig::Saml(ref config) = provider.config else {
             return Err(anyhow::anyhow!("Invalid provider configuration"));
@@ -476,7 +474,7 @@ impl IdentityBroker {
         session: &FederationSession,
         params: &CallbackParams,
     ) -> anyhow::Result<FederationAuthResult> {
-        use crate::federation::providers::SamlProviderConfig;
+        
 
         let ProviderConfig::Saml(ref config) = provider.config else {
             return Err(anyhow::anyhow!("Invalid provider configuration"));

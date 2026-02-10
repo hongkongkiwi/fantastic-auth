@@ -4,7 +4,7 @@
 //! push MFA status updates. Uses Redis pub/sub for distributed
 //! communication between server instances.
 
-use super::{PushMfaError, PushRequest, PushRequestStatus};
+use super::{PushMfaError, PushRequest};
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -337,7 +337,7 @@ pub async fn publish_status_update(
     });
 
     redis
-        .publish(&channel, message.to_string())
+        .publish::<_, _, ()>(&channel, message.to_string())
         .await
         .map_err(|e| PushMfaError::Internal(format!("Redis publish error: {}", e)))?;
 

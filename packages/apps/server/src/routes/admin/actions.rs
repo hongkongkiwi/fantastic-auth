@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, patch, post},
+    routing::get,
     Extension, Json, Router,
 };
 use base64::Engine as _;

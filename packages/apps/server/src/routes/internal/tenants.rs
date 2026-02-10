@@ -4,10 +4,11 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, patch, post},
+    routing::{get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
@@ -66,71 +67,218 @@ struct MessageResponse {
 
 /// List all tenants
 async fn list_tenants(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Query(query): Query<ListTenantsQuery>,
 ) -> Result<Json<PaginatedTenantsResponse>, ApiError> {
     const MAX_PER_PAGE: i64 = 100;
     let per_page = query.per_page.unwrap_or(20).min(MAX_PER_PAGE);
-    let page = query.page.unwrap_or(1);
+    let page = query.page.unwrap_or(1).max(1);
+    let offset = (page - 1) * per_page;
+    
+    // Get total count
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tenants")
+        .fetch_one(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to count tenants: {}", e);
+            ApiError::internal()
+        })?;
+    
+    // Fetch tenants
+    let rows = sqlx::query(
+        r#"
+        SELECT id, name, slug, status, created_at
+        FROM tenants
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2
+        "#
+    )
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to list tenants: {}", e);
+        ApiError::internal()
+    })?;
+    
+    let tenants: Vec<TenantResponse> = rows
+        .into_iter()
+        .map(|row| TenantResponse {
+            id: row.get("id"),
+            name: row.get("name"),
+            slug: row.get("slug"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        })
+        .collect();
+    
     Ok(Json(PaginatedTenantsResponse {
-        data: vec![],
-        pagination: serde_json::json!({"page": page, "per_page": per_page, "total": 0}),
+        data: tenants,
+        pagination: serde_json::json!({
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": (total as f64 / per_page as f64).ceil() as i64
+        }),
     }))
 }
 
 /// Create tenant
 async fn create_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Json(req): Json<CreateTenantRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
+    // Validate slug format
+    if !req.slug.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        return Err(ApiError::BadRequest(
+            "Slug must contain only alphanumeric characters, hyphens, and underscores".to_string()
+        ));
+    }
+    
+    let id = uuid::Uuid::new_v4();
+    let now = chrono::Utc::now();
+    
+    sqlx::query(
+        r#"
+        INSERT INTO tenants (id, name, slug, status, created_at, updated_at)
+        VALUES ($1, $2, $3, 'active', $4, $4)
+        "#
+    )
+    .bind(&id)
+    .bind(&req.name)
+    .bind(&req.slug)
+    .bind(&now)
+    .execute(state.db.pool())
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("unique constraint") {
+            ApiError::Conflict("Tenant with this slug already exists".to_string())
+        } else {
+            tracing::error!("Failed to create tenant: {}", e);
+            ApiError::internal()
+        }
+    })?;
+    
     Ok(Json(TenantResponse {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: id.to_string(),
         name: req.name,
         slug: req.slug,
         status: "active".to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: now.to_rfc3339(),
     }))
 }
 
 /// Get tenant
 async fn get_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    Ok(Json(TenantResponse {
-        id: tenant_id,
-        name: "Tenant".to_string(),
-        slug: "tenant".to_string(),
-        status: "active".to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    }))
+    let row = sqlx::query(
+        r#"
+        SELECT id, name, slug, status, created_at
+        FROM tenants
+        WHERE id = $1
+        "#
+    )
+    .bind(&tenant_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to get tenant: {}", e);
+        ApiError::internal()
+    })?;
+    
+    match row {
+        Some(row) => Ok(Json(TenantResponse {
+            id: row.get("id"),
+            name: row.get("name"),
+            slug: row.get("slug"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        })),
+        None => Err(ApiError::NotFound),
+    }
 }
 
 /// Update tenant
 async fn update_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
     Json(req): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    Ok(Json(TenantResponse {
-        id: tenant_id,
-        name: req.name.unwrap_or_else(|| "Tenant".to_string()),
-        slug: "tenant".to_string(),
-        status: req.status.unwrap_or_else(|| "active".to_string()),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    }))
+    // Validate UUID format
+    let tenant_uuid = uuid::Uuid::parse_str(&tenant_id)
+        .map_err(|_| ApiError::BadRequest("Invalid tenant ID format".to_string()))?;
+    
+    // Validate status if provided
+    if let Some(ref status) = req.status {
+        if !["active", "suspended"].contains(&status.as_str()) {
+            return Err(ApiError::BadRequest("Invalid status. Must be 'active' or 'suspended'".to_string()));
+        }
+    }
+    
+    // SECURITY: Use parameterized query with COALESCE to avoid SQL injection
+    // This approach safely handles optional updates without string concatenation
+    let now = chrono::Utc::now();
+    
+    let row = sqlx::query(
+        r#"
+        UPDATE tenants 
+        SET 
+            name = COALESCE($1, name),
+            status = COALESCE($2, status),
+            updated_at = $3
+        WHERE id = $4
+        RETURNING id, name, slug, status, created_at
+        "#
+    )
+    .bind(req.name.as_ref())
+    .bind(req.status.as_ref())
+    .bind(&now)
+    .bind(&tenant_uuid)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to update tenant: {}", e);
+        ApiError::internal()
+    })?;
+    
+    match row {
+        Some(row) => Ok(Json(TenantResponse {
+            id: row.get("id"),
+            name: row.get("name"),
+            slug: row.get("slug"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        })),
+        None => Err(ApiError::NotFound),
+    }
 }
 
 /// Delete tenant
 async fn delete_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<MessageResponse>, ApiError> {
+    let result = sqlx::query("DELETE FROM tenants WHERE id = $1")
+        .bind(&tenant_id)
+        .execute(state.db.pool())
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete tenant: {}", e);
+            ApiError::internal()
+        })?;
+    
+    if result.rows_affected() == 0 {
+        return Err(ApiError::NotFound);
+    }
+    
     Ok(Json(MessageResponse {
         message: format!("Tenant {} deleted", tenant_id),
     }))
@@ -138,30 +286,70 @@ async fn delete_tenant(
 
 /// Suspend tenant
 async fn suspend_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    Ok(Json(TenantResponse {
-        id: tenant_id,
-        name: "Tenant".to_string(),
-        slug: "tenant".to_string(),
-        status: "suspended".to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    }))
+    let row = sqlx::query(
+        r#"
+        UPDATE tenants 
+        SET status = 'suspended', updated_at = $1
+        WHERE id = $2
+        RETURNING id, name, slug, status, created_at
+        "#
+    )
+    .bind(chrono::Utc::now())
+    .bind(&tenant_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to suspend tenant: {}", e);
+        ApiError::internal()
+    })?;
+    
+    match row {
+        Some(row) => Ok(Json(TenantResponse {
+            id: row.get("id"),
+            name: row.get("name"),
+            slug: row.get("slug"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        })),
+        None => Err(ApiError::NotFound),
+    }
 }
 
 /// Activate tenant
 async fn activate_tenant(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<TenantResponse>, ApiError> {
-    Ok(Json(TenantResponse {
-        id: tenant_id,
-        name: "Tenant".to_string(),
-        slug: "tenant".to_string(),
-        status: "active".to_string(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-    }))
+    let row = sqlx::query(
+        r#"
+        UPDATE tenants 
+        SET status = 'active', updated_at = $1
+        WHERE id = $2
+        RETURNING id, name, slug, status, created_at
+        "#
+    )
+    .bind(chrono::Utc::now())
+    .bind(&tenant_id)
+    .fetch_optional(state.db.pool())
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to activate tenant: {}", e);
+        ApiError::internal()
+    })?;
+    
+    match row {
+        Some(row) => Ok(Json(TenantResponse {
+            id: row.get("id"),
+            name: row.get("name"),
+            slug: row.get("slug"),
+            status: row.get("status"),
+            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+        })),
+        None => Err(ApiError::NotFound),
+    }
 }

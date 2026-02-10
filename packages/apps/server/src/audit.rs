@@ -45,7 +45,6 @@
 //! - The `RequestContext` extracts IP address, user agent, and tenant ID from requests
 //! - Tenant context is automatically set for RLS (Row Level Security) compliance
 
-use async_trait::async_trait;
 use axum::extract::ConnectInfo;
 use axum::http::HeaderMap;
 use serde_json::json;
@@ -55,7 +54,6 @@ use uuid::Uuid;
 
 use crate::db::Database;
 use crate::security::SecurityNotificationService;
-use crate::state::CurrentUser;
 
 /// Trait for webhook event triggering
 #[async_trait::async_trait]

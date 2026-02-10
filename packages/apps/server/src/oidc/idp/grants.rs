@@ -10,10 +10,9 @@
 
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::oidc::idp::{
-    ClientType, GrantType, OAuthClient, TokenResponse, UserInfo,
+    GrantType, UserInfo,
 };
 
 /// Grant handler for processing OAuth 2.0 token requests

@@ -2,10 +2,10 @@
 //!
 //! Database operations for analytics events and aggregated statistics.
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{postgres::PgPool, Row};
 use std::collections::HashMap;
-use tracing::{debug, error, instrument};
+use tracing::{debug, instrument};
 use uuid::Uuid;
 
 use super::models::*;

@@ -39,12 +39,11 @@ use axum::{
     routing::post,
     Form, Json, Router,
 };
-use serde::Deserialize;
 
 use crate::{
     audit::{AuditAction, AuditLogger, RequestContext, ResourceType},
     m2m::{
-        ClientCredentialsError, ClientCredentialsRequest, ClientCredentialsResponse,
+        ClientCredentialsError, ClientCredentialsRequest,
         TokenErrorResponse,
     },
     routes::ApiError,
@@ -64,8 +63,21 @@ async fn token_endpoint(
     State(state): State<AppState>,
     Form(request): Form<ClientCredentialsRequest>,
 ) -> Result<Response, ApiError> {
-    // Extract tenant ID from request (could be in form data, header, or inferred from client_id)
-    let tenant_id = extract_tenant_id(&request);
+    // Resolve tenant from the authoritative client_id -> service_account mapping.
+    let tenant_id = match resolve_tenant_id_by_client_id(&state, &request.client_id).await {
+        Ok(tenant_id) => tenant_id,
+        Err(sqlx::Error::RowNotFound) => {
+            let (status, error_response) =
+                map_client_credentials_error(ClientCredentialsError::InvalidClient);
+            return Ok((status, Json(error_response)).into_response());
+        }
+        Err(e) => {
+            tracing::error!("Failed to resolve tenant for client_id: {}", e);
+            let (status, error_response) =
+                map_client_credentials_error(ClientCredentialsError::Database(e.to_string()));
+            return Ok((status, Json(error_response)).into_response());
+        }
+    };
 
     let ctx = DbRequestContext {
         tenant_id: Some(tenant_id.clone()),
@@ -132,18 +144,20 @@ async fn token_endpoint(
     .await
 }
 
-/// Extract tenant ID from the request
-///
-/// First tries to extract from client_id prefix, then falls back to "default"
-fn extract_tenant_id(request: &ClientCredentialsRequest) -> String {
-    // Client IDs have format: vault_sa_<random>
-    // We could encode tenant info in the client_id, or look it up in the database
-    // For now, we rely on the client_credentials service to look up by client_id
-    // and return an error if the tenant doesn't match
-    
-    // If there's a standard way to pass tenant (like a X-Tenant-ID header),
-    // we could extract it from the headers. For now, use "default".
-    "default".to_string()
+/// Resolve tenant ID from client_id using service account records.
+async fn resolve_tenant_id_by_client_id(
+    state: &AppState,
+    client_id: &str,
+) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar(
+        r#"SELECT tenant_id::text
+           FROM service_accounts
+           WHERE client_id = $1
+           LIMIT 1"#,
+    )
+    .bind(client_id)
+    .fetch_one(state.db.pool())
+    .await
 }
 
 /// Map internal errors to OAuth-compliant error responses
@@ -184,6 +198,13 @@ fn map_client_credentials_error(error: ClientCredentialsError) -> (StatusCode, T
                 error_description: Some("The access token is invalid".to_string()),
             },
         ),
+        ClientCredentialsError::Database(_) | ClientCredentialsError::TokenGeneration(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            TokenErrorResponse {
+                error: "server_error".to_string(),
+                error_description: Some("An internal server error occurred".to_string()),
+            },
+        ),
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
             TokenErrorResponse {
@@ -192,36 +213,6 @@ fn map_client_credentials_error(error: ClientCredentialsError) -> (StatusCode, T
             },
         ),
     }
-}
-
-/// Alternative token endpoint that accepts JSON instead of form data
-///
-/// Some clients prefer JSON over form-urlencoded
-#[derive(Debug, Deserialize)]
-struct TokenRequestJson {
-    grant_type: String,
-    client_id: String,
-    client_secret: String,
-    scope: Option<String>,
-}
-
-impl From<TokenRequestJson> for ClientCredentialsRequest {
-    fn from(req: TokenRequestJson) -> Self {
-        Self {
-            grant_type: req.grant_type,
-            client_id: req.client_id,
-            client_secret: req.client_secret,
-            scope: req.scope,
-        }
-    }
-}
-
-/// JSON token endpoint
-pub async fn token_endpoint_json(
-    State(state): State<AppState>,
-    Json(request): Json<TokenRequestJson>,
-) -> Result<Response, ApiError> {
-    token_endpoint(State(state), Form(request.into())).await
 }
 
 #[cfg(test)]

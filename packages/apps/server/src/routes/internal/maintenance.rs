@@ -59,10 +59,13 @@ async fn get_maintenance_status(
 async fn enable_maintenance(
     State(_state): State<AppState>,
     Extension(_current_user): Extension<CurrentUser>,
-    Json(_req): Json<EnableMaintenanceRequest>,
+    Json(req): Json<EnableMaintenanceRequest>,
 ) -> Result<Json<MessageResponse>, ApiError> {
+    let message = req
+        .message
+        .unwrap_or_else(|| "Maintenance mode enabled".to_string());
     Ok(Json(MessageResponse {
-        message: "Maintenance mode enabled".to_string(),
+        message,
     }))
 }
 

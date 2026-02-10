@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, State},
-    routing::{get, patch, post},
+    routing::{get, patch},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -218,6 +218,7 @@ async fn create_role(
         .map_err(|_| ApiError::internal())?;
 
         if permission_rows.len() != permissions.len() {
+            let _ = tx.rollback().await;
             return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
         }
 
@@ -279,7 +280,10 @@ async fn update_role(
         tenant_id,
     } = match existing {
         Some(row) => row,
-        None => return Err(ApiError::NotFound),
+        None => {
+            let _ = tx.rollback().await;
+            return Err(ApiError::NotFound);
+        }
     };
 
     let new_name = name.unwrap_or(current_name);
@@ -317,6 +321,7 @@ async fn update_role(
         .map_err(|_| ApiError::internal())?;
 
         if permission_rows.len() != new_permissions.len() {
+            let _ = tx.rollback().await;
             return Err(ApiError::BadRequest("Unknown permission in role".to_string()));
         }
 

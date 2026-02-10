@@ -105,6 +105,7 @@ function MfaSetupPage() {
 
       <div className="grid gap-4">
         <button
+          type="button"
           onClick={() => handleSelectMethod('totp')}
           className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors text-left"
         >
@@ -121,6 +122,7 @@ function MfaSetupPage() {
         </button>
 
         <button
+          type="button"
           onClick={() => handleSelectMethod('sms')}
           className="flex items-center gap-4 p-4 rounded-lg border hover:bg-accent transition-colors text-left"
         >

@@ -12,7 +12,6 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::config::GeoRestrictionPolicy as ConfigGeoRestrictionPolicy;
@@ -500,7 +499,7 @@ async fn list_countries() -> Result<Json<Vec<CountryInfo>>, ApiError> {
 async fn get_geo_analytics(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
-    Query(query): Query<GeoAnalyticsQuery>,
+    Query(_query): Query<GeoAnalyticsQuery>,
 ) -> Result<Json<GeoAnalyticsResponse>, ApiError> {
     state
         .set_tenant_context(&current_user.tenant_id)

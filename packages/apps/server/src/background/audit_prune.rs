@@ -37,9 +37,26 @@ pub fn spawn(config: AuditLogPruneConfig) {
     });
 }
 
+/// Maximum audit log file size (100MB)
+const MAX_AUDIT_LOG_SIZE: u64 = 100 * 1024 * 1024;
+
 async fn prune_if_needed(config: &AuditLogPruneConfig) -> anyhow::Result<()> {
     let path = PathBuf::from(&config.path);
     if !path.exists() {
+        return Ok(());
+    }
+
+    // SECURITY: Check file size before reading to prevent OOM
+    let metadata = fs::metadata(&path).await?;
+    if metadata.len() > MAX_AUDIT_LOG_SIZE {
+        warn!(
+            path = %path.display(),
+            size = metadata.len(),
+            max_size = MAX_AUDIT_LOG_SIZE,
+            "Audit log file too large, truncating"
+        );
+        // Truncate the file to prevent OOM
+        fs::write(&path, "[]").await?;
         return Ok(());
     }
 

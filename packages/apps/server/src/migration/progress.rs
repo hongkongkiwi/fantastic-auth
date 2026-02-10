@@ -1,9 +1,7 @@
 //! Migration progress tracking with Redis support
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::Utc;
 use std::time::Duration;
-use tokio::time::timeout;
 
 use crate::migration::models::{
     MigrationError, MigrationErrorRecord, MigrationJob, MigrationProgress, MigrationSource,
@@ -426,7 +424,7 @@ impl ProgressTracker {
             .fetch_optional(pool)
             .await?;
 
-            if let Some(mut job) = job {
+            if let Some(job) = job {
                 // Can only resume failed or paused jobs
                 if !matches!(job.status, MigrationStatus::Failed | MigrationStatus::Paused) {
                     return Err(anyhow::anyhow!(
@@ -543,7 +541,7 @@ impl ProgressTracker {
             let channel = format!("migration:updates:{}", job_id);
             let (tx, rx) = tokio::sync::mpsc::channel(100);
 
-            let mut pubsub = redis.clone();
+            let pubsub = redis.clone();
             // Note: In production, you'd use proper Redis pub/sub
             // This is a simplified version that polls
 

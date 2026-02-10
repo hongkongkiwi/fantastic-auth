@@ -2,11 +2,10 @@ use crate::db::Database;
 use crate::security::TenantKeyService;
 use anyhow::{Context, Result};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 pub mod events;
 mod types;

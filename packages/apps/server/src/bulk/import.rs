@@ -1,21 +1,35 @@
 //! Bulk user import functionality
 //!
 //! Provides CSV and JSON parsing, validation, and batch insertion
-//! with progress tracking and error collection.
+//! with progress tracking, error collection, and adaptive rate limiting.
 
 use crate::bulk::{
-    BulkImportJob, FileFormat, ImportError, ImportOptions, JobStatus, StorageConfig,
+    BulkImportJob, FileFormat, ImportError, JobStatus, StorageConfig,
     UserImportRecord,
 };
 use crate::db::Database;
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::time::{sleep, Duration, Instant};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use vault_core::email::{EmailRequest, EmailService};
 use vault_core::models::user::UserStatus;
+
+/// Default batch size for processing
+const DEFAULT_BATCH_SIZE: usize = 100;
+/// Minimum delay between batches (milliseconds)
+const MIN_DELAY_MS: u64 = 1;
+/// Maximum delay between batches (milliseconds)
+const MAX_DELAY_MS: u64 = 1000;
+/// Target processing time per batch (milliseconds)
+const TARGET_BATCH_TIME_MS: u64 = 500;
+/// Error rate threshold for circuit breaker (0.0 - 1.0)
+const ERROR_RATE_THRESHOLD: f64 = 0.3;
+/// Consecutive errors threshold for circuit breaker
+const CONSECUTIVE_ERRORS_THRESHOLD: usize = 5;
 
 /// CSV header for import template
 pub const CSV_TEMPLATE_HEADER: &str =
@@ -34,6 +48,133 @@ pub const JSON_TEMPLATE: &str = r#"[
     "phone_number": "+1-555-0123"
   }
 ]"#;
+
+/// Adaptive rate limiter for bulk imports
+/// 
+/// Automatically adjusts the delay between batches based on:
+/// - Processing time per batch
+/// - Error rates
+/// - Consecutive errors (circuit breaker pattern)
+#[derive(Debug)]
+pub struct AdaptiveRateLimiter {
+    /// Current delay between batches (milliseconds)
+    current_delay_ms: AtomicUsize,
+    /// Consecutive error counter
+    consecutive_errors: AtomicUsize,
+    /// Success counter for the current window
+    success_count: AtomicUsize,
+    /// Error counter for the current window
+    error_count: AtomicUsize,
+    /// Last batch processing time
+    last_batch_time_ms: AtomicUsize,
+}
+
+impl AdaptiveRateLimiter {
+    /// Create a new adaptive rate limiter
+    pub fn new() -> Self {
+        Self {
+            current_delay_ms: AtomicUsize::new(10), // Start with 10ms delay
+            consecutive_errors: AtomicUsize::new(0),
+            success_count: AtomicUsize::new(0),
+            error_count: AtomicUsize::new(0),
+            last_batch_time_ms: AtomicUsize::new(0),
+        }
+    }
+    
+    /// Record a successful batch processing
+    pub fn record_success(&self, batch_time_ms: u64) {
+        self.consecutive_errors.store(0, Ordering::SeqCst);
+        self.success_count.fetch_add(1, Ordering::SeqCst);
+        self.last_batch_time_ms.store(batch_time_ms as usize, Ordering::SeqCst);
+        
+        // Decrease delay if processing is fast
+        if batch_time_ms < TARGET_BATCH_TIME_MS / 2 {
+            self.adjust_delay(-2); // Decrease by 2ms
+        } else if batch_time_ms < TARGET_BATCH_TIME_MS {
+            self.adjust_delay(-1); // Decrease by 1ms
+        }
+    }
+    
+    /// Record a failed batch processing
+    pub fn record_error(&self) {
+        self.consecutive_errors.fetch_add(1, Ordering::SeqCst);
+        self.error_count.fetch_add(1, Ordering::SeqCst);
+        
+        // Increase delay on error (exponential backoff)
+        let consecutive = self.consecutive_errors.load(Ordering::SeqCst);
+        let increase = (2usize.pow(consecutive.min(5) as u32)).min(100);
+        self.adjust_delay(increase as i64);
+    }
+    
+    /// Check if circuit breaker is open (too many consecutive errors)
+    pub fn is_circuit_open(&self) -> bool {
+        let consecutive = self.consecutive_errors.load(Ordering::SeqCst);
+        let errors = self.error_count.load(Ordering::SeqCst);
+        let successes = self.success_count.load(Ordering::SeqCst);
+        let total = errors + successes;
+        
+        // Circuit opens on too many consecutive errors OR high error rate
+        if consecutive >= CONSECUTIVE_ERRORS_THRESHOLD {
+            return true;
+        }
+        
+        if total > 10 {
+            let error_rate = errors as f64 / total as f64;
+            if error_rate > ERROR_RATE_THRESHOLD {
+                return true;
+            }
+        }
+        
+        false
+    }
+    
+    /// Get current delay
+    pub fn current_delay(&self) -> Duration {
+        let ms = self.current_delay_ms.load(Ordering::SeqCst) as u64;
+        Duration::from_millis(ms.clamp(MIN_DELAY_MS, MAX_DELAY_MS))
+    }
+    
+    /// Adjust delay by delta (positive = increase, negative = decrease)
+    fn adjust_delay(&self, delta: i64) {
+        let current = self.current_delay_ms.load(Ordering::SeqCst) as i64;
+        let new_delay = (current + delta).clamp(MIN_DELAY_MS as i64, MAX_DELAY_MS as i64);
+        self.current_delay_ms.store(new_delay as usize, Ordering::SeqCst);
+    }
+    
+    /// Reset circuit breaker
+    pub fn reset(&self) {
+        self.consecutive_errors.store(0, Ordering::SeqCst);
+        self.success_count.store(0, Ordering::SeqCst);
+        self.error_count.store(0, Ordering::SeqCst);
+    }
+    
+    /// Get current statistics
+    pub fn stats(&self) -> RateLimiterStats {
+        RateLimiterStats {
+            current_delay_ms: self.current_delay_ms.load(Ordering::SeqCst) as u64,
+            consecutive_errors: self.consecutive_errors.load(Ordering::SeqCst),
+            success_count: self.success_count.load(Ordering::SeqCst),
+            error_count: self.error_count.load(Ordering::SeqCst),
+            circuit_open: self.is_circuit_open(),
+        }
+    }
+}
+
+impl Default for AdaptiveRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Rate limiter statistics
+#[derive(Debug, Clone)]
+pub struct RateLimiterStats {
+    pub current_delay_ms: u64,
+    pub consecutive_errors: usize,
+    pub success_count: usize,
+    pub error_count: usize,
+    pub circuit_open: bool,
+}
 
 /// Result of parsing an import file
 #[derive(Debug, Clone)]
@@ -395,16 +536,17 @@ impl ImportProcessor {
             }
         }
 
-        let data = tokio::fs::read(file_path).await?;
-
-        // SECURITY: Validate file size based on format
+        // SECURITY: Check file size BEFORE reading to prevent OOM
+        let metadata = tokio::fs::metadata(file_path).await?;
         let max_size = match job.format {
             super::FileFormat::Csv => FileOperation::CsvImport,
             super::FileFormat::Json => FileOperation::JsonImport,
         };
-        if !validate_file_size(data.len(), max_size) {
+        if !validate_file_size(metadata.len() as usize, max_size) {
             anyhow::bail!("File size exceeds maximum allowed for this format");
         }
+
+        let data = tokio::fs::read(file_path).await?;
 
         // Parse the file
         let parse_result = parse_file(&data, job.format)?;
@@ -434,17 +576,47 @@ impl ImportProcessor {
             return Ok(());
         }
 
-        // Process records
+        // Process records with adaptive rate limiting
         let mut errors = parse_result.errors;
-        let batch_size = 100; // Process in batches
+        let batch_size = DEFAULT_BATCH_SIZE;
+        let rate_limiter = AdaptiveRateLimiter::new();
+        
+        // Log initial rate limiter state
+        info!(
+            job_id = %job.id,
+            initial_delay_ms = rate_limiter.current_delay().as_millis() as u64,
+            "Starting import with adaptive rate limiting"
+        );
 
         for chunk in parse_result.records.chunks(batch_size) {
+            // Check if circuit breaker is open
+            if rate_limiter.is_circuit_open() {
+                error!(
+                    job_id = %job.id,
+                    "Circuit breaker open - too many errors, stopping import"
+                );
+                job.status = JobStatus::Failed;
+                job.error_message = Some(
+                    "Import stopped due to high error rate. Please check database connectivity and retry.".to_string()
+                );
+                
+                if !errors.is_empty() {
+                    self.write_error_report(job, &errors).await?;
+                }
+                
+                return Ok(());
+            }
+            
+            let batch_start = Instant::now();
+            let mut batch_errors = 0;
+
             for (row_number, record) in chunk {
                 match self.import_user(job, record, *row_number).await {
                     Ok(_) => {
                         job.success_count += 1;
                     }
                     Err(e) => {
+                        batch_errors += 1;
                         job.error_count += 1;
                         errors.push(ImportError {
                             row_number: *row_number,
@@ -469,10 +641,46 @@ impl ImportProcessor {
 
                 job.processed_records += 1;
             }
-
-            // Small delay to avoid overwhelming the database
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+            
+            // Calculate batch processing time
+            let batch_time_ms = batch_start.elapsed().as_millis() as u64;
+            
+            // Update rate limiter based on batch results
+            if batch_errors == 0 {
+                rate_limiter.record_success(batch_time_ms);
+            } else {
+                rate_limiter.record_error();
+            }
+            
+            // Adaptive delay between batches
+            let delay = rate_limiter.current_delay();
+            
+            // Log rate limiter adjustments periodically (every 10 batches)
+            if job.processed_records % (batch_size * 10) == 0 {
+                let stats = rate_limiter.stats();
+                debug!(
+                    job_id = %job.id,
+                    processed = job.processed_records,
+                    delay_ms = stats.current_delay_ms,
+                    success_count = stats.success_count,
+                    error_count = stats.error_count,
+                    circuit_open = stats.circuit_open,
+                    "Import rate limiter status"
+                );
+            }
+            
+            sleep(delay).await;
         }
+        
+        // Log final rate limiter stats
+        let final_stats = rate_limiter.stats();
+        info!(
+            job_id = %job.id,
+            final_delay_ms = final_stats.current_delay_ms,
+            total_successes = final_stats.success_count,
+            total_errors = final_stats.error_count,
+            "Import rate limiting completed"
+        );
 
         // Write error report if there are errors
         if !errors.is_empty() {

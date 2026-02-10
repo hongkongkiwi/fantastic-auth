@@ -309,10 +309,14 @@ async fn download_export(
     Extension(user): Extension<CurrentUser>,
     Path(export_id): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // SECURITY: Validate export_id is a valid UUID to prevent path traversal
+    let export_uuid = uuid::Uuid::parse_str(&export_id)
+        .map_err(|_| ApiError::BadRequest("Invalid export ID format".to_string()))?;
+    
     let consent_service = create_consent_service(&state).await?;
 
     let status = consent_service
-        .get_export_status(&export_id, &user.user_id)
+        .get_export_status(&export_uuid.to_string(), &user.user_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to get export status for download: {}", e);
@@ -326,8 +330,22 @@ async fn download_export(
         ));
     }
 
-    let file_path = format!("./data/consent-exports/{}.json", export_id);
-    let bytes = tokio::fs::read(&file_path).await.map_err(|_| ApiError::NotFound)?;
+    // SECURITY: Construct path safely and verify it's within allowed directory
+    let export_dir = std::path::PathBuf::from("./data/consent-exports");
+    let file_path = export_dir.join(format!("{}.json", export_uuid));
+    
+    // Canonicalize and verify path is within export directory
+    let canonical_path = tokio::fs::canonicalize(&file_path).await
+        .map_err(|_| ApiError::NotFound)?;
+    let canonical_dir = tokio::fs::canonicalize(&export_dir).await
+        .map_err(|_| ApiError::internal())?;
+    
+    if !canonical_path.starts_with(&canonical_dir) {
+        tracing::error!("SECURITY: Path traversal attempt detected: {:?}", file_path);
+        return Err(ApiError::BadRequest("Invalid export path".to_string()));
+    }
+    
+    let bytes = tokio::fs::read(&canonical_path).await.map_err(|_| ApiError::NotFound)?;
 
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -507,4 +525,3 @@ async fn create_consent_service(state: &AppState) -> Result<ConsentService, ApiE
 }
 
 // Import consent module for error types
-use crate::consent;

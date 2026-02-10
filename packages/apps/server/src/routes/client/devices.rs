@@ -16,16 +16,6 @@ use uuid::Uuid;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
-// DEPRECATED: Use crate::middleware::auth::is_admin() instead
-// This function is kept for backward compatibility but should be removed
-// once all routes are migrated to use the shared utility.
-#[allow(dead_code)]
-fn is_admin(user: &CurrentUser) -> bool {
-    user.claims.roles.as_ref()
-        .map(|roles| roles.iter().any(|r| r == "admin"))
-        .unwrap_or(false)
-}
-
 /// Device information response
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DeviceInfo {

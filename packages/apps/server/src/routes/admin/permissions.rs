@@ -21,8 +21,7 @@ use uuid::Uuid;
 
 use crate::permissions::{
     checker::PermissionChecker,
-    default_permissions, default_role_permissions,
-    system_roles, Permission, PermissionResponse, ResourcePermission,
+    default_permissions, default_role_permissions, Permission, PermissionResponse, ResourcePermission,
     Role, RoleResponse, system_roles::{SUPERADMIN, ADMIN, MEMBER, VIEWER},
     UserRole, UserRoleResponse,
 };
@@ -164,6 +163,7 @@ async fn list_permissions(
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListResponse<PermissionResponse>>, ApiError> {
     state.set_tenant_context(&current_user.tenant_id).await.map_err(|_| ApiError::internal())?;
+    let _search = query.search.as_deref();
     
     let tenant_id = Uuid::parse_str(&current_user.tenant_id).ok();
     
@@ -529,7 +529,7 @@ async fn update_role(
     let now = chrono::Utc::now();
     
     // Check if role exists and is not a system role
-    let existing: Role = sqlx::query_as(
+    sqlx::query_as::<_, Role>(
         r#"
         SELECT * FROM roles 
         WHERE id = $1 AND tenant_id = $2 AND is_system_role = false

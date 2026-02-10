@@ -18,7 +18,6 @@ use uuid::Uuid;
 
 use crate::analytics::{
     AnalyticsService, ExportFormat, TimeInterval,
-    models::*,
 };
 use crate::routes::ApiError;
 use crate::state::AppState;
@@ -447,6 +446,7 @@ async fn get_dashboard(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -539,6 +539,7 @@ async fn get_login_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -605,6 +606,7 @@ async fn get_user_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -663,6 +665,7 @@ async fn get_mfa_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -723,6 +726,7 @@ async fn get_device_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -819,6 +823,7 @@ async fn get_geographic_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -891,6 +896,7 @@ async fn get_security_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -973,7 +979,7 @@ async fn get_session_analytics(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
+    let _interval = query.interval();
     
     state
         .set_tenant_context(&current_user.tenant_id)
@@ -1194,6 +1200,7 @@ async fn export_analytics(
         .format
         .parse::<ExportFormat>()
         .map_err(|_| ApiError::BadRequest("Invalid export format".to_string()))?;
+    let selected_metrics = query.metrics.as_deref().map(parse_selected_metrics);
 
     let analytics = AnalyticsService::new(state.db.pool().clone());
 
@@ -1222,31 +1229,37 @@ async fn export_analytics(
             let mut csv_data = String::from(
                 "Metric,Value\n",
             );
+            let include = |name: &str| {
+                selected_metrics
+                    .as_ref()
+                    .map(|m| m.contains(name))
+                    .unwrap_or(true)
+            };
 
-            csv_data.push_str(&format!(
-                "Total Logins,{}\n",
-                dashboard.logins.total,
-            ));
-            csv_data.push_str(&format!(
-                "Successful Logins,{}\n",
-                dashboard.logins.successful,
-            ));
-            csv_data.push_str(&format!(
-                "Failed Logins,{}\n",
-                dashboard.logins.failed,
-            ));
-            csv_data.push_str(&format!(
-                "New Users,{}\n",
-                dashboard.users.new,
-            ));
-            csv_data.push_str(&format!(
-                "Active Users,{}\n",
-                dashboard.users.active,
-            ));
-            csv_data.push_str(&format!(
-                "MFA Adoption Rate,{}%\n",
-                dashboard.mfa.adoption_rate,
-            ));
+            if include("total_logins") {
+                csv_data.push_str(&format!("Total Logins,{}\n", dashboard.logins.total));
+            }
+            if include("successful_logins") {
+                csv_data.push_str(&format!(
+                    "Successful Logins,{}\n",
+                    dashboard.logins.successful,
+                ));
+            }
+            if include("failed_logins") {
+                csv_data.push_str(&format!("Failed Logins,{}\n", dashboard.logins.failed));
+            }
+            if include("new_users") {
+                csv_data.push_str(&format!("New Users,{}\n", dashboard.users.new));
+            }
+            if include("active_users") {
+                csv_data.push_str(&format!("Active Users,{}\n", dashboard.users.active));
+            }
+            if include("mfa_adoption_rate") {
+                csv_data.push_str(&format!(
+                    "MFA Adoption Rate,{}%\n",
+                    dashboard.mfa.adoption_rate,
+                ));
+            }
 
             let headers = [
                 ("Content-Type", "text/csv"),
@@ -1267,6 +1280,7 @@ async fn get_trend_analysis(
     Extension(current_user): Extension<CurrentUser>,
     Query(query): Query<AnalyticsQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let _interval = query.interval();
     let tenant_id = parse_tenant_id(&current_user.tenant_id)?;
     
     state
@@ -1349,6 +1363,14 @@ async fn get_trend_analysis(
     };
 
     Ok((StatusCode::OK, axum::Json(response)))
+}
+
+fn parse_selected_metrics(raw: &str) -> std::collections::HashSet<String> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_ascii_lowercase())
+        .collect()
 }
 
 // ============ Helper Functions ============

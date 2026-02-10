@@ -6,12 +6,12 @@
 //! - Weekly/Monthly rollup for trend analysis
 //! - Cleanup of old raw events
 
-use chrono::{DateTime, Datelike, Duration, NaiveDate, TimeZone, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Timelike, Utc};
 use sqlx::Row;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use tokio::time::{interval, sleep};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 use crate::analytics::{
     models::{AggregationConfig, AggregationJobType, AggregationStatus},

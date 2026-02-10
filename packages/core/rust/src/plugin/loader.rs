@@ -37,7 +37,8 @@ impl Default for LoaderConfig {
             wasm_extension: "wasm".to_string(),
             auto_load: true,
             max_file_size: 50 * 1024 * 1024, // 50MB
-            verify_signatures: false,
+            // SECURITY: Signature verification enabled by default to prevent malicious plugins
+            verify_signatures: true,
         }
     }
 }

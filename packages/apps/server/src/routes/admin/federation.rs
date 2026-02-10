@@ -3,14 +3,13 @@
 //! Administrative endpoints for managing identity federation and brokering.
 
 use axum::{
-    extract::{Path, Query, State},
-    routing::{delete, get, post, put},
+    extract::{Path, State},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::db::Database;
 use crate::federation::{
     FederationService, FederatedProvider, ProviderType, ProviderConfig, ProviderUpdates,
     HomeRealmDiscovery, RealmMapping, TrustManager, TrustLevel, TrustRelationship,
@@ -282,7 +281,7 @@ async fn create_provider(
     let config = provider_config_from_input(req.config)?;
 
     let service = FederationService::new(state.db.clone());
-    let provider = service
+    let mut provider = service
         .create_provider(
             &current_user.tenant_id,
             req.organization_id.as_deref(),
@@ -296,6 +295,21 @@ async fn create_provider(
             tracing::error!("Failed to create provider: {}", e);
             ApiError::internal()
         })?;
+
+    if !req.enabled {
+        provider = service
+            .update_provider(
+                &provider.id,
+                ProviderUpdates {
+                    name: None,
+                    enabled: Some(false),
+                    config: None,
+                    priority: None,
+                },
+            )
+            .await
+            .map_err(|_| ApiError::internal())?;
+    }
 
     Ok(Json(provider_to_response(provider)))
 }

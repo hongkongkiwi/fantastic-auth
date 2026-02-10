@@ -14,7 +14,7 @@ use axum::{
     Extension,
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
 use sqlx::FromRow;
 

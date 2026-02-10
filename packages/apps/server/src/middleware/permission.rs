@@ -14,7 +14,6 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use std::sync::Arc;
 
 use crate::permissions::checker::PermissionChecker;
 use crate::state::{AppState, CurrentUser};

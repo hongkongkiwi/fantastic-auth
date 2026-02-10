@@ -323,7 +323,7 @@ export const settingsApi = {
   },
   
   updateSettings: async (data: unknown) => {
-    const response = await apiClient.put('/settings', data)
+    const response = await apiClient.patch('/settings', data)
     return response.data
   },
 }
@@ -434,15 +434,15 @@ export const api = {
   deleteSAMLConnection: samlApi.deleteConnection,
   getSecuritySettings: securityApi.getSecuritySettings,
   updateSecuritySettings: securityApi.updateSecuritySettings,
-  getPrivacySettings: async () => (await apiClient.get('/settings/v2/privacy')).data,
+  getPrivacySettings: async () => (await apiClient.get('/settings/privacy')).data,
   updatePrivacySettings: async (data: unknown) =>
-    (await apiClient.put('/settings/v2/privacy', data)).data,
-  getEmailTemplates: async () => (await apiClient.get('/settings/v2/email')).data,
-  updateEmailTemplate: async (id: string, data: unknown) =>
-    (await apiClient.put(`/settings/v2/email/${id}`, data)).data,
-  getBrandingSettings: async () => (await apiClient.get('/settings/v2/branding')).data,
+    (await apiClient.patch('/settings/privacy', data)).data,
+  getEmailTemplates: async () => (await apiClient.get('/settings/email')).data,
+  updateEmailTemplate: async (_id: string, data: unknown) =>
+    (await apiClient.patch('/settings/email', data)).data,
+  getBrandingSettings: async () => (await apiClient.get('/settings/branding')).data,
   updateBrandingSettings: async (data: unknown) =>
-    (await apiClient.put('/settings/v2/branding', data)).data,
+    (await apiClient.patch('/settings/branding', data)).data,
 }
 
 // Export API client for direct use

@@ -9,7 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use sqlx::PgPool;
-use tracing::{debug, info, instrument, warn};
+use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
 use crate::permissions::{
