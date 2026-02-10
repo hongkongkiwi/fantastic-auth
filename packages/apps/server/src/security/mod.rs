@@ -10,6 +10,8 @@ pub mod encryption;
 pub mod fips;
 pub mod geo;
 pub mod hibp;
+pub mod hsm;
+pub mod mtls;
 pub mod password_policy;
 pub mod risk;
 pub mod session_binding;
