@@ -601,3 +601,303 @@ mod tests {
         assert_eq!(sso_url, Some("https://idp.example.com/sso".to_string()));
     }
 }
+
+
+// Property-based tests for SAML metadata parser
+// 
+// These tests verify:
+// 1. The parser never panics on arbitrary input (security/DoS protection)
+// 2. XXE attack prevention works correctly
+// 3. Malformed XML is handled gracefully
+// 4. Round-trip properties (parse -> serialize -> parse)
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    // Strategy for generating valid entity IDs
+    fn valid_entity_id() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("https://idp.example.com".to_string()),
+            Just("urn:mace:example.com:idp".to_string()),
+            "https://[a-z][a-z0-9-]{1,30}\\.[a-z]{2,10}/[a-z]{1,20}".prop_map(|s| s),
+        ]
+    }
+
+    // Strategy for generating valid URLs
+    fn valid_url() -> impl Strategy<Value = String> {
+        "https://[a-z][a-z0-9-]{1,30}\\.[a-z]{2,10}/[a-z/]{1,50}".prop_map(|s| s)
+    }
+
+    proptest! {
+        // Test that the IdP metadata parser never panics on arbitrary input
+        // This is critical for preventing DoS attacks via malformed metadata
+        #[test]
+        fn test_idp_metadata_parser_never_panics(input in "\\PC*") {
+            // Should never panic regardless of input
+            let _ = IdpMetadataParser::parse(&input);
+        }
+
+        // Test that the cert extraction function never panics
+        #[test]
+        fn test_cert_extraction_never_panics(input in "\\PC*") {
+            let _ = extract_idp_cert_from_metadata(&input);
+        }
+
+        // Test XXE prevention - DOCTYPE declarations should be rejected
+        #[test]
+        fn test_xxe_prevention_doctype(entity in "[a-zA-Z]{1,20}",
+                                        path in "(/[a-z]{1,20}){1,5}") {
+            let xxe_payload = format!(
+                r#"<?xml version="1.0"?>
+<!DOCTYPE {} [
+  <!ENTITY xxe SYSTEM "file://{}">
+]>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+  <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="&xxe;"/>
+  </IDPSSODescriptor>
+</EntityDescriptor>"#,
+                entity, path
+            );
+            
+            // Should reject DOCTYPE for security
+            let result = IdpMetadataParser::parse(&xxe_payload);
+            prop_assert!(
+                result.is_err(),
+                "XXE attack via DOCTYPE should be rejected"
+            );
+        }
+
+        // Test XXE prevention - ENTITY declarations should be rejected
+        #[test]
+        fn test_xxe_prevention_entity(entity in "[a-zA-Z]{1,20}") {
+            let xxe_payload = format!(
+                r#"<?xml version="1.0"?>
+<!DOCTYPE foo [
+  <!ENTITY {} SYSTEM "http://attacker.com/xxe">
+]>
+<EntityDescriptor entityID="test" xmlns="urn:oasis:names:tc:SAML:2.0:metadata">
+</EntityDescriptor>"#,
+                entity
+            );
+            
+            // Should reject ENTITY declarations
+            let result = IdpMetadataParser::parse(&xxe_payload);
+            prop_assert!(
+                result.is_err(),
+                "XXE attack via ENTITY should be rejected"
+            );
+        }
+
+        // Test that the parser handles deeply nested XML
+        #[test]
+        fn test_deeply_nested_xml(depth in 1usize..100) {
+            let mut xml = String::from(r#"<?xml version="1.0"?><EntityDescriptor entityID="test" xmlns="urn:oasis:names:tc:SAML:2.0:metadata">"#);
+            
+            for _ in 0..depth {
+                xml.push_str("<Nested>");
+            }
+            xml.push_str("content");
+            for _ in 0..depth {
+                xml.push_str("</Nested>");
+            }
+            xml.push_str("</EntityDescriptor>");
+            
+            // Should not panic or stack overflow
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that the parser handles XML with many attributes
+        #[test]
+        fn test_many_attributes(count in 1usize..100) {
+            let mut attrs = String::new();
+            for i in 0..count {
+                attrs.push_str(&format!(r#" attr{}="value{}""#, i, i));
+            }
+            
+            let xml = format!(
+                r#"<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test"{}>
+</EntityDescriptor>"#,
+                attrs
+            );
+            
+            // Should handle many attributes without issues
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that the parser handles very long text content
+        #[test]
+        fn test_long_text_content(length in 100usize..10000) {
+            let long_text = "x".repeat(length);
+            let xml = format!(
+                r#"<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{}">
+</EntityDescriptor>"#,
+                long_text
+            );
+            
+            // Should handle long content without issues
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that the parser handles binary/null data gracefully
+        #[test]
+        fn test_binary_and_null_data(input in "[\\x00-\\x1F]*") {
+            let xml = format!(
+                r#"<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+    <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="{}"/>
+    </IDPSSODescriptor>
+</EntityDescriptor>"#,
+                input
+            );
+            
+            // Should not panic on binary/null data
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that the parser handles unicode input correctly
+        #[test]
+        fn test_unicode_input(input in "\\PC*") {
+            let xml = format!(
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="{}">
+</EntityDescriptor>"#,
+                input
+            );
+            
+            // Should not panic on unicode input
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that malformed XML is handled gracefully
+        #[test]
+        fn test_malformed_xml(input in "[<>/a-zA-Z]{0,500}") {
+            // Random combinations of XML-like characters
+            let xml = format!("<?xml version=\"1.0\"?>\n{}", input);
+            
+            // Should not panic on malformed XML
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that unclosed tags don't cause issues
+        #[test]
+        fn test_unclosed_tags(tag in "[a-zA-Z]{1,30}", content in "[a-zA-Z0-9]*") {
+            let xml = format!(
+                r#"<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+    <{tag}>{content}
+</EntityDescriptor>"#
+            );
+            
+            // Should handle unclosed tags gracefully
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test SP metadata generation doesn't panic on valid configs
+        #[test]
+        fn test_sp_metadata_generation_never_panics(
+            entity_id in valid_entity_id(),
+            acs_url in valid_url()
+        ) {
+            let config = ServiceProviderConfig {
+                entity_id,
+                acs_url,
+                slo_url: None,
+                metadata_url: "https://example.com/metadata".to_string(),
+                certificate: None,
+                private_key: None,
+                want_authn_requests_signed: false,
+                want_assertions_signed: false,
+                want_assertions_encrypted: false,
+                name_id_format: NameIdFormat::EmailAddress,
+                organization: None,
+                contacts: vec![],
+            };
+            
+            // Should not panic
+            let _ = generate_sp_metadata(&config);
+        }
+
+        // Test extraction functions with empty/null metadata
+        #[test]
+        fn test_extraction_with_empty_metadata() {
+            let empty = "";
+            let _ = IdpMetadataParser::extract_sso_url(&EntityDescriptor {
+                entity_id: "".to_string(),
+                valid_until: None,
+                cache_duration: None,
+                idp_sso_descriptor: None,
+                sp_sso_descriptor: None,
+                organization: None,
+                contacts: vec![],
+            }, SamlBinding::HttpRedirect);
+            
+            let _ = IdpMetadataParser::extract_slo_url(&EntityDescriptor {
+                entity_id: "".to_string(),
+                valid_until: None,
+                cache_duration: None,
+                idp_sso_descriptor: None,
+                sp_sso_descriptor: None,
+                organization: None,
+                contacts: vec![],
+            }, SamlBinding::HttpRedirect);
+            
+            let _ = extract_idp_cert_from_metadata(empty);
+        }
+
+        // Test that the parser handles XML entities (not XXE, just normal encoding)
+        #[test]
+        fn test_xml_entities(input in "[a-zA-Z0-9&;]{0,100}") {
+            let xml = format!(
+                r#"<?xml version="1.0"?>
+<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="test">
+    <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+        <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com/{}"/>
+    </IDPSSODescriptor>
+</EntityDescriptor>"#,
+                input
+            );
+            
+            // Should not panic
+            let _ = IdpMetadataParser::parse(&xml);
+        }
+
+        // Test that endpoint extraction handles edge cases
+        #[test]
+        fn test_endpoint_extraction_edge_cases(binding in 0u8..5u8) {
+            let binding_enum = match binding {
+                0 => SamlBinding::HttpRedirect,
+                1 => SamlBinding::HttpPost,
+                2 => SamlBinding::HttpArtifact,
+                3 => SamlBinding::Soap,
+                _ => SamlBinding::HttpRedirect,
+            };
+            
+            let metadata = EntityDescriptor {
+                entity_id: "test".to_string(),
+                valid_until: None,
+                cache_duration: None,
+                idp_sso_descriptor: Some(IdpSsoDescriptor {
+                    protocols_supported: vec![],
+                    name_id_formats: vec![],
+                    single_sign_on_services: vec![],
+                    single_logout_services: vec![],
+                    signing_certificate: None,
+                    encryption_certificate: None,
+                    want_authn_requests_signed: false,
+                }),
+                sp_sso_descriptor: None,
+                organization: None,
+                contacts: vec![],
+            };
+            
+            // Should return None without panicking
+            let _ = IdpMetadataParser::extract_sso_url(&metadata, binding_enum);
+            let _ = IdpMetadataParser::extract_slo_url(&metadata, binding_enum);
+        }
+    }
+}

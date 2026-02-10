@@ -85,7 +85,7 @@ impl WebhookNotifier for DefaultWebhookNotifier {
         {
             Ok(eps) => eps,
             Err(e) => {
-                tracing::error!(error = %e, "Failed to get webhook endpoints");
+                tracing::error!(tenant_id = tenant_id, event_type = event_type, error = %e, "Failed to get webhook endpoints");
                 return;
             }
         };
@@ -107,7 +107,7 @@ impl WebhookNotifier for DefaultWebhookNotifier {
                 )
                 .await
             {
-                tracing::error!(error = %e, endpoint_id = %endpoint.id, "Failed to create webhook delivery");
+                tracing::error!(tenant_id = tenant_id, endpoint_id = %endpoint.id, error = %e, "Failed to create webhook delivery");
             }
         }
 
@@ -593,7 +593,7 @@ impl AuditLogger {
             )
             .await
             {
-                tracing::error!(error = %e, "Failed to write audit log to database");
+                tracing::error!(tenant_id = %tenant_id, error = %e, "Failed to write audit log to database");
             }
 
             if let Some(notifier) = security_notifier {
@@ -657,7 +657,7 @@ impl AuditLogger {
         )
         .await
         {
-            tracing::error!(error = %e, "Failed to write audit log to database");
+            tracing::error!(tenant_id = %tenant_id, error = %e, "Failed to write audit log to database");
         }
 
         if let Some(ref notifier) = self.security_notifier {
@@ -758,7 +758,7 @@ impl AuditLogger {
             )
             .await
             {
-                tracing::error!(error = %e, "Failed to write audit log to database");
+                tracing::error!(tenant_id = %db_tenant_id, error = %e, "Failed to write audit log to database");
             }
 
             if let Some(notifier) = security_notifier {

@@ -139,7 +139,7 @@ fn is_rate_limited(ip: &str) -> bool {
     let mut guard = match attempts.lock() {
         Ok(guard) => guard,
         Err(e) => {
-            tracing::error!("MFA rate limit lock poisoned: {}", e);
+            tracing::error!(error = %e, "MFA rate limit lock poisoned");
             return true;
         }
     };
@@ -166,7 +166,7 @@ where
 
         let ip = extract_client_ip(&parts.headers, &parts.extensions);
         if is_rate_limited(&ip) {
-            tracing::warn!("MFA verification rate limit exceeded for IP: {}", ip);
+            tracing::warn!(ip = %ip, "MFA verification rate limit exceeded");
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
 
@@ -317,6 +317,14 @@ struct VerifyCodeResponse {
 }
 
 /// Get current MFA status for user
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "get_mfa_status",
+    )
+)]
 async fn get_mfa_status(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -327,7 +335,7 @@ async fn get_mfa_status(
         .get_user_methods(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to get MFA methods: {}", e);
+            tracing::error!(error = %e, "Failed to get MFA methods");
             ApiError::internal()
         })?;
 
@@ -352,6 +360,15 @@ async fn get_mfa_status(
 }
 
 /// Setup TOTP MFA (generate secret)
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "setup_totp",
+        success = tracing::field::Empty,
+    )
+)]
 async fn setup_totp(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -373,7 +390,7 @@ async fn setup_totp(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create TOTP method: {}", e);
+            tracing::error!(error = %e, "Failed to create TOTP method");
             ApiError::internal()
         })?;
 
@@ -387,7 +404,7 @@ async fn setup_totp(
         .create_backup_codes(&current_user.tenant_id, &current_user.user_id, &code_hashes)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create backup codes: {}", e);
+            tracing::error!(error = %e, "Failed to create backup codes");
             ApiError::internal()
         })?;
 
@@ -414,6 +431,15 @@ async fn setup_totp(
 }
 
 /// Verify TOTP setup code
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_totp_setup",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_totp_setup(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -443,7 +469,7 @@ async fn verify_totp_setup(
         .verify_totp_method(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to verify TOTP method: {}", e);
+            tracing::error!(error = %e, "Failed to verify TOTP method");
             ApiError::internal()
         })?;
 
@@ -454,7 +480,7 @@ async fn verify_totp_setup(
         .get_mfa_config(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to load MFA config: {}", e);
+            tracing::error!(error = %e, "Failed to load MFA config");
             ApiError::internal()
         })?;
     let totp_json = serde_json::json!({
@@ -477,7 +503,7 @@ async fn verify_totp_setup(
         .update_mfa_config(&current_user.tenant_id, &current_user.user_id, &mfa_config)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update MFA config: {}", e);
+            tracing::error!(error = %e, "Failed to update MFA config");
             ApiError::internal()
         })?;
 
@@ -489,6 +515,15 @@ async fn verify_totp_setup(
 }
 
 /// Verify a TOTP code (for login)
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_totp_code",
+        valid = tracing::field::Empty,
+    )
+)]
 async fn verify_totp_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -509,7 +544,7 @@ async fn verify_totp_code(
             }));
         }
         Err(e) => {
-            tracing::error!("Failed to get TOTP secret: {}", e);
+            tracing::error!(error = %e, "Failed to get TOTP secret");
             return Err(ApiError::internal());
         }
     };
@@ -528,6 +563,7 @@ async fn verify_totp_code(
     };
 
     let valid = totp_config.verify(&req.code, 1);
+    tracing::Span::current().record("valid", valid);
 
     if valid {
         // Mark as used
@@ -566,6 +602,16 @@ async fn enable_mfa(
 }
 
 /// Disable MFA
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        method = %req.method,
+        action = "disable_mfa",
+        success = tracing::field::Empty,
+    )
+)]
 async fn disable_mfa(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -585,7 +631,7 @@ async fn disable_mfa(
         .disable_method(&current_user.tenant_id, &current_user.user_id, method_type)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to disable MFA method: {}", e);
+            tracing::error!(error = %e, "Failed to disable MFA method");
             ApiError::internal()
         })?;
 
@@ -607,6 +653,14 @@ async fn disable_mfa(
 }
 
 /// Begin WebAuthn registration
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "begin_webauthn_registration",
+    )
+)]
 async fn begin_webauthn_registration(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -622,7 +676,7 @@ async fn begin_webauthn_registration(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to begin WebAuthn registration: {}", e);
+            tracing::error!(error = %e, "Failed to begin WebAuthn registration");
             ApiError::internal()
         })?;
 
@@ -632,6 +686,15 @@ async fn begin_webauthn_registration(
 }
 
 /// Finish WebAuthn registration
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "finish_webauthn_registration",
+        success = tracing::field::Empty,
+    )
+)]
 async fn finish_webauthn_registration(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -640,7 +703,7 @@ async fn finish_webauthn_registration(
     // Parse credential response
     let credential_response: vault_core::webauthn::RegistrationCredentialResponse =
         serde_json::from_value(req.credential).map_err(|e| {
-            tracing::error!("Failed to parse credential: {}", e);
+            tracing::error!(error = %e, "Failed to parse credential");
             ApiError::BadRequest("Invalid credential format".to_string())
         })?;
 
@@ -650,7 +713,7 @@ async fn finish_webauthn_registration(
         .finish_registration(credential_response)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to finish WebAuthn registration: {}", e);
+            tracing::error!(error = %e, "Failed to finish WebAuthn registration");
             ApiError::BadRequest("Invalid credential".to_string())
         })?;
 
@@ -669,7 +732,7 @@ async fn finish_webauthn_registration(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to store WebAuthn credential: {}", e);
+            tracing::error!(error = %e, "Failed to store WebAuthn credential");
             ApiError::internal()
         })?;
 
@@ -691,6 +754,15 @@ async fn finish_webauthn_registration(
 }
 
 /// Generate new backup codes
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "generate_backup_codes",
+        success = tracing::field::Empty,
+    )
+)]
 async fn generate_backup_codes(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -702,7 +774,7 @@ async fn generate_backup_codes(
         .delete_backup_codes(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to delete old backup codes: {}", e);
+            tracing::error!(error = %e, "Failed to delete old backup codes");
             ApiError::internal()
         })?;
 
@@ -717,7 +789,7 @@ async fn generate_backup_codes(
         .create_backup_codes(&current_user.tenant_id, &current_user.user_id, &code_hashes)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create backup codes: {}", e);
+            tracing::error!(error = %e, "Failed to create backup codes");
             ApiError::internal()
         })?;
 
@@ -729,6 +801,15 @@ async fn generate_backup_codes(
 }
 
 /// Verify a backup code
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_backup_code",
+        valid = tracing::field::Empty,
+    )
+)]
 async fn verify_backup_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -740,10 +821,11 @@ async fn verify_backup_code(
         .verify_backup_code(&current_user.tenant_id, &current_user.user_id, &req.code)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to verify backup code: {}", e);
+            tracing::error!(error = %e, "Failed to verify backup code");
             ApiError::internal()
         })?;
 
+    tracing::Span::current().record("valid", valid);
     Ok(Json(VerifyCodeResponse {
         valid,
         message: if valid {
@@ -755,6 +837,14 @@ async fn verify_backup_code(
 }
 
 /// Setup Email MFA - send verification code
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "setup_email_mfa",
+    )
+)]
 async fn setup_email(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -764,6 +854,15 @@ async fn setup_email(
 }
 
 /// Verify Email MFA setup code and enable Email MFA
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_email_setup",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_email_setup(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -789,7 +888,7 @@ async fn verify_email_setup(
         .create_email_method(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create Email MFA method: {}", e);
+            tracing::error!(error = %e, "Failed to create Email MFA method");
             ApiError::internal()
         })?;
 
@@ -810,6 +909,14 @@ async fn verify_email_setup(
 }
 
 /// Send Email MFA code for login verification
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "send_email_mfa_code",
+    )
+)]
 async fn send_email_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -821,7 +928,7 @@ async fn send_email_code(
         .get_enabled_methods(&current_user.tenant_id, &current_user.user_id)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to load MFA methods: {}", e);
+            tracing::error!(error = %e, "Failed to load MFA methods");
             ApiError::internal()
         })?;
 
@@ -838,6 +945,15 @@ async fn send_email_code(
 }
 
 /// Verify Email MFA code for login
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_email_code",
+        valid = tracing::field::Empty,
+    )
+)]
 async fn verify_email_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -863,6 +979,7 @@ async fn verify_email_code(
             .await
             .ok();
     }
+    tracing::Span::current().record("valid", valid);
 
     Ok(Json(VerifyCodeResponse {
         valid,
@@ -875,6 +992,15 @@ async fn verify_email_code(
 }
 
 /// Setup SMS MFA - send verification code
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        phone_number = tracing::field::Empty,
+        action = "setup_sms_mfa",
+    )
+)]
 async fn setup_sms(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -883,6 +1009,9 @@ async fn setup_sms(
     // Validate phone number format
     let normalized_phone = vault_core::sms::SmsService::validate_phone_number(&req.phone_number)
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    // Don't log full phone number for privacy - use a masked version
+    let masked_phone = format!("****{}", &normalized_phone[normalized_phone.len().saturating_sub(4)..]);
+    tracing::Span::current().record("phone_number", masked_phone);
 
     // Get or create SMS service from state
     // For now, we'll use a simple approach - in production this should be initialized in AppState
@@ -893,7 +1022,7 @@ async fn setup_sms(
         .send_code(&normalized_phone)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to send SMS code: {}", e);
+            tracing::error!(error = %e, "Failed to send SMS code");
             match e {
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
@@ -917,7 +1046,7 @@ async fn setup_sms(
         )
         .await
     {
-        tracing::error!("Failed to store pending phone: {}", e);
+        tracing::error!(error = %e, "Failed to store pending phone");
         // Don't fail - we can still proceed with verification
     }
 
@@ -935,6 +1064,15 @@ async fn setup_sms(
 }
 
 /// Verify SMS setup code and enable SMS MFA
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_sms_setup",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_sms_setup(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -952,7 +1090,7 @@ async fn verify_sms_setup(
         .verify_code(&normalized_phone, &req.code)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to verify SMS code: {}", e);
+            tracing::error!(error = %e, "Failed to verify SMS code");
             match e {
                 vault_core::sms::SmsError::InvalidCode => {
                     ApiError::BadRequest("Invalid verification code".to_string())
@@ -982,7 +1120,7 @@ async fn verify_sms_setup(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update phone number: {}", e);
+            tracing::error!(error = %e, "Failed to update phone number");
             ApiError::internal()
         })?;
 
@@ -997,7 +1135,7 @@ async fn verify_sms_setup(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create SMS MFA method: {}", e);
+            tracing::error!(error = %e, "Failed to create SMS MFA method");
             ApiError::internal()
         })?;
 
@@ -1019,6 +1157,14 @@ async fn verify_sms_setup(
 }
 
 /// Send SMS code for login verification
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "send_sms_code",
+    )
+)]
 async fn send_sms_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1068,7 +1214,7 @@ async fn send_sms_code(
         .send_code(&normalized_phone)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to send SMS code: {}", e);
+            tracing::error!(error = %e, "Failed to send SMS code");
             match e {
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
@@ -1090,6 +1236,15 @@ async fn send_sms_code(
 }
 
 /// Verify SMS code for login
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_sms_code",
+        valid = tracing::field::Empty,
+    )
+)]
 async fn verify_sms_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1126,7 +1281,7 @@ async fn verify_sms_code(
             }));
         }
         Err(e) => {
-            tracing::error!("Failed to verify SMS code: {}", e);
+            tracing::error!(error = %e, "Failed to verify SMS code");
             return Err(ApiError::internal());
         }
     };
@@ -1144,6 +1299,7 @@ async fn verify_sms_code(
             .await
             .ok();
     }
+    tracing::Span::current().record("valid", valid);
 
     Ok(Json(VerifyCodeResponse {
         valid,
@@ -1156,6 +1312,15 @@ async fn verify_sms_code(
 }
 
 /// Disable SMS MFA
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "disable_sms_mfa",
+        success = tracing::field::Empty,
+    )
+)]
 async fn disable_sms_mfa(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1170,7 +1335,7 @@ async fn disable_sms_mfa(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to disable SMS MFA: {}", e);
+            tracing::error!(error = %e, "Failed to disable SMS MFA");
             ApiError::internal()
         })?;
 
@@ -1192,6 +1357,14 @@ async fn disable_sms_mfa(
 }
 
 /// Setup WhatsApp MFA - send verification code
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "setup_whatsapp_mfa",
+    )
+)]
 async fn setup_whatsapp(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1231,7 +1404,7 @@ async fn setup_whatsapp(
         .send_code_with_channel(&normalized_phone, channel)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to send WhatsApp/SMS code: {}", e);
+            tracing::error!(error = %e, "Failed to send WhatsApp/SMS code");
             match e {
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
@@ -1254,7 +1427,7 @@ async fn setup_whatsapp(
         )
         .await
     {
-        tracing::error!("Failed to store pending phone: {}", e);
+        tracing::error!(error = %e, "Failed to store pending phone");
     }
 
     // Get remaining attempts
@@ -1277,6 +1450,15 @@ async fn setup_whatsapp(
 }
 
 /// Verify WhatsApp MFA setup code and enable WhatsApp MFA
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_whatsapp_setup",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_whatsapp_setup(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1294,7 +1476,7 @@ async fn verify_whatsapp_setup(
         .verify_code(&normalized_phone, &req.code)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to verify WhatsApp code: {}", e);
+            tracing::error!(error = %e, "Failed to verify WhatsApp code");
             match e {
                 vault_core::sms::SmsError::InvalidCode => {
                     ApiError::BadRequest("Invalid verification code".to_string())
@@ -1324,7 +1506,7 @@ async fn verify_whatsapp_setup(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to update phone number: {}", e);
+            tracing::error!(error = %e, "Failed to update phone number");
             ApiError::internal()
         })?;
 
@@ -1339,7 +1521,7 @@ async fn verify_whatsapp_setup(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create WhatsApp MFA method: {}", e);
+            tracing::error!(error = %e, "Failed to create WhatsApp MFA method");
             ApiError::internal()
         })?;
 
@@ -1361,6 +1543,14 @@ async fn verify_whatsapp_setup(
 }
 
 /// Send WhatsApp code for login verification
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "send_whatsapp_code",
+    )
+)]
 async fn send_whatsapp_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1420,7 +1610,7 @@ async fn send_whatsapp_code(
         .send_code_with_channel(&normalized_phone, channel)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to send WhatsApp code: {}", e);
+            tracing::error!(error = %e, "Failed to send WhatsApp code");
             match e {
                 vault_core::sms::SmsError::RateLimitExceeded(_) => ApiError::TooManyRequests(
                     "Rate limit exceeded. Please try again later.".to_string(),
@@ -1448,6 +1638,15 @@ async fn send_whatsapp_code(
 }
 
 /// Verify WhatsApp code for login
+#[tracing::instrument(
+    skip(state, current_user, req),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "verify_whatsapp_code",
+        valid = tracing::field::Empty,
+    )
+)]
 async fn verify_whatsapp_code(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1484,7 +1683,7 @@ async fn verify_whatsapp_code(
             }));
         }
         Err(e) => {
-            tracing::error!("Failed to verify WhatsApp code: {}", e);
+            tracing::error!(error = %e, "Failed to verify WhatsApp code");
             return Err(ApiError::internal());
         }
     };
@@ -1502,6 +1701,7 @@ async fn verify_whatsapp_code(
             .await
             .ok();
     }
+    tracing::Span::current().record("valid", valid);
 
     Ok(Json(VerifyCodeResponse {
         valid,
@@ -1514,6 +1714,15 @@ async fn verify_whatsapp_code(
 }
 
 /// Disable WhatsApp MFA
+#[tracing::instrument(
+    skip(state, current_user),
+    fields(
+        tenant_id = %current_user.tenant_id,
+        user_id = %current_user.user_id,
+        action = "disable_whatsapp_mfa",
+        success = tracing::field::Empty,
+    )
+)]
 async fn disable_whatsapp_mfa(
     State(state): State<AppState>,
     Extension(current_user): Extension<CurrentUser>,
@@ -1529,7 +1738,7 @@ async fn disable_whatsapp_mfa(
         )
         .await
         .map_err(|e| {
-            tracing::error!("Failed to disable WhatsApp MFA: {}", e);
+            tracing::error!(error = %e, "Failed to disable WhatsApp MFA");
             ApiError::internal()
         })?;
 

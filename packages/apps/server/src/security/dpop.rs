@@ -573,3 +573,324 @@ mod tests {
         assert_eq!(decoded, data);
     }
 }
+
+
+// Property-based tests for DPoP proof parser
+// 
+// These tests verify:
+// 1. The DPoP parser never panics on arbitrary input (security/DoS protection)
+// 2. JWT parsing handles malformed input correctly
+// 3. Base64 decoding is robust against invalid input
+// 4. URL normalization handles edge cases
+// 5. Replay detection works correctly with various JTIs
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        // Test that JWT parsing never panics on arbitrary input
+        // This is critical as malformed JWTs could cause DoS
+        #[test]
+        fn test_jwt_parsing_never_panics(jwt in "\\PC*") {
+            let validator = DpopValidator::new();
+            // Should never panic regardless of input
+            let _ = validator.parse_jwt(&jwt);
+        }
+
+        // Test that the full DPoP verify function never panics
+        #[test]
+        fn test_dpop_verify_never_panics(
+            proof in "\\PC*",
+            method in "\\PC*",
+            url in "\\PC*"
+        ) {
+            let validator = DpopValidator::new();
+            // Should never panic regardless of input
+            let _ = validator.verify(&proof, &method, &url, None);
+        }
+
+        // Test that base64 URL decoding handles arbitrary input
+        #[test]
+        fn test_base64_url_decode_never_panics(input in "\\PC*") {
+            // Should never panic
+            let _ = base64_url_decode(&input);
+        }
+
+        // Test that base64 standard decoding handles arbitrary input
+        #[test]
+        fn test_base64_decode_never_panics(input in "\\PC*") {
+            // Should never panic
+            let _ = base64_decode(&input);
+        }
+
+        // Test that URL normalization never panics on arbitrary input
+        #[test]
+        fn test_url_normalization_never_panics(url in "\\PC*") {
+            let validator = DpopValidator::new();
+            // Should never panic
+            let _ = validator.normalize_url(&url);
+        }
+
+        // Test that JWK thumbprint calculation handles arbitrary JWKs
+        #[test]
+        fn test_jwk_thumbprint_never_panics(
+            kty in "\\PC*",
+            crv in "\\PC*",
+            x in "\\PC*",
+            y in "\\PC*"
+        ) {
+            let jwk = Jwk { kty, crv, x, y };
+            let validator = DpopValidator::new();
+            // Should never panic
+            let _ = validator.calculate_jwk_thumbprint(&jwk);
+        }
+
+        // Test that header validation handles arbitrary headers
+        #[test]
+        fn test_header_validation_never_panics(
+            alg in "\\PC*",
+            typ in "\\PC*",
+            kty in "\\PC*",
+            crv in "\\PC*",
+            x in "\\PC*",
+            y in "\\PC*"
+        ) {
+            let header = DpopHeader {
+                alg,
+                typ,
+                jwk: Jwk { kty, crv, x, y },
+            };
+            let validator = DpopValidator::new();
+            // Should never panic
+            let _ = validator.validate_header(&header);
+        }
+
+        // Test replay detection with arbitrary JTIs
+        #[test]
+        fn test_replay_detection_never_panics(jti in "\\PC*") {
+            let validator = DpopValidator::new();
+            // Should never panic
+            let _ = validator.check_replay(&jti);
+        }
+
+        // Test that replay detection correctly identifies unique JTIs
+        #[test]
+        fn test_replay_detection_unique_jtis(jti in "[a-zA-Z0-9_-]{1,100}") {
+            let validator = DpopValidator::new();
+            
+            // First check should succeed
+            let result1 = validator.check_replay(&jti);
+            prop_assert!(result1.is_ok(), "First JTI check should succeed: {}", jti);
+            
+            // Second check should fail (replay)
+            let result2 = validator.check_replay(&jti);
+            prop_assert!(result2.is_err(), "Second JTI check should fail (replay): {}", jti);
+        }
+
+        // Test base64 round-trip encoding/decoding
+        #[test]
+        fn test_base64_roundtrip(data in "[a-zA-Z0-9+/=]*") {
+            let encoded = base64_url_encode(data.as_bytes());
+            let decoded = base64_url_decode(&encoded);
+            
+            prop_assert!(decoded.is_ok(), "Decoding should succeed");
+            prop_assert_eq!(
+                decoded.unwrap(),
+                data.as_bytes(),
+                "Round-trip should preserve data"
+            );
+        }
+
+        // Test that URL normalization is consistent
+        #[test]
+        fn test_url_normalization_consistency(url in "[a-zA-Z0-9:/._#-]*") {
+            let validator = DpopValidator::new();
+            
+            let normalized1 = validator.normalize_url(&url);
+            let normalized2 = validator.normalize_url(&url);
+            
+            prop_assert_eq!(
+                normalized1, normalized2,
+                "URL normalization should be deterministic"
+            );
+        }
+
+        // Test that URL normalization handles fragments correctly
+        #[test]
+        fn test_url_normalization_fragments(
+            base in "https://[a-z]{1,20}\\.[a-z]{2,10}/[a-z]{1,20}",
+            fragment in "[a-zA-Z0-9_-]{0,50}"
+        ) {
+            let validator = DpopValidator::new();
+            
+            let url_with_fragment = format!("{}#{}", base, fragment);
+            let normalized = validator.normalize_url(&url_with_fragment);
+            
+            // Fragment should be removed
+            prop_assert!(
+                !normalized.contains('#'),
+                "Fragment should be removed: {} -> {}",
+                url_with_fragment, normalized
+            );
+        }
+
+        // Test that URL normalization handles trailing slashes correctly
+        #[test]
+        fn test_url_normalization_trailing_slashes(
+            base in "https://[a-z]{1,20}\\.[a-z]{2,10}/[a-z]{1,20}"
+        ) {
+            let validator = DpopValidator::new();
+            
+            let url_with_slash = format!("{}/", base);
+            let normalized = validator.normalize_url(&url_with_slash);
+            
+            // Trailing slash should be removed (except for root)
+            if url_with_slash.len() > 8 {
+                // "https://" is 8 chars, so anything longer shouldn't end with /
+                prop_assert!(
+                    !normalized.ends_with('/'),
+                    "Trailing slash should be removed: {} -> {}",
+                    url_with_slash, normalized
+                );
+            }
+        }
+
+        // Test that URL normalization is case-insensitive for scheme/host
+        #[test]
+        fn test_url_normalization_case_insensitive(
+            scheme in "(https|HTTPS|Https)",
+            host in "[a-zA-Z]{5,20}\\.[a-zA-Z]{2,10}",
+            path in "[a-zA-Z/]{1,30}"
+        ) {
+            let validator = DpopValidator::new();
+            
+            let url = format!("{}://{}{}", scheme, host, path);
+            let normalized = validator.normalize_url(&url);
+            
+            // Should be lowercase
+            prop_assert!(
+                normalized.chars().all(|c| !c.is_ascii_uppercase()),
+                "Normalized URL should be lowercase: {} -> {}",
+                url, normalized
+            );
+        }
+
+        // Test that JWT parsing handles various separator counts
+        #[test]
+        fn test_jwt_parsing_separators(jwt in "[a-zA-Z0-9._-]{0,500}") {
+            let validator = DpopValidator::new();
+            
+            let result = validator.parse_jwt(&jwt);
+            
+            // Valid JWTs have exactly 2 dots
+            let dot_count = jwt.matches('.').count();
+            if dot_count == 2 && !jwt.starts_with('.') && !jwt.ends_with('.') {
+                // This might be a valid JWT format
+                // (though content may still be invalid)
+            } else {
+                // Should return an error, not panic
+                prop_assert!(
+                    result.is_err(),
+                    "JWT with {} dots should fail: {}",
+                    dot_count, jwt
+                );
+            }
+        }
+
+        // Test that the validator handles binary/null data
+        #[test]
+        fn test_dpop_handles_binary_data(input in "[\\x00-\\x1F]*") {
+            let validator = DpopValidator::new();
+            
+            // Should not panic on binary data
+            let _ = validator.parse_jwt(&input);
+            let _ = base64_url_decode(&input);
+            let _ = base64_decode(&input);
+            let _ = validator.normalize_url(&input);
+        }
+
+        // Test that the validator handles unicode input
+        #[test]
+        fn test_dpop_handles_unicode(input in "\\PC*") {
+            let validator = DpopValidator::new();
+            
+            // Should not panic on unicode
+            let _ = validator.parse_jwt(&input);
+            let _ = base64_url_decode(&input);
+            let _ = base64_decode(&input);
+            let _ = validator.normalize_url(&input);
+        }
+
+        // Test that the validator handles very long inputs
+        #[test]
+        fn test_dpop_handles_long_inputs(length in 1000usize..10000usize) {
+            let validator = DpopValidator::new();
+            let long_input = "a".repeat(length);
+            
+            // Should not panic on long inputs
+            let _ = validator.parse_jwt(&long_input);
+            let _ = base64_url_decode(&long_input);
+            let _ = base64_decode(&long_input);
+            let _ = validator.normalize_url(&long_input);
+        }
+
+        // Test that DPoP binding generation is consistent
+        #[test]
+        fn test_dpop_binding_consistency(thumbprint in "[a-zA-Z0-9_-]{1,100}") {
+            let binding1 = generate_dpop_binding(&thumbprint);
+            let binding2 = generate_dpop_binding(&thumbprint);
+            
+            prop_assert_eq!(
+                binding1.jkt, binding2.jkt,
+                "DPoP binding should be consistent"
+            );
+            prop_assert_eq!(
+                binding1.confirmation.jwk_thumbprint,
+                binding2.confirmation.jwk_thumbprint,
+                "DPoP binding confirmation should be consistent"
+            );
+            prop_assert_eq!(
+                binding1.jkt, thumbprint,
+                "JKT should match input thumbprint"
+            );
+        }
+
+        // Test that nonce generation produces valid hex strings
+        #[test]
+        fn test_nonce_generation() {
+            let nonce = DpopValidator::generate_nonce();
+            
+            // Should be 32 hex characters (16 bytes)
+            prop_assert_eq!(
+                nonce.len(), 32,
+                "Nonce should be 32 hex characters"
+            );
+            
+            // Should be valid hex
+            prop_assert!(
+                nonce.chars().all(|c| c.is_ascii_hexdigit()),
+                "Nonce should be valid hex: {}", nonce
+            );
+        }
+
+        // Test that empty inputs are handled correctly
+        #[test]
+        fn test_empty_inputs() {
+            let validator = DpopValidator::new();
+            
+            // Empty JWT should fail gracefully
+            let result = validator.parse_jwt("");
+            prop_assert!(result.is_err(), "Empty JWT should fail");
+            
+            // Empty URL normalization should work
+            let normalized = validator.normalize_url("");
+            prop_assert_eq!(normalized, "", "Empty URL should normalize to empty");
+            
+            // Empty base64 decode
+            let decoded = base64_url_decode("");
+            prop_assert!(decoded.is_ok(), "Empty base64 should decode");
+            prop_assert!(decoded.unwrap().is_empty(), "Empty base64 should decode to empty");
+        }
+    }
+}

@@ -343,6 +343,15 @@ async fn get_captcha_site_key(State(state): State<AppState>) -> Json<CaptchaSite
 }
 
 /// Register a new user
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "register",
+        success = tracing::field::Empty,
+    )
+)]
 async fn register(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -351,11 +360,12 @@ async fn register(
 ) -> Result<Json<AuthResponse>, ApiError> {
     // Validate request
     if let Err(e) = req.validate() {
-        tracing::warn!("Registration validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Registration validation failed");
         return Err(ApiError::Validation(e.to_string()));
     }
 
     let tenant_id = extract_tenant_id(&headers);
+    tracing::Span::current().record("tenant_id", &tenant_id.as_str());
     let context = Some(RequestContext::from_request(
         &headers,
         Some(&ConnectInfo(addr)),
@@ -383,8 +393,8 @@ async fn register(
         match policy.enforcement_mode {
             EnforcementMode::Block => {
                 tracing::warn!(
-                    "Registration rejected due to password policy violations: {:?}",
-                    validation_result.error_codes()
+                    error_codes = ?validation_result.error_codes(),
+                    "Registration rejected due to password policy violations"
                 );
 
                 // Log the policy violation
@@ -410,14 +420,15 @@ async fn register(
             }
             EnforcementMode::Warn | EnforcementMode::Audit => {
                 // Log but allow
+                let mode = if matches!(policy.enforcement_mode, EnforcementMode::Warn) {
+                    "warn"
+                } else {
+                    "audit"
+                };
                 tracing::info!(
-                    "Password policy violations detected (allowed in {} mode): {:?}",
-                    if matches!(policy.enforcement_mode, EnforcementMode::Warn) {
-                        "warn"
-                    } else {
-                        "audit"
-                    },
-                    validation_result.error_codes()
+                    enforcement_mode = mode,
+                    error_codes = ?validation_result.error_codes(),
+                    "Password policy violations detected (allowed)"
                 );
             }
         }
@@ -481,7 +492,7 @@ async fn register(
                 req.cookies_consent.unwrap_or(false),
                 consent_context,
             ).await {
-                tracing::error!("Failed to record consents for user {}: {}", user.id, e);
+                tracing::error!(user_id = %user.id, error = %e, "Failed to record consents");
                 // Don't fail registration if consent recording fails, but log it
             }
 
@@ -519,9 +530,9 @@ async fn register(
                     Ok(enrollment) if enrollment.enrolled => {
                         if let Some(org_id) = enrollment.organization_id {
                             tracing::info!(
-                                "User {} auto-enrolled in organization {} via domain verification",
-                                user.id,
-                                org_id
+                                user_id = %user.id,
+                                organization_id = %org_id,
+                                "User auto-enrolled in organization via domain verification"
                             );
 
                             // Trigger webhook for auto-enrollment
@@ -541,11 +552,11 @@ async fn register(
                     }
                     Ok(_) => {
                         // No auto-enrollment available for this domain
-                        tracing::debug!("No auto-enrollment available for user {}", user.id);
+                        tracing::debug!(user_id = %user.id, "No auto-enrollment available");
                     }
                     Err(e) => {
                         // Log error but don't fail registration
-                        tracing::warn!("Auto-enrollment check failed for user {}: {}", user.id, e);
+                        tracing::warn!(user_id = %user.id, error = %e, "Auto-enrollment check failed");
                     }
                 }
             }
@@ -619,15 +630,16 @@ async fn register(
                     }))
                 }
                 Err(e) => {
-                    tracing::error!("Auto-login after registration failed: {}", e);
+                    tracing::error!(error = %e, "Auto-login after registration failed");
                     Err(ApiError::internal())
                 }
             }
         }
         Err(e) => {
-            tracing::warn!("Registration failed: {}", e);
+            let error_msg = e.to_string();
+            tracing::warn!(email = %email, error = %error_msg, "Registration failed");
             // Log failed registration
-            let reason = if e.to_string().contains("already exists") {
+            let reason = if error_msg.contains("already exists") {
                 "Email already exists"
             } else {
                 "Registration failed"
@@ -646,6 +658,16 @@ async fn register(
 /// Login with email and password
 ///
 /// CAPTCHA is required after N failed login attempts (configurable)
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        email = %req.email,
+        ip_address = %addr.ip(),
+        action = "login",
+        success = tracing::field::Empty,
+    )
+)]
 async fn login(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -654,11 +676,12 @@ async fn login(
 ) -> Result<Json<AuthResponse>, ApiError> {
     // Validate request
     if let Err(e) = req.validate() {
-        tracing::warn!("Login validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Login validation failed");
         return Err(ApiError::Validation(e.to_string()));
     }
 
     let tenant_id = extract_tenant_id(&headers);
+    tracing::Span::current().record("tenant_id", &tenant_id.as_str());
     let context = Some(RequestContext::from_request(
         &headers,
         Some(&ConnectInfo(addr)),
@@ -699,13 +722,12 @@ async fn login(
                     .await
                 {
                     Ok(result) if result.success => {
-                        tracing::debug!("CAPTCHA verified for login attempt from {}", ip);
+                        tracing::debug!("CAPTCHA verified for login attempt");
                     }
                     Ok(result) => {
                         tracing::warn!(
-                            "CAPTCHA verification failed for login from {}: {:?}",
-                            ip,
-                            result.error_codes
+                            error_codes = ?result.error_codes,
+                            "CAPTCHA verification failed for login"
                         );
                         // Return 403 with CAPTCHA required indicator
                         return Err(ApiError::Forbidden);
@@ -717,7 +739,7 @@ async fn login(
                 }
             }
             None => {
-                tracing::warn!("CAPTCHA required but not provided for login from {}", ip);
+                tracing::warn!("CAPTCHA required but not provided for login");
                 // Log the CAPTCHA requirement
                 audit.log(
                     &tenant_id,
@@ -1050,19 +1072,20 @@ async fn login(
             }))
         }
         Err(e) => {
-            tracing::warn!("Authentication failed: {}", e);
+            let error_msg = e.to_string();
+            tracing::warn!(error = %error_msg, "Authentication failed");
 
             // Record failed login attempt
             let failure_count = record_failed_login(&state, &failed_login_key).await;
 
             // Log failed login
-            audit.log_login_failed(&tenant_id, &email, context.clone(), &e.to_string());
+            audit.log_login_failed(&tenant_id, &email, context.clone(), &error_msg);
 
             tracing::info!(
-                "Failed login attempt {} for {} from {}",
-                failure_count,
-                email,
-                ip
+                failure_count = failure_count,
+                email = %email,
+                ip = %ip,
+                "Failed login attempt recorded"
             );
 
             // Try LDAP authentication if local auth failed
@@ -1162,7 +1185,7 @@ async fn login(
                     // LDAP also failed or not configured
                 }
                 Err(e) => {
-                    tracing::error!("LDAP authentication error: {}", e);
+                    tracing::error!(error = %e, "LDAP authentication error");
                 }
             }
 
@@ -1231,6 +1254,14 @@ async fn try_ldap_authenticate(
 }
 
 /// Refresh access token
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        action = "token_refresh",
+        success = tracing::field::Empty,
+    )
+)]
 async fn refresh_token(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
@@ -1238,7 +1269,7 @@ async fn refresh_token(
 ) -> Result<Json<AuthResponse>, StatusCode> {
     // Validate input
     if let Err(e) = req.validate() {
-        tracing::debug!("Refresh token validation failed: {}", e);
+        tracing::debug!(validation_error = %e, "Refresh token validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
     
@@ -1282,7 +1313,7 @@ async fn refresh_token(
             }))
         }
         Err(e) => {
-            tracing::warn!("Token refresh failed: {}", e);
+            tracing::warn!(error = %e, "Token refresh failed");
             // Log failed token refresh - we don't have user_id here
             audit.log(
                 &tenant_id,
@@ -1302,13 +1333,22 @@ async fn refresh_token(
 }
 
 /// Logout user
+#[tracing::instrument(
+    skip(state, user),
+    fields(
+        tenant_id = %user.tenant_id,
+        user_id = %user.user_id,
+        session_id = tracing::field::Empty,
+        action = "logout",
+    )
+)]
 async fn logout(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
     // Get session ID from JWT claims
     let session_id = user.session_id.ok_or(StatusCode::BAD_REQUEST)?;
-
+    tracing::Span::current().record("session_id", &session_id.as_str());
     let audit = AuditLogger::new(state.db.clone());
 
     match state
@@ -1343,7 +1383,7 @@ async fn logout(
             }))
         }
         Err(e) => {
-            tracing::error!("Logout failed: {}", e);
+            tracing::error!(error = %e, "Logout failed");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -1382,6 +1422,16 @@ async fn get_current_user(
 }
 
 /// Send magic link for passwordless login
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        email = %req.email,
+        ip_address = %addr.ip(),
+        action = "magic_link_send",
+        success = tracing::field::Empty,
+    )
+)]
 async fn send_magic_link(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1389,7 +1439,7 @@ async fn send_magic_link(
     Json(req): Json<MagicLinkRequest>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
     if let Err(e) = req.validate() {
-        tracing::warn!("Magic link validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Magic link validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -1423,7 +1473,7 @@ async fn send_magic_link(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to send magic link: {}", e);
+            tracing::error!(error = %e, "Failed to send magic link");
             // Don't reveal if email exists to the client, but log it
             audit.log_magic_link(
                 &tenant_id,
@@ -1442,6 +1492,15 @@ async fn send_magic_link(
 }
 
 /// Verify magic link
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "magic_link_verify",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_magic_link(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1450,7 +1509,7 @@ async fn verify_magic_link(
 ) -> Result<Json<AuthResponse>, StatusCode> {
     // Validate input
     if let Err(e) = req.validate() {
-        tracing::debug!("Magic link validation failed: {}", e);
+        tracing::debug!(validation_error = %e, "Magic link validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
     
@@ -1506,7 +1565,7 @@ async fn verify_magic_link(
             }))
         }
         Err(e) => {
-            tracing::warn!("Magic link verification failed: {}", e);
+            tracing::warn!(error = %e, "Magic link verification failed");
             // Log failed magic link usage
             audit.log_magic_link(
                 &tenant_id,
@@ -1523,6 +1582,16 @@ async fn verify_magic_link(
 }
 
 /// Request password reset
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        email = %req.email,
+        ip_address = %addr.ip(),
+        action = "forgot_password",
+        success = tracing::field::Empty,
+    )
+)]
 async fn forgot_password(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1530,7 +1599,7 @@ async fn forgot_password(
     Json(req): Json<ForgotPasswordRequest>,
 ) -> Result<Json<MessageResponse>, StatusCode> {
     if let Err(e) = req.validate() {
-        tracing::warn!("Forgot password validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Forgot password validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -1556,7 +1625,7 @@ async fn forgot_password(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to send password reset: {}", e);
+            tracing::error!(error = %e, "Failed to send password reset");
             // Don't reveal if email exists to the client, but log it
             audit.log(
                 &tenant_id,
@@ -1578,6 +1647,15 @@ async fn forgot_password(
 }
 
 /// Reset password with token
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "reset_password",
+        success = tracing::field::Empty,
+    )
+)]
 async fn reset_password(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1586,7 +1664,7 @@ async fn reset_password(
 ) -> Result<Json<MessageResponse>, StatusCode> {
     // Validate input
     if let Err(e) = req.validate() {
-        tracing::debug!("Reset password validation failed: {}", e);
+        tracing::debug!(validation_error = %e, "Reset password validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
     
@@ -1609,8 +1687,8 @@ async fn reset_password(
         match policy.enforcement_mode {
             EnforcementMode::Block => {
                 tracing::warn!(
-                    "Password reset rejected due to password policy violations: {:?}",
-                    validation_result.error_codes()
+                    error_codes = ?validation_result.error_codes(),
+                    "Password reset rejected due to password policy violations"
                 );
 
                 audit.log(
@@ -1632,14 +1710,15 @@ async fn reset_password(
                 return Err(StatusCode::BAD_REQUEST);
             }
             EnforcementMode::Warn | EnforcementMode::Audit => {
+                let mode = if matches!(policy.enforcement_mode, EnforcementMode::Warn) {
+                    "warn"
+                } else {
+                    "audit"
+                };
                 tracing::info!(
-                    "Password policy violations detected during reset (allowed in {} mode): {:?}",
-                    if matches!(policy.enforcement_mode, EnforcementMode::Warn) {
-                        "warn"
-                    } else {
-                        "audit"
-                    },
-                    validation_result.error_codes()
+                    enforcement_mode = mode,
+                    error_codes = ?validation_result.error_codes(),
+                    "Password policy violations detected during reset (allowed)"
                 );
             }
         }
@@ -1671,7 +1750,7 @@ async fn reset_password(
             }))
         }
         Err(e) => {
-            tracing::warn!("Password reset failed: {}", e);
+            tracing::warn!(error = %e, "Password reset failed");
             // Log failed password reset - we don't have user_id here
             audit.log(
                 &tenant_id,
@@ -1691,6 +1770,15 @@ async fn reset_password(
 }
 
 /// Verify email address
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "verify_email",
+        success = tracing::field::Empty,
+    )
+)]
 async fn verify_email(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1699,7 +1787,7 @@ async fn verify_email(
 ) -> Result<Json<UserResponse>, StatusCode> {
     // Validate input
     if let Err(e) = req.validate() {
-        tracing::debug!("Email verification validation failed: {}", e);
+        tracing::debug!(validation_error = %e, "Email verification validation failed");
         return Err(StatusCode::BAD_REQUEST);
     }
     
@@ -1733,7 +1821,7 @@ async fn verify_email(
             }))
         }
         Err(e) => {
-            tracing::warn!("Email verification failed: {}", e);
+            tracing::warn!(error = %e, "Email verification failed");
             // Log failed email verification
             audit.log_email_verification(
                 &tenant_id,
@@ -1748,6 +1836,14 @@ async fn verify_email(
 }
 
 /// OAuth redirect - generates authorization URL for the provider
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        provider = %provider,
+        action = "oauth_redirect",
+    )
+)]
 async fn oauth_redirect(
     State(state): State<AppState>,
     Path(provider): Path<String>,
@@ -1800,7 +1896,7 @@ async fn oauth_redirect(
     } else {
         // Without Redis, we'll use a signed state that includes the data
         // This is a fallback - in production Redis should be used
-        tracing::warn!("Redis not available, OAuth state verification may be less secure");
+        tracing::warn!("Redis not available, OAuth state verification may be less secure (fallback mode)");
     }
 
     // Build authorization URL
@@ -1814,9 +1910,9 @@ async fn oauth_redirect(
     let auth_url = auth_service.get_authorization_url(auth_url_req);
 
     tracing::info!(
-        "Generated OAuth redirect URL for provider: {}, mode: {}",
-        provider_enum.name(),
-        link_mode
+        provider = provider_enum.name(),
+        mode = link_mode,
+        "Generated OAuth redirect URL"
     );
 
     Ok(Json(OAuthRedirectResponse {
@@ -1857,6 +1953,16 @@ struct AppleName {
 }
 
 /// OAuth callback - handles the OAuth provider callback
+#[tracing::instrument(
+    skip(state, params),
+    fields(
+        tenant_id = tracing::field::Empty,
+        provider = %provider,
+        ip_address = %addr.ip(),
+        action = "oauth_callback",
+        success = tracing::field::Empty,
+    )
+)]
 async fn oauth_callback(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -1865,7 +1971,7 @@ async fn oauth_callback(
 ) -> Result<Json<AuthResponse>, ApiError> {
     // Check for OAuth error
     if let Some(error) = params.error {
-        tracing::warn!("OAuth callback error from {}: {}", provider, error);
+        tracing::warn!(oauth_error = %error, "OAuth callback error");
         return Err(ApiError::BadRequest(format!("OAuth error: {}", error)));
     }
 
@@ -1882,9 +1988,9 @@ async fn oauth_callback(
     // Verify provider matches
     if stored_provider != provider {
         tracing::warn!(
-            "OAuth provider mismatch: expected {}, got {}",
-            stored_provider,
-            provider
+            expected = stored_provider,
+            got = provider.as_str(),
+            "OAuth provider mismatch"
         );
         return Err(ApiError::BadRequest("OAuth provider mismatch".to_string()));
     }
@@ -1910,17 +2016,14 @@ async fn oauth_callback(
 
     // Extract email - required for account creation/linking
     let email = user_info.email.ok_or_else(|| {
-        tracing::warn!(
-            "OAuth provider did not return email for {}",
-            provider_enum.name()
-        );
+        tracing::warn!("OAuth provider did not return email");
         ApiError::BadRequest("Email not provided by OAuth provider".to_string())
     })?;
 
     tracing::info!(
-        "OAuth login attempt: provider={}, email={}",
-        provider_enum.name(),
-        email
+        provider = provider_enum.name(),
+        email = %email,
+        "OAuth login attempt"
     );
 
     let audit = AuditLogger::new(state.db.clone());
@@ -1935,13 +2038,13 @@ async fn oauth_callback(
     let user = match state.db.users().find_by_email(&tenant_id, &email).await {
         Ok(Some(existing_user)) => {
             // User exists - update OAuth connection info if needed
-            tracing::info!("Existing user logging in via OAuth: {}", email);
+            tracing::info!(user_id = %existing_user.id, "Existing user logging in via OAuth");
             existing_user
         }
         Ok(None) => {
             // Check if OAuth signup is enabled
             if !state.config.features.enable_oauth_signup {
-                tracing::warn!("OAuth signup disabled, rejecting new user: {}", email);
+                tracing::warn!(email = %email, "OAuth signup disabled, rejecting new user");
                 audit.log_oauth_login(
                     &tenant_id,
                     "unknown",
@@ -1954,7 +2057,7 @@ async fn oauth_callback(
             }
 
             // Create new user
-            tracing::info!("Creating new user via OAuth: {}", email);
+            tracing::info!(email = %email, "Creating new user via OAuth");
 
             // Build profile from OAuth user info
             let profile = serde_json::json!({
@@ -1981,7 +2084,7 @@ async fn oauth_callback(
             })?
         }
         Err(e) => {
-            tracing::error!("Database error looking up user: {}", e);
+            tracing::error!(error = %e, "Database error looking up user");
             return Err(ApiError::internal());
         }
     };
@@ -1989,7 +2092,7 @@ async fn oauth_callback(
     // Check if user account is active
     use vault_core::models::user::UserStatus;
     if user.status != UserStatus::Active {
-        tracing::warn!("OAuth login attempt for inactive account: {}", email);
+        tracing::warn!(user_id = %user.id, email = %email, "OAuth login attempt for inactive account");
         audit.log_oauth_login(
             &tenant_id,
             &user.id,
@@ -2003,7 +2106,7 @@ async fn oauth_callback(
 
     // Check if user is locked
     if user.is_locked() {
-        tracing::warn!("OAuth login attempt for locked account: {}", email);
+        tracing::warn!(user_id = %user.id, email = %email, "OAuth login attempt for locked account");
         audit.log_oauth_login(
             &tenant_id,
             &user.id,
@@ -2026,10 +2129,10 @@ async fn oauth_callback(
         Ok(Err(limit_err)) => {
             // Session limit reached - deny login
             tracing::warn!(
-                "Session limit reached for user {}: {}/{} sessions",
-                user.id,
-                limit_err.current_sessions,
-                limit_err.max_sessions
+                user_id = %user.id,
+                current_sessions = limit_err.current_sessions,
+                max_sessions = limit_err.max_sessions,
+                "Session limit reached for user"
             );
 
             audit.log_oauth_login(
@@ -2044,7 +2147,7 @@ async fn oauth_callback(
             return Err(ApiError::SessionLimitReached(limit_err));
         }
         Err(e) => {
-            tracing::error!("Failed to check session limits: {}", e);
+            tracing::error!(error = %e, "Failed to check session limits");
             return Err(ApiError::internal());
         }
     }
@@ -2111,9 +2214,10 @@ async fn oauth_callback(
     .await?;
 
     tracing::info!(
-        "OAuth login successful: provider={}, email={}",
-        provider_enum.name(),
-        email
+        provider = provider_enum.name(),
+        user_id = %user.id,
+        email = %email,
+        "OAuth login successful"
     );
 
     // Log successful OAuth login
@@ -2158,6 +2262,15 @@ async fn oauth_callback(
 
 /// Apple OAuth callback - handles form_post from Apple
 /// Apple uses form_post response mode which sends data as POST body
+#[tracing::instrument(
+    skip(state, form),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "apple_oauth_callback",
+        success = tracing::field::Empty,
+    )
+)]
 async fn apple_oauth_callback(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -2172,7 +2285,7 @@ async fn apple_oauth_callback(
 
     // Check for OAuth error
     if let Some(error) = form.error {
-        tracing::warn!("Apple OAuth callback error: {}", error);
+        tracing::warn!(oauth_error = %error, "Apple OAuth callback error");
         return Err(ApiError::BadRequest(format!("OAuth error: {}", error)));
     }
 
@@ -2190,8 +2303,9 @@ async fn apple_oauth_callback(
     // Verify provider matches
     if stored_provider != "apple" {
         tracing::warn!(
-            "OAuth provider mismatch: expected apple, got {}",
-            stored_provider
+            expected = "apple",
+            got = stored_provider,
+            "OAuth provider mismatch"
         );
         return Err(ApiError::BadRequest("OAuth provider mismatch".to_string()));
     }
@@ -2239,7 +2353,7 @@ async fn apple_oauth_callback(
         ApiError::BadRequest("Email not provided by Apple".to_string())
     })?;
 
-    tracing::info!("Apple OAuth login attempt: email={}", email);
+    tracing::info!(email = %email, "Apple OAuth login attempt");
 
     let audit = AuditLogger::new(state.db.clone());
     let context = Some(RequestContext::from_request(
@@ -2469,7 +2583,7 @@ async fn process_oauth_login(
             return Err(ApiError::SessionLimitReached(limit_err));
         }
         Err(e) => {
-            tracing::error!("Failed to check session limits: {}", e);
+            tracing::error!(error = %e, "Failed to check session limits");
             return Err(ApiError::internal());
         }
     }
@@ -2826,6 +2940,15 @@ struct WebAuthnCredentialsListResponse {
 /// Starts the registration process for a new WebAuthn credential.
 /// For authenticated users, this adds a new credential to their account.
 /// For new passkey registrations, user authentication may not be required.
+#[tracing::instrument(
+    skip(state, headers, user, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        user_id = %user.user_id,
+        ip_address = %addr.ip(),
+        action = "webauthn_register_begin",
+    )
+)]
 async fn webauthn_register_begin(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -2844,7 +2967,7 @@ async fn webauthn_register_begin(
     let user_info = match user_result {
         Ok(u) => u,
         Err(e) => {
-            tracing::error!("Failed to get user info for WebAuthn registration: {}", e);
+            tracing::error!(error = %e, "Failed to get user info for WebAuthn registration");
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     };
@@ -2862,14 +2985,13 @@ async fn webauthn_register_begin(
     {
         Ok(options) => {
             tracing::info!(
-                "WebAuthn registration started for user: {}, is_passkey: {:?}",
-                user.user_id,
-                req.is_passkey
+                is_passkey = ?req.is_passkey,
+                "WebAuthn registration started"
             );
             Ok(Json(options))
         }
         Err(e) => {
-            tracing::error!("WebAuthn registration begin failed: {}", e);
+            tracing::error!(error = %e, "WebAuthn registration begin failed");
             audit.log_webauthn_registration_failed(
                 &tenant_id,
                 &user.user_id,
@@ -2888,6 +3010,16 @@ async fn webauthn_register_begin(
 ///
 /// Completes the registration process by verifying the authenticator response
 /// and storing the credential.
+#[tracing::instrument(
+    skip(state, headers, user, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        user_id = %user.user_id,
+        ip_address = %addr.ip(),
+        action = "webauthn_register_finish",
+        success = tracing::field::Empty,
+    )
+)]
 async fn webauthn_register_finish(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -2909,9 +3041,8 @@ async fn webauthn_register_finish(
     {
         Ok(credential) => {
             tracing::info!(
-                "WebAuthn credential registered for user: {}, credential_id: {}",
-                user.user_id,
-                credential.credential_id
+                credential_id = %credential.credential_id,
+                "WebAuthn credential registered"
             );
 
             // Log successful registration
@@ -2926,7 +3057,7 @@ async fn webauthn_register_finish(
             Ok(Json(credential.into()))
         }
         Err(e) => {
-            tracing::warn!("WebAuthn registration finish failed: {}", e);
+            tracing::warn!(error = %e, "WebAuthn registration finish failed");
             audit.log_webauthn_registration_failed(
                 &tenant_id,
                 &user.user_id,
@@ -2943,12 +3074,23 @@ async fn webauthn_register_finish(
 /// Starts the authentication process. For passkeys (discoverable credentials),
 /// user_id can be omitted. For security keys, user_id is required to look up
 /// the allowed credentials.
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+        action = "webauthn_authenticate_begin",
+    )
+)]
 async fn webauthn_authenticate_begin(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     Json(req): Json<WebAuthnAuthenticateBeginRequest>,
 ) -> Result<Json<vault_core::webauthn::CredentialRequestOptions>, StatusCode> {
     let tenant_id = extract_tenant_id(&headers);
+    if let Some(ref uid) = req.user_id {
+        tracing::Span::current().record("user_id", uid.as_str());
+    }
 
     match state
         .webauthn_service
@@ -2960,7 +3102,7 @@ async fn webauthn_authenticate_begin(
             Ok(Json(options))
         }
         Err(e) => {
-            tracing::error!("WebAuthn authentication begin failed: {}", e);
+            tracing::error!(error = %e, "WebAuthn authentication begin failed");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -2971,6 +3113,16 @@ async fn webauthn_authenticate_begin(
 /// Completes the WebAuthn authentication and returns tokens on success.
 /// This can be used as a primary authentication method (passwordless) or
 /// as an MFA step.
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "webauthn_authenticate_finish",
+        success = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+    )
+)]
 async fn webauthn_authenticate_finish(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -2991,9 +3143,12 @@ async fn webauthn_authenticate_finish(
         .finish_authentication(req.credential)
         .await
     {
-        Ok(result) => result,
+        Ok(result) => {
+            tracing::Span::current().record("user_id", result.user_id.as_str());
+            result
+        }
         Err(e) => {
-            tracing::warn!("WebAuthn authentication finish failed: {}", e);
+            tracing::warn!(error = %e, "WebAuthn authentication finish failed");
             audit.log_webauthn_authentication_failed(
                 &tenant_id,
                 None,
@@ -3217,6 +3372,14 @@ async fn webauthn_authenticate_finish(
 /// List user's WebAuthn credentials
 ///
 /// Returns all WebAuthn credentials registered for the current user.
+#[tracing::instrument(
+    skip(state, user),
+    fields(
+        user_id = %user.user_id,
+        tenant_id = %user.tenant_id,
+        action = "list_webauthn_credentials",
+    )
+)]
 async fn list_webauthn_credentials(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
@@ -3234,7 +3397,7 @@ async fn list_webauthn_credentials(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to list WebAuthn credentials: {}", e);
+            tracing::error!(error = %e, "Failed to list WebAuthn credentials");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -3244,6 +3407,16 @@ async fn list_webauthn_credentials(
 ///
 /// Removes a credential from the user's account. This is useful when
 /// a security key is lost or no longer needed.
+#[tracing::instrument(
+    skip(state, user, credential_id),
+    fields(
+        user_id = %user.user_id,
+        tenant_id = %user.tenant_id,
+        credential_id = %credential_id,
+        action = "delete_webauthn_credential",
+        success = tracing::field::Empty,
+    )
+)]
 async fn delete_webauthn_credential(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
@@ -3276,11 +3449,7 @@ async fn delete_webauthn_credential(
         .await
     {
         Ok(_) => {
-            tracing::info!(
-                "WebAuthn credential deleted: {} for user: {}",
-                credential_id,
-                user.user_id
-            );
+            tracing::info!("WebAuthn credential deleted");
 
             audit.log_webauthn_credential_deleted(&user.tenant_id, &user.user_id, &credential_id);
 
@@ -3289,7 +3458,7 @@ async fn delete_webauthn_credential(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to delete WebAuthn credential: {}", e);
+            tracing::error!(error = %e, "Failed to delete WebAuthn credential");
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -3680,6 +3849,14 @@ struct Web3NonceResponse {
 }
 
 /// Generate nonce for Web3 authentication
+#[tracing::instrument(
+    skip(state, _headers, req),
+    fields(
+        ip_address = %addr.ip(),
+        chain_id = tracing::field::Empty,
+        action = "web3_nonce",
+    )
+)]
 async fn web3_nonce(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -3688,6 +3865,7 @@ async fn web3_nonce(
 ) -> Result<Json<Web3NonceResponse>, ApiError> {
     let client_ip = addr.ip().to_string();
     let chain_id = req.chain_id.unwrap_or(1); // Default to Ethereum mainnet
+    tracing::Span::current().record("chain_id", chain_id);
 
     // Check if Web3 auth is enabled
     if !state.config.web3_auth.enabled {
@@ -3708,7 +3886,7 @@ async fn web3_nonce(
         .generate_nonce(Some(client_ip), Some(chain_id))
         .await
         .map_err(|e| {
-            tracing::error!("Failed to generate nonce: {}", e);
+            tracing::error!(error = %e, "Failed to generate nonce");
             ApiError::internal()
         })?;
 
@@ -3754,6 +3932,16 @@ struct Web3AuthResponse {
 }
 
 /// Verify Web3 signature and authenticate
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "web3_verify",
+        success = tracing::field::Empty,
+        wallet_address = tracing::field::Empty,
+    )
+)]
 async fn web3_verify(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -3779,7 +3967,7 @@ async fn web3_verify(
         .verify_signature(&req.message, &req.signature)
         .await
         .map_err(|e| {
-            tracing::warn!("Web3 signature verification failed: {}", e);
+            tracing::warn!(error = %e, "Web3 signature verification failed");
             audit.log(
                 &tenant_id,
                 crate::audit::AuditAction::LoginFailed,
@@ -3810,9 +3998,9 @@ async fn web3_verify(
         Ok(Some(existing_user)) => {
             // Existing user - update wallet verification time
             tracing::info!(
-                "Web3 login for existing user: {} with wallet {}",
-                existing_user.id,
-                wallet_address
+                user_id = %existing_user.id,
+                wallet = %wallet_address,
+                "Web3 login for existing user"
             );
             (existing_user, false)
         }
@@ -3820,8 +4008,8 @@ async fn web3_verify(
             // Create new user from Web3 authentication
             if !state.config.features.enable_oauth_signup {
                 tracing::warn!(
-                    "Web3 signup disabled, rejecting new user with wallet {}",
-                    wallet_address
+                    wallet = %wallet_address,
+                    "Web3 signup disabled, rejecting new user"
                 );
                 audit.log(
                     &tenant_id,
@@ -3838,7 +4026,7 @@ async fn web3_verify(
                 return Err(ApiError::Forbidden);
             }
 
-            tracing::info!("Creating new user from Web3 auth: {}", wallet_address);
+            tracing::info!(wallet = %wallet_address, "Creating new user from Web3 auth");
 
             let new_user = state
                 .db
@@ -3863,7 +4051,7 @@ async fn web3_verify(
             (new_user, true)
         }
         Err(e) => {
-            tracing::error!("Database error looking up Web3 user: {}", e);
+            tracing::error!(error = %e, "Database error looking up Web3 user");
             return Err(ApiError::internal());
         }
     };
@@ -3872,8 +4060,8 @@ async fn web3_verify(
     use vault_core::models::user::UserStatus;
     if user.status != UserStatus::Active {
         tracing::warn!(
-            "Web3 login attempt for inactive account: {}",
-            wallet_address
+            wallet = %wallet_address,
+            "Web3 login attempt for inactive account"
         );
         audit.log(
             &tenant_id,
@@ -3893,8 +4081,8 @@ async fn web3_verify(
     // Check if user is locked
     if user.is_locked() {
         tracing::warn!(
-            "Web3 login attempt for locked account: {}",
-            wallet_address
+            wallet = %wallet_address,
+            "Web3 login attempt for locked account"
         );
         audit.log(
             &tenant_id,
@@ -3941,7 +4129,7 @@ async fn web3_verify(
         .create_session_for_oauth_user(&user, Some(addr.to_string()), None)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to create Web3 session: {}", e);
+            tracing::error!(error = %e, "Failed to create Web3 session");
             ApiError::internal()
         })?;
 
@@ -3989,11 +4177,11 @@ async fn web3_verify(
     )
     .await?;
 
+    tracing::Span::current().record("wallet_address", wallet_address.as_str());
     tracing::info!(
-        "Web3 login successful: wallet={} user={} chain={}",
-        wallet_address,
-        user.id,
-        chain_id
+        user_id = %user.id,
+        chain_id = chain_id,
+        "Web3 login successful"
     );
 
     // Log successful login
@@ -4277,6 +4465,15 @@ async fn record_registration_consents(
 ///
 /// Allows users to use the app without registering.
 /// Returns an access token and anonymous session ID.
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "create_anonymous_session",
+        success = tracing::field::Empty,
+    )
+)]
 async fn create_anonymous_session_handler(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -4285,7 +4482,7 @@ async fn create_anonymous_session_handler(
 ) -> Result<Json<crate::auth::AnonymousSessionResponse>, ApiError> {
     // Validate request
     if let Err(e) = req.validate() {
-        tracing::warn!("Anonymous session validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Anonymous session validation failed");
         return Err(ApiError::Validation(e.to_string()));
     }
 
@@ -4323,7 +4520,7 @@ async fn create_anonymous_session_handler(
             Ok(Json(response))
         }
         Err(e) => {
-            tracing::warn!("Anonymous session creation failed: {}", e);
+            tracing::warn!(error = %e, "Anonymous session creation failed");
             
             // Log failure
             audit.log(
@@ -4354,6 +4551,15 @@ async fn create_anonymous_session_handler(
 ///
 /// Transfers all anonymous user data to a new full account.
 /// Invalidates the anonymous session and returns new tokens for the full account.
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        action = "convert_anonymous",
+        success = tracing::field::Empty,
+    )
+)]
 async fn convert_anonymous_handler(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -4362,7 +4568,7 @@ async fn convert_anonymous_handler(
 ) -> Result<Json<crate::auth::AnonymousConversionResponse>, ApiError> {
     // Validate request
     if let Err(e) = req.validate() {
-        tracing::warn!("Anonymous conversion validation failed: {}", e);
+        tracing::warn!(validation_error = %e, "Anonymous conversion validation failed");
         return Err(ApiError::Validation(e.to_string()));
     }
 
@@ -4438,7 +4644,7 @@ async fn convert_anonymous_handler(
             Ok(Json(response))
         }
         Err(e) => {
-            tracing::warn!("Anonymous conversion failed: {}", e);
+            tracing::warn!(error = %e, "Anonymous conversion failed");
 
             // Log failure
             audit.log(
@@ -4544,6 +4750,17 @@ struct BiometricAuthenticateRequest {
 ///
 /// This endpoint is called after the user has authenticated with password/MFA
 /// and the device has generated a key pair (private key stays in Secure Enclave/Keystore).
+#[tracing::instrument(
+    skip(state, user, req),
+    fields(
+        tenant_id = %user.tenant_id,
+        user_id = %user.user_id,
+        key_id = %req.key_id,
+        biometric_type = %req.biometric_type,
+        action = "biometric_register_key",
+        success = tracing::field::Empty,
+    )
+)]
 async fn biometric_register_key(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
@@ -4568,7 +4785,7 @@ async fn biometric_register_key(
 
     // Decode public key from base64
     let public_key = base64_decode(&req.public_key).map_err(|e| {
-        tracing::warn!("Invalid base64 public key: {}", e);
+        tracing::warn!(error = %e, "Invalid base64 public key");
         ApiError::Validation("Invalid public key format".to_string())
     })?;
 
@@ -4592,16 +4809,11 @@ async fn biometric_register_key(
         .await
     {
         Ok(key) => {
-            tracing::info!(
-                "Biometric key registered for user {}: {} (type: {:?})",
-                user.user_id,
-                req.key_id,
-                biometric_type
-            );
+            tracing::info!("Biometric key registered successfully");
             Ok(Json(key.into()))
         }
         Err(e) => {
-            tracing::warn!("Biometric key registration failed: {}", e);
+            tracing::warn!(error = %e, "Biometric key registration failed");
             Err(ApiError::from(e))
         }
     }
@@ -4611,6 +4823,12 @@ async fn biometric_register_key(
 ///
 /// This should be called before the client attempts to authenticate,
 /// to get a challenge that the client will sign with their private key.
+#[tracing::instrument(
+    skip(state, req),
+    fields(
+        action = "biometric_challenge",
+    )
+)]
 async fn biometric_challenge(
     State(state): State<AppState>,
     Json(req): Json<serde_json::Value>,
@@ -4633,7 +4851,7 @@ async fn biometric_challenge(
             expires_at: challenge.expires_at.to_rfc3339(),
         })),
         Err(e) => {
-            tracing::warn!("Biometric challenge generation failed: {}", e);
+            tracing::warn!(error = %e, "Biometric challenge generation failed");
             Err(ApiError::from(e))
         }
     }
@@ -4644,6 +4862,17 @@ async fn biometric_challenge(
 /// The client signs the challenge with the private key stored in the
 /// Secure Enclave (iOS) or Keystore (Android), and sends the signature
 /// to this endpoint for verification.
+#[tracing::instrument(
+    skip(state, headers, req),
+    fields(
+        tenant_id = tracing::field::Empty,
+        ip_address = %addr.ip(),
+        key_id = %req.key_id,
+        action = "biometric_authenticate",
+        success = tracing::field::Empty,
+        user_id = tracing::field::Empty,
+    )
+)]
 async fn biometric_authenticate(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -4660,7 +4889,7 @@ async fn biometric_authenticate(
 
     // Decode signature from base64
     let signature = base64_decode(&req.signature).map_err(|e| {
-        tracing::warn!("Invalid base64 signature: {}", e);
+        tracing::warn!(error = %e, "Invalid base64 signature");
         ApiError::Validation("Invalid signature format".to_string())
     })?;
 
@@ -4676,9 +4905,12 @@ async fn biometric_authenticate(
         .authenticate(&req.key_id, signature, &req.challenge)
         .await
     {
-        Ok(result) => result,
+        Ok(result) => {
+            tracing::Span::current().record("user_id", result.user_id.as_str());
+            result
+        }
         Err(e) => {
-            tracing::warn!("Biometric authentication failed: {}", e);
+            tracing::warn!(error = %e, "Biometric authentication failed");
             audit.log(
                 &tenant_id,
                 crate::audit::AuditAction::LoginFailed,
@@ -4926,6 +5158,14 @@ async fn biometric_authenticate(
 }
 
 /// List biometric keys for the authenticated user
+#[tracing::instrument(
+    skip(state, user),
+    fields(
+        user_id = %user.user_id,
+        tenant_id = %user.tenant_id,
+        action = "biometric_list_keys",
+    )
+)]
 async fn biometric_list_keys(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
@@ -4946,13 +5186,23 @@ async fn biometric_list_keys(
             Ok(Json(response))
         }
         Err(e) => {
-            tracing::error!("Failed to list biometric keys: {}", e);
+            tracing::error!(error = %e, "Failed to list biometric keys");
             Err(ApiError::from(e))
         }
     }
 }
 
 /// Revoke a biometric key
+#[tracing::instrument(
+    skip(state, user, key_id),
+    fields(
+        user_id = %user.user_id,
+        tenant_id = %user.tenant_id,
+        key_id = %key_id,
+        action = "biometric_revoke_key",
+        success = tracing::field::Empty,
+    )
+)]
 async fn biometric_revoke_key(
     State(state): State<AppState>,
     Extension(user): Extension<CurrentUser>,
@@ -4971,7 +5221,7 @@ async fn biometric_revoke_key(
     let keys = match biometric_service.list_keys(&user.user_id, &user.tenant_id).await {
         Ok(k) => k,
         Err(e) => {
-            tracing::error!("Failed to list biometric keys: {}", e);
+            tracing::error!(error = %e, "Failed to list biometric keys");
             return Err(ApiError::from(e));
         }
     };
@@ -4983,11 +5233,7 @@ async fn biometric_revoke_key(
 
     match biometric_service.revoke_key(&key_id).await {
         Ok(_) => {
-            tracing::info!(
-                "Biometric key revoked: {} for user: {}",
-                key_id,
-                user.user_id
-            );
+            tracing::info!("Biometric key revoked");
 
             audit.log(
                 &user.tenant_id,
@@ -5007,7 +5253,7 @@ async fn biometric_revoke_key(
             }))
         }
         Err(e) => {
-            tracing::error!("Failed to revoke biometric key: {}", e);
+            tracing::error!(error = %e, "Failed to revoke biometric key");
             Err(ApiError::from(e))
         }
     }

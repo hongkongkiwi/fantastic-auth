@@ -869,3 +869,176 @@ mod tests {
         }
     }
 }
+// Property-based tests for SCIM filter parser
+// 
+// These tests verify that:
+// 1. The filter parser never panics on arbitrary input
+// 2. Valid filter expressions can be parsed consistently
+// 3. Boundary conditions are handled correctly
+#[cfg(test)]
+mod prop_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    // Strategy for generating valid SCIM attribute names
+    fn valid_attr_name() -> impl Strategy<Value = String> {
+        "[a-zA-Z][a-zA-Z0-9_]*"
+    }
+
+    // Strategy for generating valid comparison operators
+    fn valid_operator() -> impl Strategy<Value = &'static str> {
+        prop_oneof![
+            Just("eq"),
+            Just("ne"),
+            Just("co"),
+            Just("sw"),
+            Just("ew"),
+            Just("gt"),
+            Just("ge"),
+            Just("lt"),
+            Just("le"),
+        ]
+    }
+
+    // Strategy for generating valid string values (quoted)
+    fn valid_string_value() -> impl Strategy<Value = String> {
+        // Generate printable ASCII strings without quotes
+        "[a-zA-Z0-9@._%+-]*".prop_map(|s| format!("\"{}\"", s))
+    }
+
+    // Strategy for generating valid filter expressions
+    fn valid_filter_expr() -> impl Strategy<Value = String> {
+        prop_oneof![
+            // Simple comparison: attr op value
+            (valid_attr_name(), valid_operator(), valid_string_value())
+                .prop_map(|(attr, op, val)| format!("{} {} {}", attr, op, val)),
+            // Presence: attr pr
+            valid_attr_name().prop_map(|attr| format!("{} pr", attr)),
+        ]
+    }
+
+    proptest! {
+        // Test that the filter parser never panics on arbitrary input
+        #[test]
+        fn test_filter_parser_never_panics(input in "\\PC*") {
+            // This should never panic, regardless of input
+            let _ = FilterParser::parse(&input);
+        }
+
+        // Test that valid filter expressions can be parsed
+        #[test]
+        fn test_valid_filter_parsing(filter_expr in valid_filter_expr()) {
+            let result = FilterParser::parse(&filter_expr);
+            // Valid expressions should parse successfully
+            prop_assert!(result.is_ok(), "Failed to parse valid filter: {}", filter_expr);
+        }
+
+        // Test that filter parsing is consistent (idempotent)
+        #[test]
+        fn test_filter_parsing_consistency(filter_expr in valid_filter_expr()) {
+            let result1 = FilterParser::parse(&filter_expr);
+            let result2 = FilterParser::parse(&filter_expr);
+            
+            // Both should succeed or both should fail
+            prop_assert_eq!(
+                result1.is_ok(),
+                result2.is_ok(),
+                "Parsing consistency violated for: {}",
+                filter_expr
+            );
+        }
+
+        // Test that the parser handles long inputs gracefully
+        #[test]
+        fn test_filter_parser_handles_long_inputs(
+            prefix in "[a-z]{1,10}",
+            suffix in "[a-z]{1,10}",
+            length in 10usize..1000
+        ) {
+            // Create a long input string
+            let middle = "x".repeat(length);
+            let input = format!("{}{}{}", prefix, middle, suffix);
+            
+            // Should not panic
+            let _ = FilterParser::parse(&input);
+        }
+
+        // Test that the parser handles special characters in values
+        #[test]
+        fn test_filter_parser_special_characters(input in "[\\x00-\\x7F]*") {
+            // Any ASCII input should not cause a panic
+            let _ = FilterParser::parse(&input);
+        }
+
+        // Test that nested parentheses don't cause stack overflow
+        #[test]
+        fn test_filter_parser_deep_nesting(depth in 1usize..100) {
+            let mut input = String::new();
+            for _ in 0..depth {
+                input.push('(');
+            }
+            input.push_str("userName eq \"test\"");
+            for _ in 0..depth {
+                input.push(')');
+            }
+            
+            // Should not panic or stack overflow
+            let _ = FilterParser::parse(&input);
+        }
+
+        // Test parser behavior with unicode input
+        #[test]
+        fn test_filter_parser_unicode(input in "\\PC*") {
+            // Unicode input should not cause panics
+            let _ = FilterParser::parse(&input);
+        }
+
+        // Test that empty and whitespace-only inputs are handled
+        #[test]
+        fn test_filter_parser_empty_and_whitespace(input in "[\\s]*") {
+            let result = FilterParser::parse(&input);
+            // Empty or whitespace-only input should return an error
+            prop_assert!(result.is_err(), "Empty/whitespace input should fail: {:?}", input);
+        }
+
+        // Test boundary conditions for comparison operators
+        #[test]
+        fn test_filter_parser_operator_boundaries(
+            attr in "[a-z]{1,20}",
+            op_prefix in "[a-z]{0,3}",
+            value in "[a-z]{1,20}"
+        ) {
+            // Test partial/incomplete operators
+            let input = format!("{} {} {}", attr, op_prefix, value);
+            let _ = FilterParser::parse(&input); // Should not panic
+        }
+    }
+
+    // Tests for ScimQuery parsing
+    proptest! {
+        // Test that query parameters are parsed correctly
+        #[test]
+        fn test_scim_query_filter_never_panics(filter in "\\PC*") {
+            // Simulate parsing a filter query parameter
+            let _ = FilterParser::parse(&filter);
+        }
+
+        // Test that various pagination values are handled
+        #[test]
+        fn test_scim_query_pagination(start_index in 1i64..10000i64, count in 1i64..1000i64) {
+            let query = ScimQuery {
+                filter: None,
+                start_index,
+                count,
+                sort_by: None,
+                sort_order: None,
+                attributes: None,
+                excluded_attributes: None,
+            };
+            
+            // Values should be stored as-is
+            prop_assert_eq!(query.start_index, start_index);
+            prop_assert_eq!(query.count, count);
+        }
+    }
+}
