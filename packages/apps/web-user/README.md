@@ -71,3 +71,9 @@ The portal connects to the Vault User API at `/api/v1/user`. Authentication uses
 ```env
 VITE_API_URL=http://localhost:8080/api/v1/user
 ```
+
+## Related Docs
+
+- Docs index: `../../../docs/README.md`
+- API examples: `../../../docs/API_EXAMPLES.md`
+- OpenAPI specs: `../../specs/openapi/README.md`

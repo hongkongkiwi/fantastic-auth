@@ -39,8 +39,12 @@ pub struct WebhookService {
 
 impl WebhookService {
     pub fn new(db: Database, tenant_keys: Arc<TenantKeyService>) -> Self {
+        // SECURITY: Disable redirects to prevent SSRF attacks via redirect chains
+        // An attacker could register a webhook pointing to an allowed URL that
+        // redirects to internal services (metadata endpoints, internal APIs, etc.)
         let http_client = Client::builder()
             .timeout(WEBHOOK_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
             .build()
             .expect("Failed to build HTTP client");
@@ -50,6 +54,80 @@ impl WebhookService {
             http_client,
             tenant_keys,
         }
+    }
+
+    /// Validate URL to prevent SSRF attacks
+    /// 
+    /// SECURITY: Checks that the URL doesn't point to private IP ranges
+    /// or internal services that could be exploited via SSRF.
+    fn validate_webhook_url(&self, url: &str) -> anyhow::Result<()> {
+        use std::net::IpAddr;
+        
+        let parsed = url.parse::<reqwest::Url>()
+            .map_err(|_| anyhow::anyhow!("Invalid URL format"))?;
+        
+        // Only allow HTTP and HTTPS
+        match parsed.scheme() {
+            "http" | "https" => {},
+            _ => return Err(anyhow::anyhow!("Only HTTP/HTTPS URLs are allowed")),
+        }
+        
+        // Check host
+        let host = parsed.host_str()
+            .ok_or_else(|| anyhow::anyhow!("URL must have a host"))?;
+        
+        // Check for localhost
+        if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            return Err(anyhow::anyhow!("Localhost URLs are not allowed"));
+        }
+        
+        // Check if host is an IP address
+        if let Ok(ip) = host.parse::<IpAddr>() {
+            // Block private and reserved IP ranges
+            let is_blocked = match ip {
+                IpAddr::V4(ip) => {
+                    ip.is_private() 
+                    || ip.is_loopback() 
+                    || ip.is_link_local()
+                    || ip.is_multicast()
+                    || ip.is_broadcast()
+                    || ip.octets()[0] == 0
+                    || (ip.octets()[0] == 100 && (ip.octets()[1] & 0b1100_0000) == 0b0100_0000)
+                    || (ip.octets()[0] == 169 && ip.octets()[1] == 254)
+                    || (ip.octets()[0] == 192 && ip.octets()[1] == 0 && ip.octets()[2] == 0)
+                    || (ip.octets()[0] == 192 && ip.octets()[1] == 0 && ip.octets()[2] == 2)
+                    || (ip.octets()[0] == 198 && ip.octets()[1] == 18)
+                    || (ip.octets()[0] == 198 && ip.octets()[1] == 51 && ip.octets()[2] == 100)
+                    || (ip.octets()[0] == 203 && ip.octets()[1] == 0 && ip.octets()[2] == 113)
+                },
+                IpAddr::V6(ip) => {
+                    ip.is_loopback() 
+                    || ip.is_unspecified() 
+                    || ip.is_multicast()
+                    || ip.is_unique_local()
+                    || (ip.segments()[0] & 0xffc0) == 0xfe80
+                    || (ip.segments()[0] & 0xfe00) == 0xfc00
+                },
+            };
+            
+            if is_blocked {
+                return Err(anyhow::anyhow!("Private IP addresses are not allowed"));
+            }
+        }
+        
+        // Block common internal hostnames
+        let lower_host = host.to_lowercase();
+        if lower_host.ends_with(".local") 
+            || lower_host.ends_with(".internal")
+            || lower_host.ends_with(".localhost")
+            || lower_host.contains("metadata.google")
+            || lower_host.contains("metadata.aws")
+            || lower_host.contains("169.254.169.254")
+        {
+            return Err(anyhow::anyhow!("Internal hostnames are not allowed"));
+        }
+        
+        Ok(())
     }
 
     /// Create a new webhook endpoint
@@ -306,22 +384,25 @@ impl WebhookService {
 
         type HmacSha256 = Hmac<Sha256>;
 
+        // SECURITY: Validate URL before making request to prevent SSRF attacks
+        self.validate_webhook_url(&endpoint.url)?;
+
         // Generate signature
         let payload_str = serde_json::to_string(&delivery.payload)?;
         let signature_payload = format!("{}.{}", delivery.id, payload_str);
 
-        let secret = match self.decrypt_secret(&endpoint.tenant_id, &endpoint.secret).await {
-            Ok(value) => value,
-            Err(e) => {
-                warn!(
+        // SECURITY: Remove fallback to stored secret - fail securely on decryption failure
+        // Previously this would fall back to potentially plaintext stored value
+        let secret = self.decrypt_secret(&endpoint.tenant_id, &endpoint.secret).await
+            .map_err(|e| {
+                error!(
                     tenant_id = %endpoint.tenant_id,
                     endpoint_id = %endpoint.id,
                     error = %e,
-                    "Webhook secret decryption failed; falling back to stored value"
+                    "Webhook secret decryption failed - cannot send webhook"
                 );
-                endpoint.secret.clone()
-            }
-        };
+                anyhow::anyhow!("Webhook secret decryption failed: {}", e)
+            })?;
 
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
             .map_err(|_| anyhow::anyhow!("Invalid secret"))?;

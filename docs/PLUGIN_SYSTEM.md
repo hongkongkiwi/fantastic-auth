@@ -158,10 +158,10 @@ vault plugins create my-plugin --type wasm
 
 ### Manual Creation
 
-1. Create a new directory in `plugins/`:
+1. Create a new directory in `packages/plugins/implementations/`:
 ```bash
-mkdir plugins/my-plugin
-cd plugins/my-plugin
+mkdir -p packages/plugins/implementations/my-plugin
+cd packages/plugins/implementations/my-plugin
 cargo init --lib
 ```
 
@@ -176,7 +176,7 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-vault-core = { path = "../../vault-core" }
+vault-core = { package = "fantasticauth-core", path = "../../../core/rust" }
 async-trait = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -346,21 +346,21 @@ let limits = WasmResourceLimits::default()
 
 ## Included Plugins
 
-### Example Plugin (`plugins/example-plugin`)
+### Example Plugin (`packages/plugins/implementations/example-plugin`)
 Demonstrates the plugin API with:
 - Hook implementations
 - Custom routes
 - Configuration handling
 - Event logging
 
-### LDAP Plugin (`plugins/ldap-plugin`)
+### LDAP Plugin (`packages/plugins/implementations/ldap-plugin`)
 LDAP/Active Directory integration:
 - User authentication
 - Attribute synchronization
 - Group membership mapping
 - Multiple server support
 
-### Webhook Plugin (`plugins/webhook-plugin`)
+### Webhook Plugin (`packages/plugins/implementations/webhook-plugin`)
 Advanced webhook delivery:
 - Event signing (HMAC-SHA256)
 - Retry with exponential backoff

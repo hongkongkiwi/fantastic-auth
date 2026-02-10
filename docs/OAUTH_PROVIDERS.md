@@ -313,9 +313,9 @@ To add a new OAuth provider:
 4. Add user info parser function
 5. Add configuration to `vault-server/src/config.rs`
 6. Add environment variables to `.env.example`
-7. Add TypeScript types to `vault-sdk-js/src/types/index.ts`
+7. Add TypeScript types to `packages/sdks/app-sdks/js/src/types/index.ts`
 8. Add icon and button to `SocialButton.tsx`
-9. Add metadata to `vault-sdk-js/src/utils/oauth.ts`
+9. Add metadata to `packages/sdks/app-sdks/js/src/utils/oauth.ts`
 
 ## Security Considerations
 

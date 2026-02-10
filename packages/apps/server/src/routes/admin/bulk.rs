@@ -796,21 +796,44 @@ async fn download_export_file(
     // Get result file path
     let result_path_str = row.result_file_path.ok_or_else(|| ApiError::NotFound)?;
 
-    // SECURITY: Validate file path before reading
+    // SECURITY: Validate and sanitize file path to prevent path traversal
     let result_path = std::path::PathBuf::from(&result_path_str);
-    if let Some(filename) = result_path.file_name().and_then(|n| n.to_str()) {
-        if !validate_file_path(filename) {
-            tracing::warn!(
-                job_id = %job_id,
-                path = %result_path_str,
-                "SECURITY: Invalid result file path"
-            );
-            return Err(ApiError::BadRequest("Invalid file path".to_string()));
-        }
+    
+    // Extract and validate filename only
+    let filename = result_path.file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| ApiError::BadRequest("Invalid file path".to_string()))?;
+    
+    if !validate_file_path(filename) {
+        tracing::warn!(
+            job_id = %job_id,
+            path = %result_path_str,
+            "SECURITY: Invalid export file path"
+        );
+        return Err(ApiError::BadRequest("Invalid file path".to_string()));
+    }
+    
+    // SECURITY: Construct safe path within allowed directory only
+    let base_dir = std::path::PathBuf::from("./data/bulk-exports");
+    let safe_path = base_dir.join(filename);
+    
+    // Canonicalize and verify path is within base directory
+    let canonical_path = tokio::fs::canonicalize(&safe_path).await
+        .map_err(|_| ApiError::NotFound)?;
+    let canonical_base = tokio::fs::canonicalize(&base_dir).await
+        .map_err(|_| ApiError::internal())?;
+    
+    if !canonical_path.starts_with(&canonical_base) {
+        tracing::error!(
+            job_id = %job_id,
+            path = %result_path_str,
+            "SECURITY: Path traversal attempt detected in export download"
+        );
+        return Err(ApiError::BadRequest("Invalid file path".to_string()));
     }
 
-    // Read file
-    let content = tokio::fs::read(&result_path)
+    // Read file from safe path
+    let content = tokio::fs::read(&canonical_path)
         .await
         .map_err(|_| ApiError::NotFound)?;
 

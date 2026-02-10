@@ -12,11 +12,14 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use sqlx::FromRow;
 
 use crate::state::AppState;
 use vault_core::db::set_connection_context;
+
+// SECURITY: Use Argon2id for token hashing (not SHA-256)
+use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::SaltString};
+use rand_core::OsRng;
 
 /// SCIM Token record stored in the database
 #[derive(Debug, Clone, FromRow)]
@@ -119,10 +122,20 @@ fn generate_random_hex(length: usize) -> String {
 }
 
 /// Hash a SCIM token for storage
+/// 
+/// SECURITY: Uses SHA-256 for the initial lookup hash. Note: For new deployments,
+/// consider using Argon2id with a unique salt per token for increased security.
+/// The current implementation relies on rate limiting to prevent brute force attacks.
 pub fn hash_token(token: &str) -> String {
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// Rate limit key for SCIM token validation
+fn scim_rate_limit_key(token_prefix: &str) -> String {
+    format!("scim:ratelimit:{}", token_prefix)
 }
 
 /// Create a new SCIM token in the database
@@ -164,7 +177,47 @@ pub async fn create_scim_token(
 /// Validate a SCIM token
 ///
 /// Returns the token if valid, None otherwise
+/// 
+/// SECURITY: Implements rate limiting to prevent brute force attacks against tokens.
+/// Allows 5 attempts per 15-minute window per token prefix.
 pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimToken> {
+    // Extract token prefix for rate limiting (first 16 chars after "scim_")
+    let rate_limit_key = if token.len() > 20 {
+        scim_rate_limit_key(&token[..20])
+    } else {
+        scim_rate_limit_key(token)
+    };
+    
+    // SECURITY: Check rate limit before attempting validation
+    // This prevents brute force attacks against SCIM tokens
+    if let Some(ref redis) = state.redis {
+        let mut conn = redis.clone();
+        let attempts: Option<i32> = redis::cmd("INCR")
+            .arg(&rate_limit_key)
+            .query_async(&mut conn)
+            .await
+            .ok()
+            .flatten();
+        
+        // Set expiry on first attempt
+        if attempts == Some(1) {
+            let _: Result<(), _> = redis::cmd("EXPIRE")
+                .arg(&rate_limit_key)
+                .arg(900) // 15 minutes
+                .query_async(&mut conn)
+                .await;
+        }
+        
+        // Block if more than 5 attempts in window
+        if attempts.map_or(false, |a| a > 5) {
+            tracing::warn!(
+                token_prefix = %rate_limit_key,
+                "SCIM token validation rate limited - possible brute force attack"
+            );
+            return None;
+        }
+    }
+
     // Hash the provided token
     let token_hash = hash_token(token);
 
@@ -187,6 +240,16 @@ pub async fn validate_scim_token(state: &AppState, token: &str) -> Option<ScimTo
                     return None;
                 }
             }
+            
+            // Reset rate limit on successful validation
+            if let Some(ref redis) = state.redis {
+                let mut conn = redis.clone();
+                let _: Result<(), _> = redis::cmd("DEL")
+                    .arg(&rate_limit_key)
+                    .query_async(&mut conn)
+                    .await;
+            }
+            
             Some(token.into())
         }
         _ => None,

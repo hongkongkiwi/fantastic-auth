@@ -317,7 +317,7 @@ let shares = SocialRecovery::create_shares(&master_key, 3, 5, user_id)?;
 let recovered_key = SocialRecovery::recover_from_shares(&collected_shares)?;
 ```
 
-### JavaScript/TypeScript (vault-sdk-js)
+### JavaScript/TypeScript (app SDK JS package)
 
 ```typescript
 import {
@@ -358,7 +358,7 @@ vault-core/src/zk/
 ├── secure_computation.rs   # Homomorphic operations
 └── recovery.rs             # Shamir's Secret Sharing
 
-vault-sdk-js/src/zk/
+packages/sdks/app-sdks/js/src/zk/
 ├── index.ts                # Module exports
 ├── encryption.ts           # Web Crypto API encryption
 ├── keyDerivation.ts        # Browser key derivation

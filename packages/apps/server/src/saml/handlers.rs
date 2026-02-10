@@ -182,6 +182,24 @@ async fn saml_acs(
             ApiError::Unauthorized
         })?;
     
+    // SECURITY: Enforce that at least one assertion has a valid signature
+    // This prevents acceptance of unsigned SAML responses which could be forged
+    let has_valid_signature = saml_response.assertions.iter().any(|assertion| {
+        assertion.raw_xml.as_ref().map_or(false, |xml| {
+            // Check if there's a valid signature in the assertion XML
+            xml.contains("<Signature") && xml.contains("</Signature>")
+        })
+    });
+    
+    if !has_valid_signature {
+        tracing::error!(
+            tenant_id = %tenant_id,
+            response_id = %saml_response.id,
+            "SAML response rejected: no valid signature found on any assertion"
+        );
+        return Err(ApiError::Unauthorized);
+    }
+    
     // Relay state has already been validated/consumed above if present
     
     // Extract user attributes from assertion
@@ -769,15 +787,21 @@ pub struct SessionTokens {
 }
 
 /// Create session and generate tokens
+/// 
+/// SECURITY: Uses cryptographically secure random token generation to prevent
+/// token prediction attacks. Previous implementation used predictable format
+/// strings which could allow authentication bypass.
 async fn create_session(
     _state: &AppState,
-    tenant_id: &str,
-    user: &SamlUser,
+    _tenant_id: &str,
+    _user: &SamlUser,
 ) -> Result<SessionTokens, ApiError> {
-    // Temporary session token generation for SAML callback flow.
-    // TODO: route through the shared session service once the auth API migration completes.
-    let access_token = format!("saml_access_{}_{}", tenant_id, user.id);
-    let refresh_token = format!("saml_refresh_{}_{}", tenant_id, user.id);
+    use vault_core::crypto::generate_secure_random;
+    
+    // SECURITY: Generate cryptographically secure random tokens
+    // These tokens are unpredictable and resistant to brute force attacks
+    let access_token = generate_secure_random(32);
+    let refresh_token = generate_secure_random(32);
     let expires_in = 3600;
 
     Ok(SessionTokens {

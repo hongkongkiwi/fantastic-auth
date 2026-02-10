@@ -9,7 +9,7 @@ use sqlx::Row;
 use std::net::IpAddr;
 use uuid::Uuid;
 
-use vault_core::crypto::{Claims, HybridJwt, TokenType, VaultPasswordHasher};
+use vault_core::crypto::{Claims, HybridJwt, TokenType, VaultPasswordHasher, generate_secure_random};
 use vault_core::error::{Result, VaultError};
 use vault_core::db::sessions::Session as DbSession;
 use vault_core::models::user::{User, UserStatus};
@@ -52,7 +52,9 @@ impl AnonymousSession {
         Self {
             id: Uuid::new_v4().to_string(),
             tenant_id: tenant_id.into(),
-            anonymous_session_id: format!("anon_{}", Uuid::new_v4().to_string().replace("-", "")),
+            // SECURITY: Use cryptographically secure random for session ID
+            // This prevents session prediction attacks
+            anonymous_session_id: format!("anon_{}", generate_secure_random(32)),
             created_from_ip: ip.map(|i| i.to_string()),
             user_agent,
             created_at: now,
@@ -296,9 +298,11 @@ async fn create_anonymous_db_session(
     ip: Option<IpAddr>,
     user_agent: Option<String>,
 ) -> Result<DbSession> {
-    let access_token_jti = Uuid::new_v4().to_string();
-    let refresh_token_hash = format!("anon_refresh_{}", Uuid::new_v4());
-    let token_family = format!("anon_family_{}", Uuid::new_v4());
+    // SECURITY: Use cryptographically secure random tokens instead of UUID
+    // This prevents token prediction attacks against anonymous sessions
+    let access_token_jti = generate_secure_random(32);
+    let refresh_token_hash = format!("anon_refresh_{}", generate_secure_random(32));
+    let token_family = format!("anon_family_{}", generate_secure_random(16));
 
     let expires_at = Utc::now() + Duration::hours(24);
 

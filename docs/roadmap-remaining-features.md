@@ -33,7 +33,7 @@ Updated: 2026-02-09
 - Some admin modules are still mounted as flat roots and should be explicitly namespaced to avoid future ambiguity.
 
 2. OpenAPI source-of-truth alignment
-- `openapi/vault-admin-api.yaml` still needs route/shape synchronization for the newly stabilized and corrected admin paths.
+- `packages/specs/openapi/vault-admin-api.yaml` still needs route/shape synchronization for the newly stabilized and corrected admin paths.
 - SDK generation currently succeeds, but reflects the current OpenAPI spec, not guaranteed runtime parity.
 
 3. SDK and UI contract harmonization

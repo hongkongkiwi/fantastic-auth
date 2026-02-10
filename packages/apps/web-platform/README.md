@@ -81,3 +81,9 @@ Generated output: `src/sdk/internal.ts`.
 - Local audit log with CSV export + filtering + sorting
 - Server audit log (persisted) with time-range filtering, pagination, sorting, and CSV export (streaming for large logs, gzip fallback)
 - CSV export for tenants, subscriptions, users, and invoices
+
+## Related Docs
+
+- Docs index: `../../../docs/README.md`
+- OpenAPI specs: `../../specs/openapi/README.md`
+- Package index: `../../README.md`
