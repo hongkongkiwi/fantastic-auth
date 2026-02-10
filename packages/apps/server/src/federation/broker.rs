@@ -10,6 +10,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::db::Database;
+use vault_core::crypto::generate_secure_random;
 use crate::federation::{
     CallbackParams, FederationAuthResult, FederationService,
     FederatedProvider, ProviderType, FederationSession,
@@ -339,8 +340,9 @@ impl IdentityBroker {
         };
 
         // Generate state and nonce
-        let state = format!("broker_{}", Uuid::new_v4());
-        let nonce = format!("nonce_{}", Uuid::new_v4());
+        // SECURITY: Use cryptographically secure random for security tokens
+        let state = format!("broker_{}", generate_secure_random(16));
+        let nonce = format!("nonce_{}", generate_secure_random(16));
 
         // Create federation session
         let session = self.federation_service
@@ -440,7 +442,8 @@ impl IdentityBroker {
         let saml_provider = SamlFederationProvider::new(config.clone());
 
         // Generate state
-        let state = format!("broker_{}", Uuid::new_v4());
+        // SECURITY: Use cryptographically secure random for security tokens
+        let state = format!("broker_{}", generate_secure_random(16));
 
         // Create federation session
         let session = self.federation_service
@@ -448,7 +451,7 @@ impl IdentityBroker {
                 &request.tenant_id,
                 &provider.id,
                 &state,
-                &Uuid::new_v4().to_string(), // No nonce for SAML
+                &generate_secure_random(16), // No nonce for SAML
                 None,
                 &request.redirect_uri,
                 600, // 10 minutes
@@ -647,10 +650,12 @@ impl IdentityBroker {
         fed_result: &FederationAuthResult,
         federation_session: &FederationSession,
     ) -> anyhow::Result<BrokerSession> {
+        // SECURITY: Use cryptographically secure random tokens
+        // UUID v4 is not suitable for security tokens as it has limited entropy
         let session_id = Uuid::new_v4().to_string();
-        let access_token = Uuid::new_v4().to_string(); // In production, use proper JWT
-        let refresh_token = Uuid::new_v4().to_string();
-        let code = format!("code_{}", Uuid::new_v4().to_string().replace('-', ""));
+        let access_token = generate_secure_random(32);
+        let refresh_token = generate_secure_random(32);
+        let code = format!("code_{}", generate_secure_random(16));
         
         let created_at = Utc::now();
         let expires_at = created_at + chrono::Duration::hours(24);

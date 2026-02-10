@@ -182,20 +182,29 @@ async fn saml_acs(
             ApiError::Unauthorized
         })?;
     
-    // SECURITY: Enforce that at least one assertion has a valid signature
-    // This prevents acceptance of unsigned SAML responses which could be forged
-    let has_valid_signature = saml_response.assertions.iter().any(|assertion| {
+    // SECURITY: Defense-in-depth signature validation
+    // 
+    // This check ensures that the SAML response contains at least one assertion
+    // with a signature element. The actual cryptographic signature validation
+    // is performed by the SAML service during parse_response() above, which:
+    // - Validates the XML signature structure
+    // - Verifies the signature using the IdP's public key
+    // - Ensures the signature covers the entire assertion
+    //
+    // This presence check acts as an additional layer of defense to ensure
+    // unsigned assertions are rejected early, before any processing occurs.
+    let has_signature_element = saml_response.assertions.iter().any(|assertion| {
         assertion.raw_xml.as_ref().map_or(false, |xml| {
-            // Check if there's a valid signature in the assertion XML
+            // Check for signature element presence (cryptographic validation done by service)
             xml.contains("<Signature") && xml.contains("</Signature>")
         })
     });
     
-    if !has_valid_signature {
+    if !has_signature_element {
         tracing::error!(
             tenant_id = %tenant_id,
             response_id = %saml_response.id,
-            "SAML response rejected: no valid signature found on any assertion"
+            "SAML response rejected: no signature element found in any assertion"
         );
         return Err(ApiError::Unauthorized);
     }
@@ -844,7 +853,13 @@ async fn build_success_redirect(
 }
 
 /// Render error page
+/// 
+/// SECURITY: HTML-escapes the error message to prevent XSS attacks.
+/// All user-controlled input must be escaped before rendering.
 fn render_error_page(error: &str) -> Html<String> {
+    // HTML escape the error message to prevent XSS
+    let escaped_error = html_escape(error);
+    
     Html(format!(
         r#"<!DOCTYPE html>
 <html>
@@ -861,8 +876,23 @@ fn render_error_page(error: &str) -> Html<String> {
     <a href="/">Return to Home</a>
 </body>
 </html>"#,
-        error
+        escaped_error
     ))
+}
+
+/// HTML escape special characters to prevent XSS
+/// 
+/// Converts HTML special characters to their entity equivalents:
+/// - & → &amp;
+/// - < → &lt;
+/// - > → &gt;
+/// - " → &quot;
+fn html_escape(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
 }
 
 #[cfg(test)]

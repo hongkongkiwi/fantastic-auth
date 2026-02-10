@@ -10,6 +10,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
+use crate::audit::AuditLogger;
 use crate::routes::ApiError;
 use crate::state::{AppState, CurrentUser};
 
@@ -128,7 +129,7 @@ async fn list_tenants(
 /// Create tenant
 async fn create_tenant(
     State(state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Json(req): Json<CreateTenantRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
     // Validate slug format
@@ -161,6 +162,10 @@ async fn create_tenant(
             ApiError::internal()
         }
     })?;
+    
+    // AUDIT: Log tenant creation
+    let audit = AuditLogger::new(state.db.clone());
+    audit.log_tenant_created(&id.to_string(), &current_user.user_id, &req.name, &req.slug);
     
     Ok(Json(TenantResponse {
         id: id.to_string(),
@@ -207,7 +212,7 @@ async fn get_tenant(
 /// Update tenant
 async fn update_tenant(
     State(state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
     Json(req): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantResponse>, ApiError> {
@@ -249,13 +254,23 @@ async fn update_tenant(
     })?;
     
     match row {
-        Some(row) => Ok(Json(TenantResponse {
-            id: row.get("id"),
-            name: row.get("name"),
-            slug: row.get("slug"),
-            status: row.get("status"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-        })),
+        Some(row) => {
+            // AUDIT: Log tenant update
+            let audit = AuditLogger::new(state.db.clone());
+            let changes = serde_json::json!({
+                "name": req.name,
+                "status": req.status,
+            });
+            audit.log_tenant_updated(&tenant_id, &current_user.user_id, changes);
+            
+            Ok(Json(TenantResponse {
+                id: row.get("id"),
+                name: row.get("name"),
+                slug: row.get("slug"),
+                status: row.get("status"),
+                created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+            }))
+        }
         None => Err(ApiError::NotFound),
     }
 }
@@ -263,7 +278,7 @@ async fn update_tenant(
 /// Delete tenant
 async fn delete_tenant(
     State(state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     let result = sqlx::query("DELETE FROM tenants WHERE id = $1")
@@ -279,6 +294,10 @@ async fn delete_tenant(
         return Err(ApiError::NotFound);
     }
     
+    // AUDIT: Log tenant deletion
+    let audit = AuditLogger::new(state.db.clone());
+    audit.log_tenant_deleted(&tenant_id, &current_user.user_id);
+    
     Ok(Json(MessageResponse {
         message: format!("Tenant {} deleted", tenant_id),
     }))
@@ -287,7 +306,7 @@ async fn delete_tenant(
 /// Suspend tenant
 async fn suspend_tenant(
     State(state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let row = sqlx::query(
@@ -308,13 +327,19 @@ async fn suspend_tenant(
     })?;
     
     match row {
-        Some(row) => Ok(Json(TenantResponse {
-            id: row.get("id"),
-            name: row.get("name"),
-            slug: row.get("slug"),
-            status: row.get("status"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-        })),
+        Some(row) => {
+            // AUDIT: Log tenant suspension
+            let audit = AuditLogger::new(state.db.clone());
+            audit.log_tenant_suspended(&tenant_id, &current_user.user_id);
+            
+            Ok(Json(TenantResponse {
+                id: row.get("id"),
+                name: row.get("name"),
+                slug: row.get("slug"),
+                status: row.get("status"),
+                created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+            }))
+        }
         None => Err(ApiError::NotFound),
     }
 }
@@ -322,7 +347,7 @@ async fn suspend_tenant(
 /// Activate tenant
 async fn activate_tenant(
     State(state): State<AppState>,
-    Extension(_current_user): Extension<CurrentUser>,
+    Extension(current_user): Extension<CurrentUser>,
     Path(tenant_id): Path<String>,
 ) -> Result<Json<TenantResponse>, ApiError> {
     let row = sqlx::query(
@@ -343,13 +368,19 @@ async fn activate_tenant(
     })?;
     
     match row {
-        Some(row) => Ok(Json(TenantResponse {
-            id: row.get("id"),
-            name: row.get("name"),
-            slug: row.get("slug"),
-            status: row.get("status"),
-            created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
-        })),
+        Some(row) => {
+            // AUDIT: Log tenant activation
+            let audit = AuditLogger::new(state.db.clone());
+            audit.log_tenant_activated(&tenant_id, &current_user.user_id);
+            
+            Ok(Json(TenantResponse {
+                id: row.get("id"),
+                name: row.get("name"),
+                slug: row.get("slug"),
+                status: row.get("status"),
+                created_at: row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
+            }))
+        }
         None => Err(ApiError::NotFound),
     }
 }

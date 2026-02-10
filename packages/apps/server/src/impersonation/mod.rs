@@ -36,6 +36,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row};
 use uuid::Uuid;
+use vault_core::crypto::generate_secure_random;
 
 use crate::db::Database;
 
@@ -118,13 +119,15 @@ impl ImpersonationService {
         &self,
         req: CreateImpersonationRequest,
     ) -> anyhow::Result<ImpersonationSession> {
+        // SECURITY: Use cryptographically secure random for session token
+        // This token grants admin access and must be unpredictable
         let session = ImpersonationSession {
             id: Uuid::new_v4().to_string(),
             admin_id: req.admin_id,
             target_user_id: req.target_user_id,
             tenant_id: req.tenant_id,
             reason: req.reason,
-            session_token: Some(Uuid::new_v4().to_string()),
+            session_token: Some(generate_secure_random(32)),
             created_at: Utc::now(),
             expires_at: Utc::now() + Duration::minutes(req.duration_minutes),
             ended_at: None,

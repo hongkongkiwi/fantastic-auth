@@ -26,6 +26,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 use uuid::Uuid;
+use vault_core::crypto::generate_secure_random;
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::routes::ApiError;
@@ -362,7 +363,8 @@ async fn add_domain(
     }
 
     // Generate verification token
-    let verification_token = format!("vault-verify-{}", Uuid::new_v4());
+    // SECURITY: Use cryptographically secure random for verification token
+    let verification_token = format!("vault-verify-{}", generate_secure_random(24));
     let id = Uuid::new_v4();
     let is_primary = req.is_primary.unwrap_or(false);
     let verification_method = req.verification_method.unwrap_or_else(|| "dns".to_string());

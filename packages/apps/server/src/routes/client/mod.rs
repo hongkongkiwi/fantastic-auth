@@ -10,6 +10,7 @@ pub mod consent;
 pub mod devices;
 pub mod m2m_auth;
 pub mod mfa;
+pub mod notifications;
 pub mod organizations;
 pub mod privacy;
 pub mod push_mfa;
@@ -40,4 +41,5 @@ pub fn routes() -> Router<AppState> {
         .merge(security_dashboard::routes())
         .merge(tenant_admins::routes())
         .merge(consent::routes())
+        .merge(notifications::routes())
 }

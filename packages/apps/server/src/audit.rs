@@ -249,6 +249,18 @@ pub enum AuditAction {
     AnonymousSessionFailed,
     AnonymousConverted,
     AnonymousConversionFailed,
+
+    // Platform-level tenant management
+    TenantCreated,
+    TenantUpdated,
+    TenantDeleted,
+    TenantSuspended,
+    TenantActivated,
+
+    // Notification preferences
+    NotificationPreferencesUpdated,
+    MarketingSubscribed,
+    MarketingUnsubscribed,
 }
 
 impl AuditAction {
@@ -339,6 +351,14 @@ impl AuditAction {
             AuditAction::AnonymousSessionFailed => "anonymous.session_failed",
             AuditAction::AnonymousConverted => "anonymous.converted",
             AuditAction::AnonymousConversionFailed => "anonymous.conversion_failed",
+            AuditAction::TenantCreated => "tenant.created",
+            AuditAction::TenantUpdated => "tenant.updated",
+            AuditAction::TenantDeleted => "tenant.deleted",
+            AuditAction::TenantSuspended => "tenant.suspended",
+            AuditAction::TenantActivated => "tenant.activated",
+            AuditAction::NotificationPreferencesUpdated => "notification_preferences.updated",
+            AuditAction::MarketingSubscribed => "marketing.subscribed",
+            AuditAction::MarketingUnsubscribed => "marketing.unsubscribed",
         }
     }
 }
@@ -352,6 +372,7 @@ pub enum ResourceType {
     Password,
     Mfa,
     Email,
+    Tenant,
     MagicLink,
     OAuth,
     Admin,
@@ -364,6 +385,7 @@ pub enum ResourceType {
     Consent,
     RiskAssessment,
     SecurityPolicy,
+    NotificationPreferences,
     Other(String),
 }
 
@@ -388,6 +410,8 @@ impl ResourceType {
             ResourceType::Consent => "consent",
             ResourceType::RiskAssessment => "risk_assessment",
             ResourceType::SecurityPolicy => "security_policy",
+            ResourceType::Tenant => "tenant",
+            ResourceType::NotificationPreferences => "notification_preferences",
             ResourceType::Other(s) => s.as_str(),
         }
     }
@@ -1809,6 +1833,118 @@ impl AuditLogger {
                 "user_agent": context.as_ref().and_then(|c| c.user_agent.clone()),
                 "timestamp": chrono::Utc::now().to_rfc3339(),
             }),
+        );
+    }
+
+    // ===== Platform-level tenant management audit logging =====
+
+    /// Log tenant creation (platform-level)
+    pub fn log_tenant_created(
+        &self,
+        tenant_id: &str,
+        admin_user_id: &str,
+        tenant_name: &str,
+        tenant_slug: &str,
+    ) {
+        // Use "platform" as the tenant context for platform-level operations
+        self.log(
+            "platform",
+            AuditAction::TenantCreated,
+            ResourceType::Tenant,
+            tenant_id,
+            Some(admin_user_id.to_string()),
+            None,
+            None,
+            true,
+            None,
+            Some(json!({
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "tenant_slug": tenant_slug,
+                "created_by": admin_user_id,
+            })),
+        );
+    }
+
+    /// Log tenant update (platform-level)
+    pub fn log_tenant_updated(
+        &self,
+        tenant_id: &str,
+        admin_user_id: &str,
+        changes: serde_json::Value,
+    ) {
+        self.log(
+            "platform",
+            AuditAction::TenantUpdated,
+            ResourceType::Tenant,
+            tenant_id,
+            Some(admin_user_id.to_string()),
+            None,
+            None,
+            true,
+            None,
+            Some(json!({
+                "tenant_id": tenant_id,
+                "updated_by": admin_user_id,
+                "changes": changes,
+            })),
+        );
+    }
+
+    /// Log tenant deletion (platform-level)
+    pub fn log_tenant_deleted(&self, tenant_id: &str, admin_user_id: &str) {
+        self.log(
+            "platform",
+            AuditAction::TenantDeleted,
+            ResourceType::Tenant,
+            tenant_id,
+            Some(admin_user_id.to_string()),
+            None,
+            None,
+            true,
+            None,
+            Some(json!({
+                "tenant_id": tenant_id,
+                "deleted_by": admin_user_id,
+            })),
+        );
+    }
+
+    /// Log tenant suspension (platform-level)
+    pub fn log_tenant_suspended(&self, tenant_id: &str, admin_user_id: &str) {
+        self.log(
+            "platform",
+            AuditAction::TenantSuspended,
+            ResourceType::Tenant,
+            tenant_id,
+            Some(admin_user_id.to_string()),
+            None,
+            None,
+            true,
+            None,
+            Some(json!({
+                "tenant_id": tenant_id,
+                "suspended_by": admin_user_id,
+            })),
+        );
+    }
+
+    /// Log tenant activation (platform-level)
+    pub fn log_tenant_activated(&self, tenant_id: &str, admin_user_id: &str) {
+        self.log(
+            "platform",
+            AuditAction::TenantActivated,
+            ResourceType::Tenant,
+            tenant_id,
+            Some(admin_user_id.to_string()),
+            None,
+            None,
+            true,
+            None,
+            Some(json!({
+                "tenant_id": tenant_id,
+                "activated_by": admin_user_id,
+            })),
         );
     }
 }

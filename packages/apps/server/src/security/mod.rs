@@ -5,7 +5,9 @@
 
 pub mod bot_protection;
 pub mod device_fingerprint;
+pub mod dpop;
 pub mod encryption;
+pub mod fips;
 pub mod geo;
 pub mod hibp;
 pub mod password_policy;
@@ -14,6 +16,7 @@ pub mod session_binding;
 pub mod session_binding_notifications;
 pub mod security_notifications;
 pub mod tenant_keys;
+pub mod vault;
 
 pub use bot_protection::{verify_captcha_token, BotProtectionError, BotProtectionResult};
 pub use device_fingerprint::{

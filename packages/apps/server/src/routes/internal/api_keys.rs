@@ -9,6 +9,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
+use vault_core::crypto::generate_secure_random;
 
 use crate::permissions::checker::PermissionChecker;
 use crate::routes::ApiError;
@@ -128,12 +129,14 @@ async fn create_api_key(
     require_settings_manage(&state, &current_user).await?;
 
     let id = Uuid::new_v4();
-    let prefix = format!("fa_api_{}", &Uuid::new_v4().to_string()[..6]);
+    // SECURITY: Use cryptographically secure random for API key generation
+    // UUID v4 is not suitable for secret tokens as it has limited entropy
+    let prefix = format!("fa_api_{}", &generate_secure_random(6));
     let created_at = Utc::now();
     let expires_at = payload
         .expires_in_days
         .map(|days| created_at + Duration::days(days));
-    let key = format!("{}_{}", prefix, Uuid::new_v4().to_string().replace('-', ""));
+    let key = format!("{}_{}", prefix, generate_secure_random(32));
     let hash = Sha256::digest(key.as_bytes());
     let key_hash = format!("{:x}", hash);
 

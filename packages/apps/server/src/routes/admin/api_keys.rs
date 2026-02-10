@@ -25,7 +25,7 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
-use vault_core::crypto::VaultPasswordHasher;
+use vault_core::crypto::{VaultPasswordHasher, generate_secure_random};
 
 use crate::audit::{AuditAction, AuditLogger, ResourceType};
 use crate::routes::ApiError;
@@ -317,8 +317,10 @@ async fn create_api_key(
         .map_err(|_| ApiError::internal())?;
 
     let id = Uuid::new_v4();
-    let prefix = format!("vault_{}", &Uuid::new_v4().to_string()[..12]);
-    let key = format!("{}_{}", prefix, Uuid::new_v4().to_string().replace('-', ""));
+    // SECURITY: Use cryptographically secure random for API key generation
+    // UUID v4 is not suitable for secret tokens as it has limited entropy
+    let prefix = format!("vault_{}", &generate_secure_random(12));
+    let key = format!("{}_{}", prefix, generate_secure_random(32));
     // SECURITY: Use Argon2id for API key hashing instead of SHA256
     let key_hash = VaultPasswordHasher::hash(&key)
         .map_err(|_| ApiError::internal())?;
@@ -619,8 +621,9 @@ async fn rotate_api_key(
 
     // Create new key with same settings
     let new_id = Uuid::new_v4();
-    let prefix = format!("vault_{}", &Uuid::new_v4().to_string()[..12]);
-    let key = format!("{}_{}", prefix, Uuid::new_v4().to_string().replace('-', ""));
+    // SECURITY: Use cryptographically secure random for API key generation
+    let prefix = format!("vault_{}", &generate_secure_random(12));
+    let key = format!("{}_{}", prefix, generate_secure_random(32));
     // SECURITY: Use Argon2id for API key hashing instead of SHA256
     let key_hash = VaultPasswordHasher::hash(&key)
         .map_err(|_| ApiError::internal())?;

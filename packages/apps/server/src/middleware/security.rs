@@ -6,6 +6,7 @@
 //! - Content-Type validation
 //! - CORS configuration
 //! - Request sanitization
+//! - CSP nonce generation for inline styles
 
 use axum::{
     extract::Request,
@@ -18,6 +19,23 @@ use regex::Regex;
 use std::time::Duration;
 use tower_http::cors::CorsLayer;
 
+/// CSP Nonce for inline styles
+/// 
+/// SECURITY: Generated per-request to allow safe inline styles while
+/// preventing XSS attacks. The nonce is cryptographically random and
+/// only valid for the duration of the request.
+#[derive(Debug, Clone)]
+pub struct CspNonce(pub String);
+
+impl CspNonce {
+    /// Generate a new random nonce
+    pub fn generate() -> Self {
+        use vault_core::crypto::generate_secure_random;
+        // Generate 16 bytes = 32 hex characters
+        Self(generate_secure_random(16))
+    }
+}
+
 // SECURITY: Compile regex once using once_cell to avoid recompilation overhead
 // and prevent potential DoS from repeated regex compilation
 static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
@@ -27,7 +45,17 @@ static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
 });
 
 /// Security headers middleware
-pub async fn security_headers(request: Request, next: Next) -> Response {
+/// 
+/// SECURITY: Generates a per-request CSP nonce for inline styles.
+/// This allows safe use of inline styles while preventing XSS attacks
+/// that try to inject malicious inline styles.
+pub async fn security_headers(mut request: Request, next: Next) -> Response {
+    // Generate a cryptographically secure nonce for this request
+    let nonce = CspNonce::generate();
+    
+    // Store nonce in request extensions for handlers to use
+    request.extensions_mut().insert(nonce.clone());
+    
     let response = next.run(request).await;
 
     // Add security headers to all responses
@@ -51,21 +79,42 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
         tracing::debug!("SECURITY WARNING: HSTS is disabled in debug mode. Enable in production.");
     }
 
-    // Content Security Policy
-    headers.insert(
-        "Content-Security-Policy",
-        HeaderValue::from_static(
-            "default-src 'self'; \
-             script-src 'self'; \
-             style-src 'self' 'unsafe-inline'; \
-             img-src 'self' data: https:; \
-             font-src 'self'; \
-             connect-src 'self'; \
-             frame-ancestors 'none'; \
-             base-uri 'self'; \
-             form-action 'self';",
-        ),
+    // Content Security Policy with nonce for inline styles
+    // SECURITY: Using nonce-based CSP instead of 'unsafe-inline' prevents
+    // XSS attacks that inject malicious inline styles. Only styles with the
+    // matching nonce will be executed by the browser.
+    let csp = format!(
+        "default-src 'self'; \
+         script-src 'self'; \
+         style-src 'self' 'nonce-{}'; \
+         img-src 'self' data: https:; \
+         font-src 'self'; \
+         connect-src 'self'; \
+         frame-ancestors 'none'; \
+         base-uri 'self'; \
+         form-action 'self';",
+        nonce.0
     );
+    
+    if let Ok(csp_header) = HeaderValue::from_str(&csp) {
+        headers.insert("Content-Security-Policy", csp_header);
+    } else {
+        // Fallback to strict CSP without inline styles if nonce generation fails
+        headers.insert(
+            "Content-Security-Policy",
+            HeaderValue::from_static(
+                "default-src 'self'; \
+                 script-src 'self'; \
+                 style-src 'self'; \
+                 img-src 'self' data: https:; \
+                 font-src 'self'; \
+                 connect-src 'self'; \
+                 frame-ancestors 'none'; \
+                 base-uri 'self'; \
+                 form-action 'self';",
+            ),
+        );
+    }
 
     // Prevent clickjacking
     headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));

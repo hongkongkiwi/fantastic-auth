@@ -139,6 +139,8 @@ bs58 = "0.5"
 
 # Encryption (optional - for security/encryption.rs)
 ring = "0.17"
+aes-gcm = "0.10"
+p256 = { version = "0.13", features = ["ecdsa", "sha256"] }
 
 # Cloud KMS (optional)
 aws-config = { workspace = true, optional = true }

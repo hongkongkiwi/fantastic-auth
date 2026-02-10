@@ -5,7 +5,7 @@ use reqwest::Client;
 use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 pub mod events;
 mod types;

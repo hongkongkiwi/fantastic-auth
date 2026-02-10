@@ -12,14 +12,11 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::FromRow;
 
 use crate::state::AppState;
 use vault_core::db::set_connection_context;
-
-// SECURITY: Use Argon2id for token hashing (not SHA-256)
-use argon2::{Argon2, PasswordHasher, PasswordVerifier, password_hash::SaltString};
-use rand_core::OsRng;
 
 /// SCIM Token record stored in the database
 #[derive(Debug, Clone, FromRow)]
@@ -123,11 +120,10 @@ fn generate_random_hex(length: usize) -> String {
 
 /// Hash a SCIM token for storage
 /// 
-/// SECURITY: Uses SHA-256 for the initial lookup hash. Note: For new deployments,
-/// consider using Argon2id with a unique salt per token for increased security.
-/// The current implementation relies on rate limiting to prevent brute force attacks.
+/// SECURITY: Uses SHA-256 for token hashing. The implementation relies on 
+/// rate limiting to prevent brute force attacks (see validate_scim_token).
+/// For enhanced security, future versions could use Argon2id with per-token salts.
 pub fn hash_token(token: &str) -> String {
-    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
     hex::encode(hasher.finalize())

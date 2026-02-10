@@ -2296,6 +2296,7 @@ dependencies = [
 name = "fantasticauth-server"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "async-trait",
  "aws-config",
@@ -2333,6 +2334,7 @@ dependencies = [
  "openidconnect",
  "openssl",
  "opentelemetry",
+ "p256",
  "quick-xml",
  "rand 0.8.5",
  "rand_core 0.6.4",

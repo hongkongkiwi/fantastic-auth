@@ -5,16 +5,24 @@ use crate::db::Database;
 use crate::state::AppState;
 use tracing::info;
 
+mod account_deletion;
 mod analytics;
 mod audit_prune;
 mod audit_rotation;
 mod audit_retention;
 mod data_encryption_migration;
+mod export_processing;
 mod log_streams;
 pub mod webhook_worker;
 pub mod webhooks;
 
 pub use analytics::{spawn_worker as spawn_analytics_worker, trigger_daily_aggregation};
+
+/// Default interval for account deletion worker (5 minutes)
+const DEFAULT_DELETION_INTERVAL_SECS: u64 = 300;
+
+/// Default interval for export processing worker (1 minute)
+const DEFAULT_EXPORT_INTERVAL_SECS: u64 = 60;
 
 /// Start all background workers
 pub fn start(config: &Config, _db: &Database, state: &AppState) {
@@ -76,4 +84,24 @@ pub fn start(config: &Config, _db: &Database, state: &AppState) {
             info!("Data encryption migration worker disabled");
         }
     }
+
+    // Start account deletion worker (GDPR compliance)
+    account_deletion::spawn(
+        state.clone(),
+        Duration::from_secs(DEFAULT_DELETION_INTERVAL_SECS),
+    );
+    info!(
+        interval_secs = DEFAULT_DELETION_INTERVAL_SECS,
+        "Account deletion worker started"
+    );
+
+    // Start export processing worker (GDPR compliance)
+    export_processing::spawn(
+        state.clone(),
+        Duration::from_secs(DEFAULT_EXPORT_INTERVAL_SECS),
+    );
+    info!(
+        interval_secs = DEFAULT_EXPORT_INTERVAL_SECS,
+        "Export processing worker started"
+    );
 }

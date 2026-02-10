@@ -143,6 +143,11 @@ impl Database {
     pub fn consent(&self) -> crate::consent::ConsentRepository {
         crate::consent::ConsentRepository::new(self.pool.clone())
     }
+
+    /// Notification preferences repository
+    pub fn notification_preferences(&self) -> crate::notifications::NotificationPreferencesRepository {
+        crate::notifications::NotificationPreferencesRepository::new(Arc::new(self.pool.clone()))
+    }
 }
 
 /// Simple audit repository
