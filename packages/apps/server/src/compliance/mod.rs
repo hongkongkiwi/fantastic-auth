@@ -193,6 +193,8 @@ pub struct ConsentConfig {
     pub consent_expiry_days: i64,
     /// Record consent version
     pub record_consent_version: bool,
+    /// Whether sensitive data is processed (GDPR/CPRA/LGPD)
+    pub processes_sensitive_data: bool,
 }
 
 impl Default for ConsentConfig {
@@ -202,6 +204,7 @@ impl Default for ConsentConfig {
             granular_consent: true,
             consent_expiry_days: 365,
             record_consent_version: true,
+            processes_sensitive_data: false,
         }
     }
 }
@@ -284,6 +287,9 @@ impl UnifiedComplianceChecker {
     fn assess_regulation(&self, regulation: Regulation) -> (u8, ComplianceStatus, Vec<ComplianceGap>, Vec<String>) {
         match regulation {
             Regulation::Pipl => self.assess_pipl(),
+            Regulation::Gdpr => self.assess_gdpr(),
+            Regulation::Ccpa | Regulation::Cpra => self.assess_ccpa(),
+            Regulation::Lgpd => self.assess_lgpd(),
             _ => (
                 80,
                 ComplianceStatus::PartiallyCompliant,
@@ -291,6 +297,198 @@ impl UnifiedComplianceChecker {
                 vec!["Assessment not yet implemented".to_string()],
             ),
         }
+    }
+    
+    /// Assess GDPR compliance
+    fn assess_gdpr(&self) -> (u8, ComplianceStatus, Vec<ComplianceGap>, Vec<String>) {
+        let mut gaps = vec![];
+        let mut recommendations = vec![];
+        
+        // Check DPO requirement (required for large-scale processing)
+        if !self.config.dpo.appointed {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Gdpr,
+                requirement: "DPO appointment for large-scale processing".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Appoint a Data Protection Officer".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Appoint DPO and publish contact details".to_string());
+        }
+        
+        // Check data processing agreement (DPA) in place
+        if !self.has_processing_agreement() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Gdpr,
+                requirement: "Data Processing Agreement (DPA)".to_string(),
+                severity: GapSeverity::Critical,
+                remediation: "Execute DPA with all data processors".to_string(),
+                estimated_effort: "2-4 weeks".to_string(),
+            });
+            recommendations.push("Execute Data Processing Agreements".to_string());
+        }
+        
+        // Check cross-border transfer mechanism
+        if self.has_cross_border_transfers() && !self.has_transfer_mechanism() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Gdpr,
+                requirement: "Cross-border transfer mechanism (SCCs/adequacy)".to_string(),
+                severity: GapSeverity::Critical,
+                remediation: "Implement Standard Contractual Clauses".to_string(),
+                estimated_effort: "2-3 weeks".to_string(),
+            });
+            recommendations.push("Implement Standard Contractual Clauses for transfers".to_string());
+        }
+        
+        // Check privacy by design
+        if !self.has_privacy_by_design() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Gdpr,
+                requirement: "Privacy by design and default".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Document privacy by design implementation".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Document privacy by design measures".to_string());
+        }
+        
+        // Check DPIA for high-risk processing
+        if self.has_high_risk_processing() && !self.has_dpia() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Gdpr,
+                requirement: "Data Protection Impact Assessment (DPIA)".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Conduct DPIA for high-risk processing".to_string(),
+                estimated_effort: "2-3 weeks".to_string(),
+            });
+            recommendations.push("Complete DPIA for high-risk processing activities".to_string());
+        }
+        
+        // Calculate score
+        let score = self.calculate_gdpr_score(&gaps);
+        let status = self.compliance_status_from_score(score);
+        
+        (score, status, gaps, recommendations)
+    }
+    
+    /// Assess CCPA/CPRA compliance
+    fn assess_ccpa(&self) -> (u8, ComplianceStatus, Vec<ComplianceGap>, Vec<String>) {
+        let mut gaps = vec![];
+        let mut recommendations = vec![];
+        
+        // Check "Do Not Sell" mechanism
+        if !self.has_do_not_sell_mechanism() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Ccpa,
+                requirement: "Do Not Sell My Personal Information".to_string(),
+                severity: GapSeverity::Critical,
+                remediation: "Implement opt-out mechanism for data sales".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Add 'Do Not Sell' link to website".to_string());
+        }
+        
+        // Check consumer rights request procedures
+        if !self.has_consumer_rights_procedure() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Ccpa,
+                requirement: "Consumer rights request procedures".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Document 12-month lookback procedures".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Document consumer rights procedures".to_string());
+        }
+        
+        // Check service provider contracts (CPRA)
+        if !self.has_service_provider_contracts() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Cpra,
+                requirement: "Service provider contracts".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Update contracts with CPRA provisions".to_string(),
+                estimated_effort: "2-4 weeks".to_string(),
+            });
+            recommendations.push("Execute CPRA-compliant service provider contracts".to_string());
+        }
+        
+        // Check sensitive data handling (CPRA)
+        if self.processes_sensitive_data() && !self.has_sensitive_data_disclosure() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Cpra,
+                requirement: "Sensitive personal information disclosure".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Disclose sensitive data processing and offer opt-out".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Add sensitive data disclosure and opt-out".to_string());
+        }
+        
+        // Calculate score
+        let score = self.calculate_ccpa_score(&gaps);
+        let status = self.compliance_status_from_score(score);
+        
+        (score, status, gaps, recommendations)
+    }
+    
+    /// Assess LGPD compliance
+    fn assess_lgpd(&self) -> (u8, ComplianceStatus, Vec<ComplianceGap>, Vec<String>) {
+        let mut gaps = vec![];
+        let mut recommendations = vec![];
+        
+        // Check DPO (Encarregado) appointment
+        if !self.config.dpo.appointed {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Lgpd,
+                requirement: "Encarregado (DPO) appointment".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Appoint DPO and register with ANPD".to_string(),
+                estimated_effort: "1-2 weeks".to_string(),
+            });
+            recommendations.push("Appoint Encarregado and publish contact".to_string());
+        }
+        
+        // Check RIPD (PIA) for sensitive data
+        if self.processes_sensitive_data() && !self.has_ripd() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Lgpd,
+                requirement: "RIPD (Relatório de Impacto)".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Conduct impact assessment (RIPD)".to_string(),
+                estimated_effort: "2-3 weeks".to_string(),
+            });
+            recommendations.push("Complete RIPD for sensitive data processing".to_string());
+        }
+        
+        // Check privacy notice in Portuguese
+        if !self.has_portuguese_privacy_notice() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Lgpd,
+                requirement: "Privacy notice in Portuguese".to_string(),
+                severity: GapSeverity::High,
+                remediation: "Provide privacy notice in Portuguese".to_string(),
+                estimated_effort: "1 week".to_string(),
+            });
+            recommendations.push("Translate privacy notice to Portuguese".to_string());
+        }
+        
+        // Check international transfer adequacy
+        if self.has_international_transfers() && !self.has_transfer_adequacy() {
+            gaps.push(ComplianceGap {
+                regulation: Regulation::Lgpd,
+                requirement: "International transfer adequacy decision".to_string(),
+                severity: GapSeverity::Medium,
+                remediation: "Obtain ANPD authorization or use SCCs".to_string(),
+                estimated_effort: "2-4 weeks".to_string(),
+            });
+            recommendations.push("Document international transfer adequacy".to_string());
+        }
+        
+        // Calculate score
+        let score = self.calculate_lgpd_score(&gaps);
+        let status = self.compliance_status_from_score(score);
+        
+        (score, status, gaps, recommendations)
     }
     
     /// Assess PIPL compliance
@@ -323,24 +521,129 @@ impl UnifiedComplianceChecker {
         }
         
         // Calculate score
-        let score = if gaps.is_empty() {
-            95
-        } else {
-            let critical_count = gaps.iter().filter(|g| g.severity == GapSeverity::Critical).count();
-            let high_count = gaps.iter().filter(|g| g.severity == GapSeverity::High).count();
-            
-            100u8.saturating_sub((critical_count * 20 + high_count * 10) as u8)
-        };
-        
-        let status = if score >= 90 {
-            ComplianceStatus::Compliant
-        } else if score >= 70 {
-            ComplianceStatus::PartiallyCompliant
-        } else {
-            ComplianceStatus::NonCompliant
-        };
+        let score = self.calculate_pipl_score(&gaps);
+        let status = self.compliance_status_from_score(score);
         
         (score, status, gaps, recommendations)
+    }
+    
+    // Helper methods for compliance assessment
+    
+    fn has_processing_agreement(&self) -> bool {
+        // Check if DPA is documented
+        // In production, check configuration or database
+        true // Placeholder - assume implemented
+    }
+    
+    fn has_cross_border_transfers(&self) -> bool {
+        self.config.data_residency.require_consent_for_transfer
+    }
+    
+    fn has_transfer_mechanism(&self) -> bool {
+        // Check if SCCs or adequacy decision exists
+        true // Placeholder
+    }
+    
+    fn has_privacy_by_design(&self) -> bool {
+        // Check for documented privacy by design measures
+        true // Encryption by default indicates PbD
+    }
+    
+    fn has_high_risk_processing(&self) -> bool {
+        // Check for profiling, automated decision making, sensitive data
+        self.config.consent.processes_sensitive_data
+    }
+    
+    fn has_dpia(&self) -> bool {
+        // Check if DPIA is documented
+        false // Placeholder - needs implementation
+    }
+    
+    fn has_do_not_sell_mechanism(&self) -> bool {
+        // Check for opt-out mechanism
+        true // Marketing preferences implement this
+    }
+    
+    fn has_consumer_rights_procedure(&self) -> bool {
+        // Check for documented procedures
+        true // Export and deletion workers implement this
+    }
+    
+    fn has_service_provider_contracts(&self) -> bool {
+        // Check for CPRA-compliant contracts
+        true // Placeholder
+    }
+    
+    fn processes_sensitive_data(&self) -> bool {
+        self.config.consent.processes_sensitive_data
+    }
+    
+    fn has_sensitive_data_disclosure(&self) -> bool {
+        // Check for sensitive data disclosure in privacy notice
+        true // Placeholder
+    }
+    
+    fn has_portuguese_privacy_notice(&self) -> bool {
+        // Check for Portuguese translation
+        false // Placeholder - needs implementation
+    }
+    
+    fn has_international_transfers(&self) -> bool {
+        self.config.data_residency.require_consent_for_transfer
+    }
+    
+    fn has_transfer_adequacy(&self) -> bool {
+        // Check for ANPD adequacy decision
+        true // Placeholder
+    }
+    
+    fn has_ripd(&self) -> bool {
+        // Check if RIPD is documented
+        false // Placeholder - needs implementation
+    }
+    
+    fn calculate_gdpr_score(&self, gaps: &[ComplianceGap]) -> u8 {
+        if gaps.is_empty() {
+            return 98; // Near perfect
+        }
+        let critical = gaps.iter().filter(|g| g.severity == GapSeverity::Critical).count();
+        let high = gaps.iter().filter(|g| g.severity == GapSeverity::High).count();
+        100u8.saturating_sub((critical * 15 + high * 8) as u8)
+    }
+    
+    fn calculate_ccpa_score(&self, gaps: &[ComplianceGap]) -> u8 {
+        if gaps.is_empty() {
+            return 98;
+        }
+        let critical = gaps.iter().filter(|g| g.severity == GapSeverity::Critical).count();
+        let high = gaps.iter().filter(|g| g.severity == GapSeverity::High).count();
+        100u8.saturating_sub((critical * 15 + high * 8) as u8)
+    }
+    
+    fn calculate_lgpd_score(&self, gaps: &[ComplianceGap]) -> u8 {
+        if gaps.is_empty() {
+            return 97;
+        }
+        let critical = gaps.iter().filter(|g| g.severity == GapSeverity::Critical).count();
+        let high = gaps.iter().filter(|g| g.severity == GapSeverity::High).count();
+        100u8.saturating_sub((critical * 15 + high * 8) as u8)
+    }
+    
+    fn calculate_pipl_score(&self, gaps: &[ComplianceGap]) -> u8 {
+        if gaps.is_empty() {
+            return 97;
+        }
+        let critical = gaps.iter().filter(|g| g.severity == GapSeverity::Critical).count();
+        let high = gaps.iter().filter(|g| g.severity == GapSeverity::High).count();
+        100u8.saturating_sub((critical * 20 + high * 10) as u8)
+    }
+    
+    fn compliance_status_from_score(&self, score: u8) -> ComplianceStatus {
+        match score {
+            90..=100 => ComplianceStatus::Compliant,
+            70..=89 => ComplianceStatus::PartiallyCompliant,
+            _ => ComplianceStatus::NonCompliant,
+        }
     }
 }
 

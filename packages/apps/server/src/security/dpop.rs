@@ -347,20 +347,42 @@ impl DpopValidator {
             .map_err(|e| DpopError::InvalidSignature(format!("Y decode: {}", e)))?;
         
         // In production, use p256 crate for full verification
-        // For now, we validate the format
+        // Validate coordinate lengths
         if pk_x.len() != 32 || pk_y.len() != 32 {
             return Err(DpopError::InvalidSignature(
                 "Invalid P-256 point coordinates".to_string()
             ));
         }
         
-        // Note: Full ECDSA verification requires the p256 crate
-        // This is a placeholder - in production, use:
-        // let verifying_key = p256::ecdsa::VerifyingKey::from_encoded_point(...)
-        // verifying_key.verify(signing_input.as_bytes(), signature)
+        // Full ECDSA verification using p256 crate
+        use p256::ecdsa::{signature::Verifier, Signature, VerifyingKey};
+        use p256::EncodedPoint;
         
-        // For now, accept if format is valid
-        // TODO: Implement full ECDSA verification
+        // Reconstruct the public key from coordinates
+        // We already validated lengths above, so these should succeed
+        let mut x_bytes = [0u8; 32];
+        x_bytes.copy_from_slice(&pk_x);
+        let mut y_bytes = [0u8; 32];
+        y_bytes.copy_from_slice(&pk_y);
+        
+        let encoded_point = EncodedPoint::from_affine_coordinates(
+            &x_bytes.into(),
+            &y_bytes.into(),
+            false,
+        );
+        
+        let verifying_key = VerifyingKey::from_encoded_point(&encoded_point)
+            .map_err(|e| DpopError::InvalidSignature(format!("Invalid public key: {}", e)))?;
+        
+        // Parse the signature
+        let sig = Signature::try_from(signature)
+            .map_err(|e| DpopError::InvalidSignature(format!("Invalid signature format: {}", e)))?;
+        
+        // Verify the signature
+        verifying_key
+            .verify(signing_input.as_bytes(), &sig)
+            .map_err(|_| DpopError::InvalidSignature("Signature verification failed".to_string()))?;
+        
         Ok(())
     }
     
