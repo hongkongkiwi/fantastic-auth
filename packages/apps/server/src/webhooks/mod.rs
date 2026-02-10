@@ -13,6 +13,17 @@ mod types;
 pub use events::*;
 pub use types::*;
 
+/// Webhook service errors
+#[derive(Debug, thiserror::Error)]
+pub enum WebhookError {
+    #[error("Failed to build HTTP client: {0}")]
+    HttpClientBuild(String),
+    #[error("Invalid URL: {0}")]
+    InvalidUrl(String),
+    #[error("Request failed: {0}")]
+    RequestFailed(String),
+}
+
 /// Queue statistics for webhook deliveries
 #[derive(Debug, Clone)]
 pub struct WebhookQueueStats {
@@ -38,7 +49,7 @@ pub struct WebhookService {
 }
 
 impl WebhookService {
-    pub fn new(db: Database, tenant_keys: Arc<TenantKeyService>) -> Self {
+    pub fn new(db: Database, tenant_keys: Arc<TenantKeyService>) -> Result<Self, WebhookError> {
         // SECURITY: Disable redirects to prevent SSRF attacks via redirect chains
         // An attacker could register a webhook pointing to an allowed URL that
         // redirects to internal services (metadata endpoints, internal APIs, etc.)
@@ -47,13 +58,13 @@ impl WebhookService {
             .redirect(reqwest::redirect::Policy::none())
             .pool_max_idle_per_host(10)
             .build()
-            .expect("Failed to build HTTP client");
+            .map_err(|e| WebhookError::HttpClientBuild(e.to_string()))?;
 
-        Self {
+        Ok(Self {
             db,
             http_client,
             tenant_keys,
-        }
+        })
     }
 
     /// Validate URL to prevent SSRF attacks

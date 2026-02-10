@@ -135,7 +135,14 @@ fn is_rate_limited(ip: &str) -> bool {
     let window = Duration::from_secs(300);
     let now = Instant::now();
 
-    let mut guard = attempts.lock().expect("mfa rate limit lock poisoned");
+    // If lock is poisoned, treat as rate limited (fail secure)
+    let mut guard = match attempts.lock() {
+        Ok(guard) => guard,
+        Err(e) => {
+            tracing::error!("MFA rate limit lock poisoned: {}", e);
+            return true;
+        }
+    };
     let entry = guard.entry(ip.to_string()).or_default();
     entry.retain(|t| now.duration_since(*t) <= window);
     if entry.len() >= MAX_ATTEMPTS {

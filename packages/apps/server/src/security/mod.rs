@@ -66,7 +66,13 @@ impl SecurityService {
     /// Create a new security service
     pub fn new(policy: PasswordPolicy, enable_hibp: bool) -> Self {
         let hibp_client = if enable_hibp && policy.check_breach_database {
-            Some(Arc::new(HibpClient::new()))
+            match HibpClient::new() {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!("Failed to initialize HIBP client: {}", e);
+                    None
+                }
+            }
         } else {
             None
         };
@@ -80,7 +86,13 @@ impl SecurityService {
     /// Create with custom HIBP configuration
     pub fn with_hibp_config(policy: PasswordPolicy, hibp_config: HibpConfig) -> Self {
         let hibp_client = if policy.check_breach_database {
-            Some(Arc::new(HibpClient::with_config(hibp_config)))
+            match HibpClient::with_config(hibp_config) {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!("Failed to initialize HIBP client: {}", e);
+                    None
+                }
+            }
         } else {
             None
         };
@@ -133,7 +145,13 @@ impl SecurityService {
     pub fn update_policy(&mut self, policy: PasswordPolicy) {
         // Update HIBP client if breach checking setting changed
         if policy.check_breach_database && self.hibp_client.is_none() {
-            self.hibp_client = Some(Arc::new(HibpClient::new()));
+            self.hibp_client = match HibpClient::new() {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!("Failed to initialize HIBP client: {}", e);
+                    None
+                }
+            };
         } else if !policy.check_breach_database {
             self.hibp_client = None;
         }

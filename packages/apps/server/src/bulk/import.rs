@@ -719,7 +719,7 @@ impl ImportProcessor {
             .find_by_email(&job.tenant_id, &record.email)
             .await?;
 
-        if existing.is_some() {
+        if let Some(mut user) = existing {
             if job.options.skip_existing {
                 debug!(email = %record.email, "Skipping existing user");
                 return Ok(());
@@ -728,8 +728,6 @@ impl ImportProcessor {
             if !job.options.update_existing {
                 return Err(anyhow::anyhow!("User already exists: {}", record.email));
             }
-
-            let mut user = existing.expect("checked is_some above");
             user.email_verified = record.email_verified;
             user.status = parse_user_status(&record.status)?;
 

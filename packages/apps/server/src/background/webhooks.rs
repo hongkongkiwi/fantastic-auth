@@ -23,11 +23,11 @@ pub struct WebhookWorker {
 impl WebhookWorker {
     /// Create a new webhook worker
     pub fn new(db: Database) -> Self {
-        let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
-            .build()
-            .expect("Failed to build HTTP client");
+        let http_client = Self::build_http_client()
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to build HTTP client: {}, using default", e);
+                reqwest::Client::new()
+            });
 
         Self {
             db,
@@ -45,11 +45,11 @@ impl WebhookWorker {
         batch_size: i64,
         max_attempts: i32,
     ) -> Self {
-        let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
-            .build()
-            .expect("Failed to build HTTP client");
+        let http_client = Self::build_http_client()
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to build HTTP client: {}, using default", e);
+                reqwest::Client::new()
+            });
 
         Self {
             db,
@@ -58,6 +58,13 @@ impl WebhookWorker {
             batch_size,
             max_attempts,
         }
+    }
+
+    fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
+        reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .build()
     }
 
     /// Start the worker loop (runs forever)

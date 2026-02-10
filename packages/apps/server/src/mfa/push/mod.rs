@@ -57,6 +57,9 @@ pub enum PushMfaError {
     #[error("Push MFA not enabled for tenant")]
     NotEnabled,
     
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+    
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     
@@ -267,8 +270,22 @@ impl PushMfaService {
         redis: Option<redis::aio::ConnectionManager>,
         config: PushMfaConfig,
     ) -> Self {
-        let fcm_client = config.fcm.as_ref().map(|c| Arc::new(fcm::FcmClient::new(c)));
-        let apns_client = config.apns.as_ref().map(|c| Arc::new(apns::ApnsClient::new(c)));
+        let fcm_client = config.fcm.as_ref()
+            .and_then(|c| match fcm::FcmClient::new(c) {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!("Failed to initialize FCM client: {}", e);
+                    None
+                }
+            });
+        let apns_client = config.apns.as_ref()
+            .and_then(|c| match apns::ApnsClient::new(c) {
+                Ok(client) => Some(Arc::new(client)),
+                Err(e) => {
+                    tracing::error!("Failed to initialize APNS client: {}", e);
+                    None
+                }
+            });
         
         Self {
             db,

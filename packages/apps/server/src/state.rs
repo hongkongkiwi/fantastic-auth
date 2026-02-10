@@ -446,7 +446,8 @@ impl AppState {
         let billing_service = BillingService::new(billing_config, db.clone());
 
         // Initialize webhook service
-        let webhook_service = WebhookService::new(db.clone(), tenant_key_service.clone());
+        let webhook_service = WebhookService::new(db.clone(), tenant_key_service.clone())
+            .map_err(|e| anyhow::anyhow!("Failed to initialize webhook service: {}", e))?;
 
         // Initialize security service with password policy
         let password_policy = config.security.password_policy.to_policy();

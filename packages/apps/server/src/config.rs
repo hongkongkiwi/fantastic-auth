@@ -1411,17 +1411,17 @@ impl Config {
     }
 
     /// Get server socket address
-    pub fn socket_addr(&self) -> SocketAddr {
+    pub fn socket_addr(&self) -> anyhow::Result<SocketAddr> {
         format!("{}:{}", self.host, self.port)
             .parse()
-            .expect("Invalid socket address")
+            .map_err(|e| anyhow::anyhow!("Invalid socket address '{}:{}': {}", self.host, self.port, e))
     }
 
     /// Get metrics socket address
-    pub fn metrics_socket_addr(&self) -> SocketAddr {
+    pub fn metrics_socket_addr(&self) -> anyhow::Result<SocketAddr> {
         format!("{}:{}", self.host, self.observability.metrics_port)
             .parse()
-            .expect("Invalid metrics socket address")
+            .map_err(|e| anyhow::anyhow!("Invalid metrics socket address '{}:{}': {}", self.host, self.observability.metrics_port, e))
     }
 
     /// Check if in development mode

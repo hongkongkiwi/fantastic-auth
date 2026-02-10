@@ -44,7 +44,7 @@ struct JwtToken {
 
 impl ApnsClient {
     /// Create a new APNS client
-    pub fn new(config: &ApnsConfig) -> Self {
+    pub fn new(config: &ApnsConfig) -> Result<Self, PushMfaError> {
         let base_url = if config.use_sandbox {
             APNS_SANDBOX.to_string()
         } else {
@@ -58,14 +58,14 @@ impl ApnsClient {
             .pool_max_idle_per_host(10)
             .pool_idle_timeout(Duration::from_secs(600))
             .build()
-            .expect("Failed to build HTTP client");
+            .map_err(|e| PushMfaError::Configuration(format!("Failed to build HTTP client: {}", e)))?;
 
         let initial_jwt = JwtToken {
             token: String::new(),
             issued_at: 0,
         };
 
-        Self {
+        Ok(Self {
             key_id: config.key_id.clone(),
             team_id: config.team_id.clone(),
             bundle_id: config.bundle_id.clone(),
@@ -73,7 +73,7 @@ impl ApnsClient {
             base_url,
             http_client,
             jwt_token: std::sync::Arc::new(tokio::sync::RwLock::new(initial_jwt)),
-        }
+        })
     }
 
     /// Send a push notification to an iOS device

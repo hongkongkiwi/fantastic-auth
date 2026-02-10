@@ -27,22 +27,24 @@ pub struct FcmClient {
 
 impl FcmClient {
     /// Create a new FCM client
-    pub fn new(config: &FcmConfig) -> Self {
+    pub fn new(config: &FcmConfig) -> Result<Self, PushMfaError> {
         // In production, this would load service account credentials and obtain
         // an OAuth2 access token from Google's token endpoint
         // For now, we use a placeholder that should be replaced with actual token
         let access_token = std::env::var("FCM_ACCESS_TOKEN")
             .unwrap_or_else(|_| "placeholder_token".to_string());
 
-        Self {
+        let http_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .build()
+            .map_err(|e| PushMfaError::Configuration(format!("Failed to build HTTP client: {}", e)))?;
+
+        Ok(Self {
             project_id: config.project_id.clone(),
             access_token,
-            http_client: reqwest::Client::builder()
-                .timeout(Duration::from_secs(30))
-                .pool_max_idle_per_host(10)
-                .build()
-                .expect("Failed to build HTTP client"),
-        }
+            http_client,
+        })
     }
 
     /// Send a push notification to a device

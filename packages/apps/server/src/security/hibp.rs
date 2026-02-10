@@ -113,23 +113,23 @@ pub struct HibpClient {
 
 impl HibpClient {
     /// Create a new HIBP client with default configuration
-    pub fn new() -> Self {
+    pub fn new() -> Result<Self, HibpError> {
         Self::with_config(HibpConfig::default())
     }
 
     /// Create a new HIBP client with custom configuration
-    pub fn with_config(config: HibpConfig) -> Self {
+    pub fn with_config(config: HibpConfig) -> Result<Self, HibpError> {
         let http_client = reqwest::Client::builder()
             .timeout(config.timeout)
             .build()
-            .expect("Failed to build HTTP client");
+            .map_err(|e| HibpError::Network(format!("Failed to build HTTP client: {}", e)))?;
 
-        Self {
+        Ok(Self {
             config,
             cache: Arc::new(RwLock::new(HashMap::new())),
             last_request: Arc::new(RwLock::new(None)),
             http_client,
-        }
+        })
     }
 
     /// Check if a password has been breached
@@ -327,11 +327,8 @@ impl HibpClient {
     }
 }
 
-impl Default for HibpClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// Note: Default is not implemented for HibpClient because it can fail.
+// Use HibpClient::new() or HibpClient::with_config() and handle the Result.
 
 /// Cache statistics
 #[derive(Debug, Clone)]

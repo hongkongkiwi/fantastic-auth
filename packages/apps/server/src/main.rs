@@ -55,17 +55,27 @@ async fn main() -> anyhow::Result<()> {
 /// Handle shutdown signals
 async fn shutdown_signal() {
     let ctrl_c = async {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Failed to install Ctrl+C handler");
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {},
+            Err(e) => {
+                error!("Failed to install Ctrl+C handler: {}", e);
+                // Continue anyway, we'll exit on other signals or naturally
+            }
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-            .expect("Failed to install signal handler")
-            .recv()
-            .await;
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut stream) => {
+                stream.recv().await;
+            }
+            Err(e) => {
+                error!("Failed to install SIGTERM handler: {}", e);
+                // Wait indefinitely if we can't install the handler
+                std::future::pending::<()>().await;
+            }
+        }
     };
 
     #[cfg(not(unix))]
