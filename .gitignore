@@ -2,12 +2,19 @@
 # OS / Editor
 # -----------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+ehthumbs.db
 .idea/
-.vscode/*
-!.vscode/extensions.json
+**/.idea/
+**/.vscode/*
+!/.vscode/extensions.json
 *.swp
 *.swo
+*~
 *.tmp
 *.temp
 
@@ -29,13 +36,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
-# -----------------------------
-# Rust / Cargo
-# -----------------------------
-/target/
-**/target/
-**/*.rs.bk
 
 # -----------------------------
 # JavaScript / TypeScript / Node
@@ -66,10 +66,104 @@ lerna-debug.log*
 **/.vitest/
 **/playwright-report/
 **/test-results/
-**/.pytest_cache/
 
 # TypeScript incremental state
 **/*.tsbuildinfo
+
+# Repository JS package manager policy
+**/package-lock.json
+**/yarn.lock
+
+# -----------------------------
+# Python
+# -----------------------------
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.python-version
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+
+# -----------------------------
+# Rust / Cargo
+# -----------------------------
+/target/
+**/target/
+**/*.rs.bk
+
+# -----------------------------
+# Go
+# -----------------------------
+bin/
+.coverprofile
+*.test
+
+# -----------------------------
+# Java / Kotlin / Gradle / Android
+# -----------------------------
+.gradle/
+**/.gradle/
+**/build/
+*.iml
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# -----------------------------
+# Apple / Swift / Xcode
+# -----------------------------
+DerivedData/
+.build/
+*.xcworkspace
+xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+
+# -----------------------------
+# Flutter / Dart
+# -----------------------------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.packages
+
+# -----------------------------
+# Terraform / OpenTofu
+# -----------------------------
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
 
 # -----------------------------
 # Generated SDK/docs artifacts
